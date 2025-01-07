@@ -1,6 +1,76 @@
 import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
+// Detailed Math Card Component
+const DetailedMathCard = ({ data, showBuying }) => {
+  if (!data) return null;
+  
+  const formatCurrency = (num) => `$${Math.abs(num).toLocaleString()}`;
+  
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm">
+      <h3 className="font-medium mb-3">Detailed Calculations - Year {data.year}</h3>
+      
+      {showBuying ? (
+        <>
+          <div className="space-y-2">
+            <h4 className="font-medium text-blue-600">Buying Scenario</h4>
+            <div className="pl-4 space-y-1">
+              <div>Home Value: {formatCurrency(data.homeValue)}</div>
+              <div>Remaining Mortgage: {formatCurrency(data.remainingLoan)}</div>
+              <div>Home Equity: {formatCurrency(data.homeEquity)}</div>
+              <div className="text-xs text-gray-500 pl-2">
+                = Home Value - Remaining Mortgage
+              </div>
+              
+              <div className="mt-2">Investment Portfolio: {formatCurrency(data.investmentsBuying)}</div>
+              <div className="text-xs text-gray-500 pl-2">
+                = Previous Investments × (1 + {data.investmentReturn}%) + New Investments
+              </div>
+              
+              <div className="mt-2 font-medium">Total Net Worth: {formatCurrency(data.buying)}</div>
+              <div className="text-xs text-gray-500 pl-2">
+                = Home Equity + Investment Portfolio
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="space-y-2">
+            <h4 className="font-medium text-green-600">Renting Scenario</h4>
+            <div className="pl-4 space-y-1">
+              <div>Investment Portfolio: {formatCurrency(data.investmentsRenting)}</div>
+              <div className="text-xs text-gray-500 pl-2">
+                = Previous Investments × (1 + {data.investmentReturn}%) + New Investments
+              </div>
+              
+              <div className="mt-2">Annual Rent Costs: {formatCurrency(data.annualRentCosts)}</div>
+              <div className="text-xs text-gray-500 pl-2">
+                = Monthly Rent × 12 + Monthly Utilities × 12 + Insurance × 12
+              </div>
+              
+              <div className="mt-2 font-medium">Total Net Worth: {formatCurrency(data.renting)}</div>
+              <div className="text-xs text-gray-500 pl-2">
+                = Investment Portfolio
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+      
+      <div className="mt-4 pt-2 border-t">
+        <div className="text-xs text-gray-600">
+          <div>Annual Salary: {formatCurrency(data.salary)}</div>
+          <div>Investment Rate: {data.investmentRate}%</div>
+          <div>Annual Investment: {formatCurrency(data.salary * data.investmentRate / 100)}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 const HousingCalculator = () => {
   const [annualSalary, setAnnualSalary] = useState(350000);
   const [investmentRate, setInvestmentRate] = useState(20);
@@ -16,154 +86,173 @@ const HousingCalculator = () => {
   const [monthlyRentUtilities, setMonthlyRentUtilities] = useState(150);
   const [monthlyPropertyUtilities, setMonthlyPropertyUtilities] = useState(200);
   const [homeAppreciation, setHomeAppreciation] = useState(3);
-  const [investmentReturn, setInvestmentReturn] = useState(11);
+  const [investmentReturn, setInvestmentReturn] = useState(8);
   const [rentIncrease, setRentIncrease] = useState(3);
   const [salaryGrowthRate, setSalaryGrowthRate] = useState(3);
   const [xAxisYears, setXAxisYears] = useState(10);
+  const [activePoint, setActivePoint] = useState(null);
+  const [monthlyRentalIncome, setMonthlyRentalIncome] = useState(0); // New rental income variable
 
   const INSURANCE_RATE = 0.005;
   const MAINTENANCE_RATE = 0.01;
   const PMI_RATE = 0.01;
   const YEARS = 30;
 
-  // Monthly costs calculation remains the same as it was correct
-const calculateMonthlyCosts = (price, downPercent, mortRate) => {
-  const downPayment = price * (downPercent / 100);
-  const loanAmount = price - downPayment;
-  const monthlyRate = mortRate / 100 / 12;
-  const numPayments = YEARS * 12;
-  
-  const monthlyMortgage = loanAmount * 
-    (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
-    (Math.pow(1 + monthlyRate, numPayments) - 1);
-  
-  const monthlyPropertyTax = (price * (propertyTaxRate / 100)) / 12;
-  const monthlyInsurance = (price * INSURANCE_RATE) / 12;
-  const monthlyMaintenance = (price * MAINTENANCE_RATE) / 12;
-  const monthlyPMI = downPercent < 20 ? (loanAmount * PMI_RATE) / 12 : 0;
-  
-  return {
-    total: monthlyMortgage + monthlyPropertyTax + monthlyInsurance + 
-           monthlyMaintenance + monthlyPMI + monthlyPropertyUtilities,
-    breakdown: {
-      mortgage: monthlyMortgage,
-      tax: monthlyPropertyTax,
-      insurance: monthlyInsurance,
-      maintenance: monthlyMaintenance,
-      pmi: monthlyPMI,
-      utilities: monthlyPropertyUtilities
-    }
+  // Monthly costs calculation remains the same
+  const calculateMonthlyCosts = (price, downPercent, mortRate) => {
+    const downPayment = price * (downPercent / 100);
+    const loanAmount = price - downPayment;
+    const monthlyRate = mortRate / 100 / 12;
+    const numPayments = YEARS * 12;
+    
+    const monthlyMortgage = loanAmount * 
+      (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
+      (Math.pow(1 + monthlyRate, numPayments) - 1);
+    
+    const monthlyPropertyTax = (price * (propertyTaxRate / 100)) / 12;
+    const monthlyInsurance = (price * INSURANCE_RATE) / 12;
+    const monthlyMaintenance = (price * MAINTENANCE_RATE) / 12;
+    const monthlyPMI = downPercent < 20 ? (loanAmount * PMI_RATE) / 12 : 0;
+    
+    return {
+      total: monthlyMortgage + monthlyPropertyTax + monthlyInsurance + 
+             monthlyMaintenance + monthlyPMI + monthlyPropertyUtilities,
+      breakdown: {
+        mortgage: monthlyMortgage,
+        tax: monthlyPropertyTax,
+        insurance: monthlyInsurance,
+        maintenance: monthlyMaintenance,
+        pmi: monthlyPMI,
+        utilities: monthlyPropertyUtilities
+      }
+    };
   };
-};
 
-const projectionData = useMemo(() => {
-  const data = [];
-  
-  // Calculate initial costs for buying
-  const downPayment = homePrice * (downPaymentPercent / 100);
-  const closingCosts = homePrice * (closingCostPercent / 100);
-  const initialCostsBuying = downPayment + closingCosts + movingCost;
-  
-  // Initial positions - money available for investment
-  let buyingNetWorth = initialInvestment - initialCostsBuying;
-  let rentingNetWorth = initialInvestment - movingCost;
-  
-  // Track home-related values
-  let currentHomeValue = homePrice;
-  let currentRent = monthlyRent;
-  let currentSalary = annualSalary;
-  let loanAmount = homePrice - downPayment;
-  
-  // Calculate fixed monthly mortgage payment
-  const monthlyRate = (mortgageRate / 100) / 12;
-  const numPayments = YEARS * 12;
-  const monthlyMortgagePayment = loanAmount * 
-    (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
-    (Math.pow(1 + monthlyRate, numPayments) - 1);
-  
-  for (let year = 0; year <= YEARS; year++) {
-    // Calculate monthly costs for both scenarios
-    const monthlyPropertyTax = (currentHomeValue * (propertyTaxRate / 100)) / 12;
-    const monthlyInsurance = (currentHomeValue * INSURANCE_RATE) / 12;
-    const monthlyMaintenance = (currentHomeValue * MAINTENANCE_RATE) / 12;
-    const monthlyPMI = downPaymentPercent < 20 ? (loanAmount * PMI_RATE) / 12 : 0;
+  const projectionData = useMemo(() => {
+    const data = [];
     
-    const totalMonthlyHomeCosts = 
-      monthlyMortgagePayment + 
-      monthlyPropertyTax + 
-      monthlyInsurance + 
-      monthlyMaintenance + 
-      monthlyPMI + 
-      monthlyPropertyUtilities;
+    // Calculate initial costs for buying
+    const downPayment = homePrice * (downPaymentPercent / 100);
+    const closingCosts = homePrice * (closingCostPercent / 100);
+    const initialCostsBuying = downPayment + closingCosts + movingCost;
+    
+    // Initial positions
+    let buyingNetWorth = initialInvestment - initialCostsBuying;
+    let rentingNetWorth = initialInvestment - movingCost;
+    
+    // Track home-related values
+    let currentHomeValue = homePrice;
+    let currentRent = monthlyRent;
+    let currentSalary = annualSalary;
+    let remainingLoanBalance = homePrice - downPayment;
+    let currentRentalIncome = monthlyRentalIncome; // Track rental income
+    
+    // Calculate fixed monthly mortgage payment
+    const monthlyRate = (mortgageRate / 100) / 12;
+    const numPayments = YEARS * 12;
+    const monthlyMortgagePayment = remainingLoanBalance * 
+      (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
+      (Math.pow(1 + monthlyRate, numPayments) - 1);
+    
+    for (let year = 0; year <= YEARS; year++) {
+      // Calculate monthly costs for both scenarios
+      const monthlyPropertyTax = (currentHomeValue * (propertyTaxRate / 100)) / 12;
+      const monthlyInsurance = (currentHomeValue * INSURANCE_RATE) / 12;
+      const monthlyMaintenance = (currentHomeValue * MAINTENANCE_RATE) / 12;
+      const monthlyPMI = downPaymentPercent < 20 ? (remainingLoanBalance * PMI_RATE) / 12 : 0;
+      
+      const totalMonthlyHomeCosts = 
+        monthlyMortgagePayment + 
+        monthlyPropertyTax + 
+        monthlyInsurance + 
+        monthlyMaintenance + 
+        monthlyPMI + 
+        monthlyPropertyUtilities;
 
-    const totalMonthlyRentCosts = 
-      currentRent + 
-      monthlyRenterInsurance + 
-      monthlyRentUtilities;
+      // Subtract rental income from home costs
+      const netMonthlyHomeCosts = totalMonthlyHomeCosts - currentRentalIncome;
 
-    if (year > 0) {
-      // Salary growth and new savings calculation
-      currentSalary *= (1 + salaryGrowthRate / 100);
-      const annualSavings = currentSalary * (investmentRate / 100);
+      const totalMonthlyRentCosts = 
+        currentRent + 
+        monthlyRenterInsurance + 
+        monthlyRentUtilities;
+
+      if (year > 0) {
+        // Salary growth and new savings calculation
+        currentSalary *= (1 + salaryGrowthRate / 100);
+        const annualSavings = currentSalary * (investmentRate / 100);
+        
+        // Home value appreciation
+        const previousHomeValue = currentHomeValue;
+        currentHomeValue *= (1 + homeAppreciation / 100);
+        const yearlyHomeAppreciation = currentHomeValue - previousHomeValue;
+        
+        // Calculate mortgage principal paydown for the year
+        let yearlyPrincipalPaydown = 0;
+        let previousLoanBalance = remainingLoanBalance;
+        
+        // Calculate monthly principal payments for the year
+        for (let month = 0; month < 12; month++) {
+          const monthlyInterest = previousLoanBalance * monthlyRate;
+          const monthlyPrincipal = monthlyMortgagePayment - monthlyInterest;
+          yearlyPrincipalPaydown += monthlyPrincipal;
+          previousLoanBalance -= monthlyPrincipal;
+        }
+        
+        remainingLoanBalance = previousLoanBalance;
+        
+        // Buying scenario investments (after housing costs, considering rental income)
+        const annualHousingCosts = netMonthlyHomeCosts * 12;
+        const buyingInvestmentAmount = Math.max(0, annualSavings - annualHousingCosts);
+        
+        // Investment returns for buying scenario
+        const previousBuyingInvestments = buyingNetWorth - (currentHomeValue - remainingLoanBalance);
+        
+        // Update buying net worth
+        buyingNetWorth = 
+          previousBuyingInvestments * (1 + investmentReturn / 100) + // Existing investments grow
+          buyingInvestmentAmount + // New investments (after housing costs)
+          yearlyHomeAppreciation + // Home appreciation
+          yearlyPrincipalPaydown; // Equity from mortgage paydown
+        
+        buyingNetWorth += (currentHomeValue - remainingLoanBalance);
+        
+        // Rental income increases with rent inflation
+        currentRentalIncome *= (1 + rentIncrease / 100);
+        
+        // Renting scenario
+        const annualRentCosts = totalMonthlyRentCosts * 12;
+        const rentingInvestmentAmount = annualSavings - annualRentCosts;
+        
+        currentRent *= (1 + rentIncrease / 100);
+        rentingNetWorth = 
+          rentingNetWorth * (1 + investmentReturn / 100) + // Investment growth
+          rentingInvestmentAmount; // New investments (after rent costs)
+      }
       
-      // Home value appreciation
-      const previousHomeValue = currentHomeValue;
-      currentHomeValue *= (1 + homeAppreciation / 100);
-      const yearlyHomeAppreciation = currentHomeValue - previousHomeValue;
-      
-      // Calculate mortgage principal paydown
-      const monthlyInterestRate = mortgageRate / 100 / 12;
-      const remainingPayments = (YEARS - year) * 12;
-      const previousLoanAmount = loanAmount;
-      loanAmount = monthlyMortgagePayment * 
-        ((1 - Math.pow(1 + monthlyInterestRate, -remainingPayments)) / monthlyInterestRate);
-      loanAmount = Math.max(0, loanAmount);
-      const principalPaydown = previousLoanAmount - loanAmount;
-      
-      // Investment returns and costs for buying scenario
-      const previousBuyingInvestments = buyingNetWorth - (currentHomeValue - loanAmount);
-      const buyingInvestmentReturns = previousBuyingInvestments * (investmentReturn / 100);
-      
-      // Update buying net worth:
-      // 1. Previous investments grow at investment return rate
-      // 2. Add new savings
-      // 3. Subtract housing costs
-      // 4. Add home appreciation
-      // 5. Add principal paydown
-      buyingNetWorth = 
-        previousBuyingInvestments * (1 + investmentReturn / 100) + // Investment growth
-        annualSavings - // New savings
-        (totalMonthlyHomeCosts * 12) + // Annual housing costs
-        yearlyHomeAppreciation + // Home appreciation
-        principalPaydown; // Equity from mortgage paydown
-      
-      // Add current home equity
-      buyingNetWorth += (currentHomeValue - loanAmount);
-      
-      // Renting scenario
-      // 1. Previous investments grow at investment return rate
-      // 2. Add new savings
-      // 3. Subtract rental costs
-      currentRent *= (1 + rentIncrease / 100);
-      rentingNetWorth = 
-        rentingNetWorth * (1 + investmentReturn / 100) + // Investment growth
-        annualSavings - // New savings
-        (totalMonthlyRentCosts * 12); // Annual rental costs
+      data.push({
+        year,
+        buying: Math.round(buyingNetWorth),
+        renting: Math.round(rentingNetWorth),
+        salary: Math.round(currentSalary),
+        homeEquity: Math.round(currentHomeValue - remainingLoanBalance),
+        investmentsBuying: Math.round(buyingNetWorth - (currentHomeValue - remainingLoanBalance)),
+        investmentsRenting: Math.round(rentingNetWorth),
+        homeValue: Math.round(currentHomeValue),
+        remainingLoan: Math.round(remainingLoanBalance),
+        investmentRate,
+        investmentReturn,
+        annualRentCosts: Math.round(totalMonthlyRentCosts * 12),
+        monthlyRentalIncome: Math.round(currentRentalIncome) // Add rental income to data
+      });
     }
     
-    data.push({
-      year,
-      buying: Math.round(buyingNetWorth),
-      renting: Math.round(rentingNetWorth),
-      salary: Math.round(currentSalary)
-    });
-  }
-  
-  return data;
-}, [homePrice, downPaymentPercent, mortgageRate, propertyTaxRate, monthlyRent,
-    homeAppreciation, investmentReturn, rentIncrease, closingCostPercent,
-    monthlyRenterInsurance, monthlyRentUtilities, monthlyPropertyUtilities,
-    salaryGrowthRate, initialInvestment, annualSalary, investmentRate]);
+    return data;
+  }, [homePrice, downPaymentPercent, mortgageRate, propertyTaxRate, monthlyRent,
+      homeAppreciation, investmentReturn, rentIncrease, closingCostPercent,
+      monthlyRenterInsurance, monthlyRentUtilities, monthlyPropertyUtilities,
+      salaryGrowthRate, initialInvestment, annualSalary, investmentRate,
+      monthlyRentalIncome]); // Add monthlyRentalIncome to dependencies
 
   const Input = ({ label, value, onChange, min, max, step, suffix = "" }) => (
     <div className="mb-6">
@@ -184,21 +273,20 @@ const projectionData = useMemo(() => {
   );
 
   const monthlyCosts = calculateMonthlyCosts(homePrice, downPaymentPercent, mortgageRate);
-  const breakEvenYear = projectionData.find(point => point.buying > point.renting)?.year;
 
-  return (
+return (
     <div className="min-h-screen bg-white p-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <h1 className="text-2xl font-light text-gray-800 mb-4">Net Worth Calculator: Buy vs. Rent</h1>
           <p className="text-sm text-gray-600 mb-2">The graph shows total net worth over time:</p>
           <ul className="text-sm text-gray-600 list-disc pl-5">
-            <li className="mb-1"><span className="text-blue-500 font-medium">Buy Property</span>: Home equity + Investment portfolio ({investmentRate}% of salary invested) - Mortgage & costs</li>
+            <li className="mb-1"><span className="text-blue-500 font-medium">Buy Property & Invest</span>: Home equity + Investment portfolio ({investmentRate}% of salary invested) - Mortgage & costs + Rental income</li>
             <li className="mb-1"><span className="text-green-500 font-medium">Rent & Invest</span>: Investment portfolio ({investmentRate}% of salary invested) - Rental costs</li>
           </ul>
         </div>
         
-        {/* Input Cards Grid - Now in a row at the top */}
+        {/* Input Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           {/* Financial Parameters Card */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -235,7 +323,9 @@ const projectionData = useMemo(() => {
           {/* Property Details Card */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-medium mb-4">Property Details</h2>
-            <Input
+            
+            {/* Purchase Related */}
+            <Input 
               label="Home Price"
               value={homePrice}
               onChange={setHomePrice}
@@ -244,7 +334,7 @@ const projectionData = useMemo(() => {
               step={10000}
               suffix="$"
             />
-            <Input
+            <Input 
               label="Down Payment"
               value={downPaymentPercent}
               onChange={setDownPaymentPercent}
@@ -253,7 +343,18 @@ const projectionData = useMemo(() => {
               step={1}
               suffix="%"
             />
-            <Input
+            <Input 
+              label="Closing Cost"
+              value={closingCostPercent}
+              onChange={setClosingCostPercent}
+              min={0}
+              max={6}
+              step={0.1}
+              suffix="%"
+            />
+            
+            {/* Monthly Costs */}
+            <Input 
               label="Mortgage Rate"
               value={mortgageRate}
               onChange={setMortgageRate}
@@ -262,7 +363,7 @@ const projectionData = useMemo(() => {
               step={0.1}
               suffix="%"
             />
-            <Input
+            <Input 
               label="Property Tax Rate"
               value={propertyTaxRate}
               onChange={setPropertyTaxRate}
@@ -270,6 +371,25 @@ const projectionData = useMemo(() => {
               max={3}
               step={0.1}
               suffix="%"
+            />
+            <Input 
+              label="Monthly Property Utilities"
+              value={monthlyPropertyUtilities}
+              onChange={setMonthlyPropertyUtilities}
+              min={0}
+              max={500}
+              step={10}
+              suffix="$"
+            />
+            {/* New Rental Income Input */}
+            <Input 
+              label="Monthly Rental Income (After Tax)"
+              value={monthlyRentalIncome}
+              onChange={setMonthlyRentalIncome}
+              min={0}
+              max={10000}
+              step={100}
+              suffix="$"
             />
           </div>
 
@@ -308,7 +428,9 @@ const projectionData = useMemo(() => {
           {/* Growth Assumptions Card */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-medium mb-4">Growth Assumptions</h2>
-            <Input
+            
+            {/* Timeline */}
+            <Input 
               label="Graph Timeline"
               value={xAxisYears}
               onChange={setXAxisYears}
@@ -317,7 +439,9 @@ const projectionData = useMemo(() => {
               step={1}
               suffix=" years"
             />
-            <Input
+            
+            {/* Asset Growth */}
+            <Input 
               label="Home Appreciation"
               value={homeAppreciation}
               onChange={setHomeAppreciation}
@@ -326,7 +450,7 @@ const projectionData = useMemo(() => {
               step={0.5}
               suffix="%"
             />
-            <Input
+            <Input 
               label="Investment Return"
               value={investmentReturn}
               onChange={setInvestmentReturn}
@@ -335,7 +459,9 @@ const projectionData = useMemo(() => {
               step={0.5}
               suffix="%"
             />
-            <Input
+            
+            {/* Cost Increases */}
+            <Input 
               label="Rent Increase"
               value={rentIncrease}
               onChange={setRentIncrease}
@@ -344,97 +470,143 @@ const projectionData = useMemo(() => {
               step={0.5}
               suffix="%"
             />
+            <Input 
+              label="Salary Growth Rate"
+              value={salaryGrowthRate}
+              onChange={setSalaryGrowthRate}
+              min={0}
+              max={10}
+              step={0.5}
+              suffix="%"
+            />
           </div>
         </div>
 
-        {/* Graph Section - Now full width below the cards */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="h-96 mb-8">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart 
-                data={projectionData.slice(0, xAxisYears + 1)} 
-                margin={{ top: 30, right: 30, left: 60, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis 
-                  dataKey="year" 
-                  stroke="#666"
-                  label={{ value: 'Years', position: 'insideBottom', offset: -5 }}
-                  domain={[0, xAxisYears]}
-                />
-                <YAxis
-                  stroke="#666"
-                  tickFormatter={(value) => `$${Math.abs(value / 1000)}k`}
-                  label={{ 
-                    value: 'Net Worth', 
-                    angle: -90,
-                    position: 'insideLeft',
-                    offset: -45
+        {/* Graph Section with Math Details */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="h-96">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart 
+                  data={projectionData.slice(0, xAxisYears + 1)} 
+                  margin={{ top: 30, right: 30, left: 60, bottom: 5 }}
+                  onMouseMove={(e) => {
+                    if (e.activePayload) {
+                      setActivePoint(e.activePayload[0].payload);
+                    }
                   }}
-                />
-                <Tooltip
-                  formatter={(value) => [`$${Math.abs(value).toLocaleString()}`, value < 0 ? 'Initial Investment/Costs' : 'Net Worth']}
-                  labelFormatter={(value) => `Year ${value}`}
-                />
-                <Legend 
-                  verticalAlign="top" 
-                  height={36}
-                  formatter={(value) => {
-                    return value === "buying" ? "Buy Property" : "Rent & Invest";
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="buying"
-                  name="buying"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="renting"
-                  name="renting"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+                  onMouseLeave={() => setActivePoint(null)}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="year" 
+                    stroke="#666"
+                    label={{ value: 'Years', position: 'insideBottom', offset: -5 }}
+                    domain={[0, xAxisYears]}
+                  />
+                  <YAxis
+                    stroke="#666"
+                    tickFormatter={(value) => `${Math.abs(value / 1000)}k`}
+                    label={{ 
+                      value: 'Net Worth', 
+                      angle: -90,
+                      position: 'insideLeft',
+                      offset: -45
+                    }}
+                  />
+                  <Tooltip
+                    formatter={(value) => [`${Math.abs(value).toLocaleString()}`, value < 0 ? 'Initial Investment/Costs' : 'Net Worth']}
+                    labelFormatter={(value) => `Year ${value}`}
+                  />
+                  <Legend 
+                    verticalAlign="top" 
+                    height={36}
+                    formatter={(value) => {
+                      return value === "buying" ? "Buy Property & Invest" : "Rent & Invest";
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="buying"
+                    name="buying"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="renting"
+                    name="renting"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            
+            <div className="text-center text-gray-600 mt-4">
+  {(() => {
+    const findBreakEvenYear = () => {
+      for (let i = 0; i < projectionData.length; i++) {
+        if (projectionData[i].buying > projectionData[i].renting) {
+          return i;
+        }
+      }
+      return null;
+    };
+    
+    const breakEvenYear = findBreakEvenYear();
+    const finalDifference = projectionData[xAxisYears].buying - projectionData[xAxisYears].renting;
+    
+    return breakEvenYear !== null
+      ? `In year ${breakEvenYear}, buying becomes better than renting. By year ${xAxisYears}, you'll have $${Math.abs(finalDifference).toLocaleString()} more by buying.`
+      : `Renting stays better for all ${xAxisYears} years. By the end, you'll have $${Math.abs(finalDifference).toLocaleString()} more by renting.`;
+  })()}
+</div>
           </div>
-
-          <div className="text-center text-gray-600 mb-6">
-          {breakEvenYear ? 
-              `Based on current assumptions, buying this property will become more financially advantageous than renting after ${breakEvenYear} years.` :
-              `Based on current assumptions, ${projectionData[xAxisYears].renting < projectionData[xAxisYears].buying ? 'renting' : 'buying'} remains more financially advantageous throughout the ${xAxisYears}-year period.`}
+          
+          <div className="space-y-4">
+            <DetailedMathCard 
+              data={activePoint || projectionData[0]} 
+              showBuying={true}
+            />
+            <DetailedMathCard 
+              data={activePoint || projectionData[0]} 
+              showBuying={false}
+            />
           </div>
+        </div>
 
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <h3 className="font-medium mb-2">Monthly Costs (Buying)</h3>
-              <div className="space-y-1 text-gray-600">
-                <div>Mortgage: ${Math.round(monthlyCosts.breakdown.mortgage).toLocaleString()}</div>
-                <div>Property Tax: ${Math.round(monthlyCosts.breakdown.tax).toLocaleString()}</div>
-                <div>Insurance: ${Math.round(monthlyCosts.breakdown.insurance).toLocaleString()}</div>
-                <div>Maintenance: ${Math.round(monthlyCosts.breakdown.maintenance).toLocaleString()}</div>
-                <div>Utilities: ${Math.round(monthlyCosts.breakdown.utilities).toLocaleString()}</div>
-                {monthlyCosts.breakdown.pmi > 0 && (
-                  <div>PMI: ${Math.round(monthlyCosts.breakdown.pmi).toLocaleString()}</div>
-                )}
-                <div className="font-medium text-gray-900 pt-1">
-                  Total: ${Math.round(monthlyCosts.total).toLocaleString()}
-                </div>
+        {/* Monthly Costs Breakdown */}
+        <div className="mt-6 mb-8 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div>
+            <h3 className="font-medium mb-2">Monthly Costs (Buying)</h3>
+            <div className="space-y-1 text-gray-600 text-sm">
+              <div>Mortgage: ${Math.round(monthlyCosts.breakdown.mortgage).toLocaleString()}</div>
+              <div>Property Tax: ${Math.round(monthlyCosts.breakdown.tax).toLocaleString()}</div>
+              <div>Insurance: ${Math.round(monthlyCosts.breakdown.insurance).toLocaleString()}</div>
+              <div>Maintenance: ${Math.round(monthlyCosts.breakdown.maintenance).toLocaleString()}</div>
+              <div>Utilities: ${Math.round(monthlyCosts.breakdown.utilities).toLocaleString()}</div>
+              {monthlyCosts.breakdown.pmi > 0 && (
+                <div>PMI: ${Math.round(monthlyCosts.breakdown.pmi).toLocaleString()}</div>
+              )}
+              {monthlyRentalIncome > 0 && (
+                <div className="text-green-600">Rental Income: -${monthlyRentalIncome.toLocaleString()}</div>
+              )}
+              <div className="font-medium text-gray-900 pt-1">
+                Total: ${Math.round(monthlyCosts.total - monthlyRentalIncome).toLocaleString()}
               </div>
             </div>
-            <div>
-              <h3 className="font-medium mb-2">Monthly Costs (Renting)</h3>
-              <div className="space-y-1 text-gray-600">
-                <div>Rent: ${monthlyRent.toLocaleString()}</div>
-                <div>Utilities: ${monthlyRentUtilities.toLocaleString()}</div>
-                <div>Renter's Insurance: ${monthlyRenterInsurance.toLocaleString()}</div>
-                <div className="font-medium text-gray-900 pt-1">
-                  Total: ${(monthlyRent + monthlyRentUtilities + monthlyRenterInsurance).toLocaleString()}
-                </div>
+          </div>
+          <div>
+            <h3 className="font-medium mb-2">Monthly Costs (Renting)</h3>
+            <div className="space-y-1 text-gray-600 text-sm">
+              <div>Rent: ${monthlyRent.toLocaleString()}</div>
+              <div>Utilities: ${monthlyRentUtilities.toLocaleString()}</div>
+              <div>Renter's Insurance: ${monthlyRenterInsurance.toLocaleString()}</div>
+              <div className="font-medium text-gray-900 pt-1">
+                Total: ${(monthlyRent + monthlyRentUtilities + monthlyRenterInsurance).toLocaleString()}
               </div>
             </div>
           </div>
@@ -442,6 +614,6 @@ const projectionData = useMemo(() => {
       </div>
     </div>
   );
-};
+}; // Close useCallback/useMemo
 
 export default HousingCalculator;
