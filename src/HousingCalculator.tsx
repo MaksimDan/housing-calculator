@@ -61,7 +61,7 @@ const DetailedMathCard = ({ data, showBuying }) => {
       
       <div className="mt-4 pt-2 border-t">
         <div className="text-xs text-gray-600">
-          <div>Annual Salary: {formatCurrency(data.salary)}</div>
+          <div>Annual Salary (after tax): {formatCurrency(data.salary)}</div>
           <div>Investment Rate: {data.investmentRate}%</div>
           <div>Annual Investment: {formatCurrency(data.salary * data.investmentRate / 100)}</div>
         </div>
@@ -72,7 +72,7 @@ const DetailedMathCard = ({ data, showBuying }) => {
 
 
 const HousingCalculator = () => {
-  const [annualSalary, setAnnualSalary] = useState(350000);
+  const [annualSalary, setAnnualSalary] = useState(150000);
   const [investmentRate, setInvestmentRate] = useState(20);
   const [initialInvestment, setInitialInvestment] = useState(1000000);
   const [homePrice, setHomePrice] = useState(700000);
@@ -301,7 +301,7 @@ return (
               suffix="$"
             />
             <Input
-              label="Annual Salary"
+              label="Annual Salary (after tax)"
               value={annualSalary}
               onChange={setAnnualSalary}
               min={50000}
