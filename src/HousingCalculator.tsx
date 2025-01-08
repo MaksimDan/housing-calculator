@@ -100,7 +100,7 @@ const DetailedMathCard = ({ data, showBuying }) => {
 
 const HousingCalculator = () => {
   const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = useState(350000);
-  const [effectiveTaxRate, setEffectiveTaxRate] = useState(25); // as percentage
+  const [effectiveTaxRate, setEffectiveTaxRate] = useState(40); // as percentage
   const [standardDeduction, setStandardDeduction] = useState(21900);
   const [investmentRate, setInvestmentRate] = useState(20);
   const [initialInvestment, setInitialInvestment] = useState(1000000);
