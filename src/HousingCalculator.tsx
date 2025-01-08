@@ -112,7 +112,7 @@ const HousingCalculator = () => {
   const [monthlyRenterInsurance, setMonthlyRenterInsurance] = useState(10);
   const [monthlyRentUtilities, setMonthlyRentUtilities] = useState(150);
   const [monthlyPropertyUtilities, setMonthlyPropertyUtilities] = useState(200);
-  const [homeAppreciation, setHomeAppreciation] = useState(3);
+  const [homeAppreciation, setHomeAppreciation] = useState(4);
   const [investmentReturn, setInvestmentReturn] = useState(8);
   const [rentIncrease, setRentIncrease] = useState(3);
   const [salaryGrowthRate, setSalaryGrowthRate] = useState(3);
@@ -120,7 +120,7 @@ const HousingCalculator = () => {
   const [activePoint, setActivePoint] = useState(null);
   const [monthlyRentalIncome, setMonthlyRentalIncome] = useState(0);
 
-  const ANNUAL_HOMEOWNERS_INSURANCE_RATE = 0.005;
+  const ANNUAL_HOMEOWNERS_INSURANCE_RATE = 0.0065;
   const ANNUAL_MAINTENANCE_RATE = 0.01;
   const PMI_RATE = 0.01;
   const MORTGAGE_YEARS = 30;
