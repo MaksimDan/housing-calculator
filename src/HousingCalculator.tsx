@@ -86,7 +86,7 @@ const DetailedMathCard = ({ data, showBuying }) => {
 
       <div className="mt-4 pt-2 border-t">
         <div className="text-xs text-gray-600">
-          <div>Annual Salary (after tax): {formatCurrency(data.salary)}</div>
+          <div>Annual Salary (before tax): {formatCurrency(data.salary)}</div>
           <div>Investment Rate: {data.investmentRate}%</div>
           <div>
             Annual Investment:{" "}
@@ -99,7 +99,9 @@ const DetailedMathCard = ({ data, showBuying }) => {
 };
 
 const HousingCalculator = () => {
-  const [annualSalary, setAnnualSalary] = useState(150000);
+  const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = useState(350000);
+  const [effectiveTaxRate, setEffectiveTaxRate] = useState(25); // as percentage
+  const [standardDeduction, setStandardDeduction] = useState(21900);
   const [investmentRate, setInvestmentRate] = useState(20);
   const [initialInvestment, setInitialInvestment] = useState(1000000);
   const [homePrice, setHomePrice] = useState(700000);
@@ -125,39 +127,26 @@ const HousingCalculator = () => {
   const PMI_RATE = 0.01;
   const MORTGAGE_YEARS = 30;
 
-  // Monthly costs calculation remains the same
-  const calculateMonthlyCosts = (price, downPercent, mortRate) => {
-    const downPayment = price * (downPercent / 100);
-    const loanAmount = price - downPayment;
-    const monthlyRate = mortRate / 100 / 12;
-    const numPayments = MORTGAGE_YEARS * 12;
+  // Calculate mortgage interest for a given year
+  const calculateYearlyMortgageInterest = (loanBalance, monthlyPayment, monthlyRate) => {
+    let yearlyInterest = 0;
+    let currentBalance = loanBalance;
+    
+    for (let month = 0; month < 12; month++) {
+      const monthlyInterest = currentBalance * monthlyRate;
+      yearlyInterest += monthlyInterest;
+      currentBalance -= (monthlyPayment - monthlyInterest);
+    }
+    
+    return yearlyInterest;
+  };
 
-    const monthlyMortgage =
-      (loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments))) /
-      (Math.pow(1 + monthlyRate, numPayments) - 1);
-
-    const monthlyPropertyTax = (price * (propertyTaxRate / 100)) / 12;
-    const monthlyInsurance = (price * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
-    const monthlyMaintenance = (price * ANNUAL_MAINTENANCE_RATE) / 12;
-    const monthlyPMI = downPercent < 20 ? (loanAmount * PMI_RATE) / 12 : 0;
-
-    return {
-      total:
-        monthlyMortgage +
-        monthlyPropertyTax +
-        monthlyInsurance +
-        monthlyMaintenance +
-        monthlyPMI +
-        monthlyPropertyUtilities,
-      breakdown: {
-        mortgage: monthlyMortgage,
-        tax: monthlyPropertyTax,
-        insurance: monthlyInsurance,
-        maintenance: monthlyMaintenance,
-        pmi: monthlyPMI,
-        utilities: monthlyPropertyUtilities,
-      },
-    };
+  // Calculate tax savings from itemizing vs standard deduction
+  const calculateTaxSavings = (mortgageInterest, propertyTaxes) => {
+    const itemizedDeductions = mortgageInterest + propertyTaxes;
+    // Only benefit from the amount above standard deduction
+    const deductionBenefit = Math.max(0, itemizedDeductions - standardDeduction);
+    return deductionBenefit * (effectiveTaxRate / 100);
   };
 
   const projectionData = useMemo(() => {
@@ -175,9 +164,9 @@ const HousingCalculator = () => {
     // Track home-related values
     let currentHomeValue = homePrice;
     let currentRent = monthlyRent;
-    let currentSalary = annualSalary;
+    let currentSalary = annualSalaryBeforeTax;
     let remainingLoanBalance = homePrice - downPayment;
-    let currentRentalIncome = monthlyRentalIncome; // Track rental income
+    let currentRentalIncome = monthlyRentalIncome;
 
     // Calculate fixed monthly mortgage payment
     const monthlyRate = mortgageRate / 100 / 12;
@@ -188,15 +177,25 @@ const HousingCalculator = () => {
       (Math.pow(1 + monthlyRate, numPayments) - 1);
 
     for (let year = 0; year <= MORTGAGE_YEARS; year++) {
-      // Calculate monthly costs for both scenarios
-      const monthlyPropertyTax =
-        (currentHomeValue * (propertyTaxRate / 100)) / 12;
-      const monthlyInsurance =
-        (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
-      const monthlyMaintenance =
-        (currentHomeValue * ANNUAL_MAINTENANCE_RATE) / 12;
-      const monthlyPMI =
-        downPaymentPercent < 20 ? (remainingLoanBalance * PMI_RATE) / 12 : 0;
+      // Calculate yearly mortgage interest and property taxes
+      const yearlyMortgageInterest = calculateYearlyMortgageInterest(
+        remainingLoanBalance,
+        monthlyMortgagePayment,
+        monthlyRate
+      );
+      const yearlyPropertyTaxes = currentHomeValue * (propertyTaxRate / 100);
+      
+      // Calculate tax savings
+      const yearlyTaxSavings = calculateTaxSavings(
+        yearlyMortgageInterest,
+        yearlyPropertyTaxes
+      );
+
+      // Calculate monthly costs
+      const monthlyPropertyTax = yearlyPropertyTaxes / 12;
+      const monthlyInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
+      const monthlyMaintenance = (currentHomeValue * ANNUAL_MAINTENANCE_RATE) / 12;
+      const monthlyPMI = downPaymentPercent < 20 ? (remainingLoanBalance * PMI_RATE) / 12 : 0;
 
       const totalMonthlyHomeCosts =
         monthlyMortgagePayment +
@@ -206,8 +205,9 @@ const HousingCalculator = () => {
         monthlyPMI +
         monthlyPropertyUtilities;
 
-      // Subtract rental income from home costs
-      const netMonthlyHomeCosts = totalMonthlyHomeCosts - currentRentalIncome;
+      // Subtract rental income and tax savings from home costs
+      const monthlyTaxSavings = yearlyTaxSavings / 12;
+      const netMonthlyHomeCosts = totalMonthlyHomeCosts - currentRentalIncome - monthlyTaxSavings;
 
       const totalMonthlyRentCosts =
         currentRent + monthlyRenterInsurance + monthlyRentUtilities;
@@ -236,7 +236,7 @@ const HousingCalculator = () => {
 
         remainingLoanBalance = previousLoanBalance;
 
-        // Buying scenario investments (after housing costs, considering rental income)
+        // Buying scenario investments (after housing costs, considering rental income and tax savings)
         const annualHousingCosts = netMonthlyHomeCosts * 12;
         const buyingInvestmentAmount = Math.max(
           0,
@@ -284,7 +284,8 @@ const HousingCalculator = () => {
         investmentRate,
         investmentReturn,
         annualRentCosts: Math.round(totalMonthlyRentCosts * 12),
-        monthlyRentalIncome: Math.round(currentRentalIncome), // Add rental income to data
+        monthlyRentalIncome: Math.round(currentRentalIncome),
+        yearlyTaxSavings: Math.round(yearlyTaxSavings),
       });
     }
 
@@ -304,10 +305,12 @@ const HousingCalculator = () => {
     monthlyPropertyUtilities,
     salaryGrowthRate,
     initialInvestment,
-    annualSalary,
+    annualSalaryBeforeTax,
+    effectiveTaxRate,
     investmentRate,
+    standardDeduction,
     monthlyRentalIncome,
-  ]); // Add monthlyRentalIncome to dependencies
+  ]);
 
   const Input = ({ label, value, onChange, min, max, step, suffix = "" }) => (
     <div className="mb-6">
@@ -328,12 +331,6 @@ const HousingCalculator = () => {
         className="w-full h-1 bg-gray-200 rounded-full appearance-none cursor-pointer"
       />
     </div>
-  );
-
-  const monthlyCosts = calculateMonthlyCosts(
-    homePrice,
-    downPaymentPercent,
-    mortgageRate
   );
 
   return (
@@ -377,12 +374,30 @@ const HousingCalculator = () => {
               suffix="$"
             />
             <Input
-              label="Annual Salary (after tax)"
-              value={annualSalary}
-              onChange={setAnnualSalary}
+              label="Annual Salary (before tax)"
+              value={annualSalaryBeforeTax}
+              onChange={setAnnualSalaryBeforeTax}
               min={50000}
               max={2000000}
               step={10000}
+              suffix="$"
+            />
+            <Input
+              label="Effective tax rate (percentage)"
+              value={effectiveTaxRate}
+              onChange={setEffectiveTaxRate}
+              min={1}
+              max={100}
+              step={1}
+              suffix="%"
+            />
+            <Input
+              label="Standard Deduction"
+              value={standardDeduction}
+              onChange={setStandardDeduction}
+              min={10000}
+              max={40000}
+              step={100}
               suffix="$"
             />
             <Input
