@@ -111,6 +111,7 @@ const HousingCalculator = () => {
   const [homePrice, setHomePrice] = useState(700000);
   const [downPaymentPercent, setDownPaymentPercent] = useState(20);
   const [mortgageRate, setMortgageRate] = useState(6.5); // annual interest rate
+  const [PMIRate, setPMIRate] = useState(1); // % of loan amount if down payment < 20%
   const [propertyTaxRate, setPropertyTaxRate] = useState(1.2); // annual rate
   const [monthlyRent, setMonthlyRent] = useState(2000);
   const [closingCostPercent, setClosingCostPercent] = useState(3);
@@ -136,7 +137,6 @@ const HousingCalculator = () => {
   // === FIXED RATES (annual) ===
   const ANNUAL_HOMEOWNERS_INSURANCE_RATE = 0.0065; // 0.65% of home value
   const ANNUAL_MAINTENANCE_RATE = 0.01; // 1% of home value
-  const PMI_RATE = 0.01; // 1% of loan amount if down payment < 20%
   const MORTGAGE_YEARS = 30;
 
   // Calculate mortgage payment breakdown for a given year
@@ -218,7 +218,7 @@ const HousingCalculator = () => {
       const monthlyPropertyTax = yearlyPropertyTaxes / 12;
       const monthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
       const monthlyMaintenance = (currentHomeValue * ANNUAL_MAINTENANCE_RATE) / 12;
-      const monthlyPMI = downPaymentPercent < 20 ? (mortgageBalance * PMI_RATE) / 12 : 0;
+      const monthlyPMI = downPaymentPercent < 20 ? (mortgageBalance * PMIRate / 100) / 12 : 0;
 
       const totalMonthlyHomeownerCosts =
         monthlyMortgagePayment +
@@ -327,7 +327,8 @@ const HousingCalculator = () => {
     standardDeduction,
     monthlyRentalIncome,
     movingCost,
-    rentDeposit
+    rentDeposit,
+    PMIRate
   ]);
 
   const Input = ({ label, value, onChange, min, max, step, suffix = "" }) => (
@@ -470,6 +471,15 @@ const HousingCalculator = () => {
               min={0}
               max={10}
               step={0.1}
+              suffix="%"
+            />
+            <Input
+              label="PMI Rate"
+              value={PMIRate}
+              onChange={setPMIRate}
+              min={0}
+              max={100}
+              step={1}
               suffix="%"
             />
             <Input
