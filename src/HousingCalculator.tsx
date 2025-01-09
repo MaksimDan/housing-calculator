@@ -114,7 +114,8 @@ const HousingCalculator = () => {
   const [propertyTaxRate, setPropertyTaxRate] = useState(1.2); // annual rate
   const [monthlyRent, setMonthlyRent] = useState(2000);
   const [closingCostPercent, setClosingCostPercent] = useState(3);
-  const [movingCost] = useState(2000);
+  const [movingCost, setMovingCost] = useState(2000);
+  const [rentDeposit, setRentDeposit] = useState(500); // Security deposit for renting apartment
   
   // Monthly costs
   const [monthlyRenterInsurance, setMonthlyRenterInsurance] = useState(10);
@@ -141,28 +142,23 @@ const HousingCalculator = () => {
   // Calculate mortgage payment breakdown for a given year
   // Returns both principal (builds equity) and interest (lost money)
   const calculateYearlyMortgageBreakdown = (loanBalance, monthlyPayment, monthlyRate) => {
-    let yearlyInterestPaid = 0; // Total interest paid this year (lost money)
-    let yearlyPrincipalPaid = 0; // Total principal paid this year (builds equity)
+    let yearlyInterestPaid = 0;
+    let yearlyPrincipalPaid = 0;
     let currentBalance = loanBalance;
     
     for (let month = 0; month < 12; month++) {
-      // Calculate this month's interest (lost money)
       const monthlyInterestPaid = currentBalance * monthlyRate;
-      
-      // Calculate this month's principal payment (builds equity)
       const monthlyPrincipalPaid = monthlyPayment - monthlyInterestPaid;
       
-      // Add to yearly totals
       yearlyInterestPaid += monthlyInterestPaid;
       yearlyPrincipalPaid += monthlyPrincipalPaid;
       
-      // Update loan balance for next month
       currentBalance -= monthlyPrincipalPaid;
     }
     
     return {
-      yearlyInterestPaid, // Lost money
-      yearlyPrincipalPaid, // Equity gained
+      yearlyInterestPaid,
+      yearlyPrincipalPaid,
       endingBalance: currentBalance
     };
   };
@@ -170,7 +166,6 @@ const HousingCalculator = () => {
   // Calculate tax savings from mortgage interest and property tax deductions
   const calculateTaxSavings = (mortgageInterest, propertyTaxes) => {
     const totalItemizedDeductions = mortgageInterest + propertyTaxes;
-    // Only benefit from amount above standard deduction
     const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - standardDeduction);
     return extraDeductionBenefit * (effectiveTaxRate / 100);
   };
@@ -185,7 +180,7 @@ const HousingCalculator = () => {
 
     // === STARTING FINANCIAL POSITIONS ===
     let buyingNetWorth = initialInvestment - totalUpfrontCosts;
-    let rentingNetWorth = initialInvestment - movingCost;
+    let rentingNetWorth = initialInvestment - rentDeposit; 
 
     // === TRACK VALUES THAT CHANGE YEARLY ===
     let currentHomeValue = homePrice;
@@ -194,7 +189,7 @@ const HousingCalculator = () => {
     let mortgageBalance = homePrice - downPaymentAmount;
     let currentMonthlyRentalIncome = monthlyRentalIncome;
 
-    // Calculate fixed monthly mortgage payment (stays constant over loan term)
+    // Calculate fixed monthly mortgage payment
     const monthlyInterestRate = mortgageRate / 100 / 12;
     const totalMonthlyPayments = MORTGAGE_YEARS * 12;
     const monthlyMortgagePayment =
@@ -203,22 +198,20 @@ const HousingCalculator = () => {
       (Math.pow(1 + monthlyInterestRate, totalMonthlyPayments) - 1);
 
     for (let year = 0; year <= MORTGAGE_YEARS; year++) {
-      // === MORTGAGE BREAKDOWN FOR THIS YEAR ===
       const mortgageBreakdown = calculateYearlyMortgageBreakdown(
         mortgageBalance,
         monthlyMortgagePayment,
         monthlyInterestRate
       );
       
-      // Money paid to interest (lost) vs principal (equity) this year
       const yearlyEquityFromMortgage = mortgageBreakdown.yearlyPrincipalPaid;
       const yearlyLostToMortgageInterest = mortgageBreakdown.yearlyInterestPaid;
 
       // === PROPERTY TAX AND TAX BENEFITS ===
       const yearlyPropertyTaxes = currentHomeValue * (propertyTaxRate / 100);
       const yearlyTaxSavings = calculateTaxSavings(
-        yearlyLostToMortgageInterest, // Can deduct mortgage interest
-        yearlyPropertyTaxes // Can deduct property taxes
+        yearlyLostToMortgageInterest,
+        yearlyPropertyTaxes
       );
 
       // === MONTHLY HOUSING COSTS ===
@@ -235,7 +228,6 @@ const HousingCalculator = () => {
         monthlyPMI +
         monthlyPropertyUtilities;
 
-      // Net costs after rental income and tax benefits
       const monthlyTaxBenefit = yearlyTaxSavings / 12;
       const netMonthlyHomeownerCosts = 
         totalMonthlyHomeownerCosts - 
@@ -249,22 +241,17 @@ const HousingCalculator = () => {
 
       if (year > 0) {
         // === YEARLY UPDATES ===
-        
-        // Income growth and savings
         currentAnnualSalary *= 1 + salaryGrowthRate / 100;
         const yearlyPotentialSavings = currentAnnualSalary * (investmentRate / 100);
 
-        // Home appreciation (equity gain from market)
+        // Home appreciation
         const previousHomeValue = currentHomeValue;
         currentHomeValue *= 1 + homeAppreciation / 100;
         const yearlyEquityFromAppreciation = currentHomeValue - previousHomeValue;
 
-        // Update mortgage balance
         mortgageBalance = mortgageBreakdown.endingBalance;
 
         // === INVESTMENT CALCULATIONS ===
-        
-        // Buying scenario
         const yearlyHomeownerCosts = netMonthlyHomeownerCosts * 12;
         const yearlyHomeownerInvestment = Math.max(
           0,
@@ -308,8 +295,8 @@ const HousingCalculator = () => {
         investmentsRenting: Math.round(rentingNetWorth),
         homeValue: Math.round(currentHomeValue),
         remainingLoan: Math.round(mortgageBalance),
-        yearlyPrincipalPaid: Math.round(yearlyEquityFromMortgage), // Equity gained from payments
-        yearlyInterestPaid: Math.round(yearlyLostToMortgageInterest), // Money lost to interest
+        yearlyPrincipalPaid: Math.round(yearlyEquityFromMortgage),
+        yearlyInterestPaid: Math.round(yearlyLostToMortgageInterest),
         investmentRate,
         investmentReturn,
         annualRentCosts: Math.round(totalMonthlyRenterCosts * 12),
@@ -339,6 +326,8 @@ const HousingCalculator = () => {
     investmentRate,
     standardDeduction,
     monthlyRentalIncome,
+    movingCost,
+    rentDeposit
   ]);
 
   const Input = ({ label, value, onChange, min, max, step, suffix = "" }) => (
@@ -511,6 +500,16 @@ const HousingCalculator = () => {
               step={100}
               suffix="$"
             />
+            {/* Moving cost */}
+            <Input
+              label="Moving cost (one time)"
+              value={movingCost}
+              onChange={setMovingCost}
+              min={0}
+              max={10000}
+              step={100}
+              suffix="$"
+            />
           </div>
 
           {/* Renting Details Card */}
@@ -522,6 +521,15 @@ const HousingCalculator = () => {
               onChange={setMonthlyRent}
               min={1000}
               max={10000}
+              step={100}
+              suffix="$"
+            />
+            <Input
+              label="Security Deposit (one time)"
+              value={rentDeposit}
+              onChange={setRentDeposit}
+              min={0}
+              max={5000}
               step={100}
               suffix="$"
             />
