@@ -117,6 +117,7 @@ const HousingCalculator = () => {
   const [closingCostPercent, setClosingCostPercent] = useState(3);
   const [movingCost, setMovingCost] = useState(2000);
   const [rentDeposit, setRentDeposit] = useState(500); // Security deposit for renting apartment
+  const [annualMaintainanceRate, setAnnualMaintainanceRate] = useState(1);
   
   // Monthly costs
   const [monthlyRenterInsurance, setMonthlyRenterInsurance] = useState(10);
@@ -136,7 +137,6 @@ const HousingCalculator = () => {
 
   // === FIXED RATES (annual) ===
   const ANNUAL_HOMEOWNERS_INSURANCE_RATE = 0.0065; // 0.65% of home value
-  const ANNUAL_MAINTENANCE_RATE = 0.01; // 1% of home value
   const MORTGAGE_YEARS = 30;
 
   // Calculate mortgage payment breakdown for a given year
@@ -217,7 +217,7 @@ const HousingCalculator = () => {
       // === MONTHLY HOUSING COSTS ===
       const monthlyPropertyTax = yearlyPropertyTaxes / 12;
       const monthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
-      const monthlyMaintenance = (currentHomeValue * ANNUAL_MAINTENANCE_RATE) / 12;
+      const monthlyMaintenance = (currentHomeValue * annualMaintainanceRate / 100) / 12;
       const monthlyPMI = downPaymentPercent < 20 ? (mortgageBalance * PMIRate / 100) / 12 : 0;
 
       const totalMonthlyHomeownerCosts =
@@ -328,7 +328,8 @@ const HousingCalculator = () => {
     monthlyRentalIncome,
     movingCost,
     rentDeposit,
-    PMIRate
+    PMIRate,
+    annualMaintainanceRate
   ]);
 
   const Input = ({ label, value, onChange, min, max, step, suffix = "" }) => (
@@ -477,6 +478,15 @@ const HousingCalculator = () => {
               label="PMI Rate"
               value={PMIRate}
               onChange={setPMIRate}
+              min={0}
+              max={100}
+              step={1}
+              suffix="%"
+            />
+             <Input
+              label="Annual Maintenance Rate"
+              value={annualMaintainanceRate}
+              onChange={setAnnualMaintainanceRate}
               min={0}
               max={100}
               step={1}
