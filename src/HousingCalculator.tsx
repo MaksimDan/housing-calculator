@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { HelpCircle } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -118,7 +119,8 @@ const HousingCalculator = () => {
   const [movingCost, setMovingCost] = useState(2000);
   const [rentDeposit, setRentDeposit] = useState(500); // Security deposit for renting apartment
   const [annualMaintainanceRate, setAnnualMaintainanceRate] = useState(1);
-  
+  const [monthyQualityOfLife, setMonthyQualityOfLife] = useState(0);
+
   // Monthly costs
   const [monthlyRenterInsurance, setMonthlyRenterInsurance] = useState(10);
   const [monthlyRentUtilities, setMonthlyRentUtilities] = useState(150);
@@ -130,7 +132,7 @@ const HousingCalculator = () => {
   const [investmentReturn, setInvestmentReturn] = useState(8);
   const [rentIncrease, setRentIncrease] = useState(3);
   const [salaryGrowthRate, setSalaryGrowthRate] = useState(3);
-  
+
   // UI state
   const [xAxisYears, setXAxisYears] = useState(10);
   const [activePoint, setActivePoint] = useState(null);
@@ -141,32 +143,39 @@ const HousingCalculator = () => {
 
   // Calculate mortgage payment breakdown for a given year
   // Returns both principal (builds equity) and interest (lost money)
-  const calculateYearlyMortgageBreakdown = (loanBalance, monthlyPayment, monthlyRate) => {
+  const calculateYearlyMortgageBreakdown = (
+    loanBalance,
+    monthlyPayment,
+    monthlyRate
+  ) => {
     let yearlyInterestPaid = 0;
     let yearlyPrincipalPaid = 0;
     let currentBalance = loanBalance;
-    
+
     for (let month = 0; month < 12; month++) {
       const monthlyInterestPaid = currentBalance * monthlyRate;
       const monthlyPrincipalPaid = monthlyPayment - monthlyInterestPaid;
-      
+
       yearlyInterestPaid += monthlyInterestPaid;
       yearlyPrincipalPaid += monthlyPrincipalPaid;
-      
+
       currentBalance -= monthlyPrincipalPaid;
     }
-    
+
     return {
       yearlyInterestPaid,
       yearlyPrincipalPaid,
-      endingBalance: currentBalance
+      endingBalance: currentBalance,
     };
   };
 
   // Calculate tax savings from mortgage interest and property tax deductions
   const calculateTaxSavings = (mortgageInterest, propertyTaxes) => {
     const totalItemizedDeductions = mortgageInterest + propertyTaxes;
-    const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - standardDeduction);
+    const extraDeductionBenefit = Math.max(
+      0,
+      totalItemizedDeductions - standardDeduction
+    );
     return extraDeductionBenefit * (effectiveTaxRate / 100);
   };
 
@@ -176,11 +185,12 @@ const HousingCalculator = () => {
     // === INITIAL COSTS FOR BUYING ===
     const downPaymentAmount = homePrice * (downPaymentPercent / 100);
     const closingCostsAmount = homePrice * (closingCostPercent / 100);
-    const totalUpfrontCosts = downPaymentAmount + closingCostsAmount + movingCost;
+    const totalUpfrontCosts =
+      downPaymentAmount + closingCostsAmount + movingCost;
 
     // === STARTING FINANCIAL POSITIONS ===
     let buyingNetWorth = initialInvestment - totalUpfrontCosts;
-    let rentingNetWorth = initialInvestment - rentDeposit; 
+    let rentingNetWorth = initialInvestment - rentDeposit;
 
     // === TRACK VALUES THAT CHANGE YEARLY ===
     let currentHomeValue = homePrice;
@@ -194,7 +204,8 @@ const HousingCalculator = () => {
     const totalMonthlyPayments = MORTGAGE_YEARS * 12;
     const monthlyMortgagePayment =
       (mortgageBalance *
-        (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, totalMonthlyPayments))) /
+        (monthlyInterestRate *
+          Math.pow(1 + monthlyInterestRate, totalMonthlyPayments))) /
       (Math.pow(1 + monthlyInterestRate, totalMonthlyPayments) - 1);
 
     for (let year = 0; year <= MORTGAGE_YEARS; year++) {
@@ -203,7 +214,7 @@ const HousingCalculator = () => {
         monthlyMortgagePayment,
         monthlyInterestRate
       );
-      
+
       const yearlyEquityFromMortgage = mortgageBreakdown.yearlyPrincipalPaid;
       const yearlyLostToMortgageInterest = mortgageBreakdown.yearlyInterestPaid;
 
@@ -216,9 +227,12 @@ const HousingCalculator = () => {
 
       // === MONTHLY HOUSING COSTS ===
       const monthlyPropertyTax = yearlyPropertyTaxes / 12;
-      const monthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
-      const monthlyMaintenance = (currentHomeValue * annualMaintainanceRate / 100) / 12;
-      const monthlyPMI = downPaymentPercent < 20 ? (mortgageBalance * PMIRate / 100) / 12 : 0;
+      const monthlyHomeInsurance =
+        (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
+      const monthlyMaintenance =
+        (currentHomeValue * annualMaintainanceRate) / 100 / 12;
+      const monthlyPMI =
+        downPaymentPercent < 20 ? (mortgageBalance * PMIRate) / 100 / 12 : 0;
 
       const totalMonthlyHomeownerCosts =
         monthlyMortgagePayment +
@@ -229,25 +243,25 @@ const HousingCalculator = () => {
         monthlyPropertyUtilities;
 
       const monthlyTaxBenefit = yearlyTaxSavings / 12;
-      const netMonthlyHomeownerCosts = 
-        totalMonthlyHomeownerCosts - 
-        currentMonthlyRentalIncome - 
+      const netMonthlyHomeownerCosts =
+        totalMonthlyHomeownerCosts -
+        currentMonthlyRentalIncome -
         monthlyTaxBenefit;
 
       const totalMonthlyRenterCosts =
-        currentMonthlyRent + 
-        monthlyRenterInsurance + 
-        monthlyRentUtilities;
+        currentMonthlyRent + monthlyRenterInsurance + monthlyRentUtilities;
 
       if (year > 0) {
         // === YEARLY UPDATES ===
         currentAnnualSalary *= 1 + salaryGrowthRate / 100;
-        const yearlyPotentialSavings = currentAnnualSalary * (investmentRate / 100);
+        const yearlyPotentialSavings =
+          currentAnnualSalary * (investmentRate / 100);
 
         // Home appreciation
         const previousHomeValue = currentHomeValue;
         currentHomeValue *= 1 + homeAppreciation / 100;
-        const yearlyEquityFromAppreciation = currentHomeValue - previousHomeValue;
+        const yearlyEquityFromAppreciation =
+          currentHomeValue - previousHomeValue;
 
         mortgageBalance = mortgageBreakdown.endingBalance;
 
@@ -261,12 +275,15 @@ const HousingCalculator = () => {
         const previousBuyingInvestments =
           buyingNetWorth - (currentHomeValue - mortgageBalance);
 
+        const yearlyQualityOfLifeBenefit = monthyQualityOfLife * 12;
+
         // Update buying net worth
         buyingNetWorth =
           previousBuyingInvestments * (1 + investmentReturn / 100) + // Investment growth
           yearlyHomeownerInvestment + // New investments
           yearlyEquityFromAppreciation + // Market appreciation
-          yearlyEquityFromMortgage; // Principal payments
+          yearlyEquityFromMortgage + // Principal payments
+          yearlyQualityOfLifeBenefit;
 
         buyingNetWorth += currentHomeValue - mortgageBalance;
 
@@ -329,7 +346,8 @@ const HousingCalculator = () => {
     movingCost,
     rentDeposit,
     PMIRate,
-    annualMaintainanceRate
+    annualMaintainanceRate,
+    monthyQualityOfLife,
   ]);
 
   const Input = ({ label, value, onChange, min, max, step, suffix = "" }) => (
@@ -483,7 +501,7 @@ const HousingCalculator = () => {
               step={1}
               suffix="%"
             />
-             <Input
+            <Input
               label="Annual Maintenance Rate"
               value={annualMaintainanceRate}
               onChange={setAnnualMaintainanceRate}
@@ -525,6 +543,25 @@ const HousingCalculator = () => {
               label="Moving cost (one time)"
               value={movingCost}
               onChange={setMovingCost}
+              min={0}
+              max={10000}
+              step={100}
+              suffix="$"
+            />
+            <Input
+              label={
+                <div className="flex items-center gap-1">
+                  Monthly Quality of Life Benefit
+                  <div
+                    className="text-gray-400 hover:text-gray-600 cursor-help"
+                    title="How much you'd be willing to pay monthly for homeownership benefits like: control over space, freedom to renovate, sense of permanence, no landlord, community belonging"
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                  </div>
+                </div>
+              }
+              value={monthyQualityOfLife}
+              onChange={setMonthyQualityOfLife}
               min={0}
               max={10000}
               step={100}
