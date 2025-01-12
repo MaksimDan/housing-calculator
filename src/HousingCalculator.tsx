@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { HelpCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, Home, DollarSign, Percent } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -11,87 +12,171 @@ import {
   Legend,
 } from "recharts";
 
-// Detailed Math Card Component
-const DetailedMathCard = ({ data, showBuying }) => {
+const DetailedMathCard = ({ data, showBuying, previousYearData }) => {
   if (!data) return null;
 
-  const formatCurrency = (num) => `$${Math.abs(num).toLocaleString()}`;
+  const formatCurrency = (num) => {
+    if (num === undefined || num === null) return '$0';
+    return `${Math.abs(num).toLocaleString()}`;
+  };
+
+  const formatPercent = (num) => {
+    if (num === undefined || num === null) return '0.0%';
+    return `${Number(num).toFixed(1)}%`;
+  };
+
+  const calculateYearOverYearChange = (current, previous) => {
+    if (current === undefined || current === null ||
+      previous === undefined || previous === null ||
+      previous === 0) {
+      return null;
+    }
+    return ((current - previous) / previous) * 100;
+  };
+
+  const yearlyChanges = previousYearData ? {
+    homeValue: calculateYearOverYearChange(data.homeValue, previousYearData.homeValue),
+    netWorthBuying: calculateYearOverYearChange(data.buying, previousYearData.buying),
+    netWorthRenting: calculateYearOverYearChange(data.renting, previousYearData.renting),
+    homeEquity: calculateYearOverYearChange(data.homeEquity, previousYearData.homeEquity),
+    investmentsBuying: calculateYearOverYearChange(data.investmentsBuying, previousYearData.investmentsBuying),
+    investmentsRenting: calculateYearOverYearChange(data.investmentsRenting, previousYearData.investmentsRenting),
+    remainingLoan: calculateYearOverYearChange(data.remainingLoan, previousYearData.remainingLoan)
+  } : null;
+
+  const renderChangeIndicator = (change) => {
+    if (change === null) return null;
+    return (
+      <div className="text-xs text-gray-500 flex items-center gap-1">
+        {change > 0 ? (
+          <TrendingUp className="w-3 h-3 text-green-500" />
+        ) : (
+          <TrendingDown className="w-3 h-3 text-red-500" />
+        )}
+        {formatPercent(change)} from previous year
+      </div>
+    );
+  };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm">
-      <h3 className="font-medium mb-3">
-        Detailed Calculations - Year {data.year}
-      </h3>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">
+          Financial Summary - Year {data.year}
+        </h3>
+        <span className="text-sm text-gray-500">
+          Annual Salary: {formatCurrency(data.salary)}
+        </span>
+      </div>
 
       {showBuying ? (
-        <>
-          <div className="space-y-2">
-            <h4 className="font-medium text-blue-600">Buying Scenario</h4>
-            <div className="pl-4 space-y-1">
-              <div>Home Value: {formatCurrency(data.homeValue)}</div>
+        <div className="space-y-6">
+          <div className="border-b pb-4">
+            <h4 className="flex items-center gap-2 text-blue-600 font-medium mb-3">
+              <Home className="w-4 h-4" /> Property Details
+            </h4>
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                Remaining Mortgage: {formatCurrency(data.remainingLoan)}
+                <div className="text-sm text-gray-600">Current Home Value</div>
+                <div className="font-medium">{formatCurrency(data.homeValue)}</div>
+                {renderChangeIndicator(yearlyChanges?.homeValue)}
               </div>
-              <div>Home Equity: {formatCurrency(data.homeEquity)}</div>
-              <div className="text-xs text-gray-500 pl-2">
-                = Home Value - Remaining Mortgage
-              </div>
-
-              <div className="mt-2">
-                Investment Portfolio: {formatCurrency(data.investmentsBuying)}
-              </div>
-              <div className="text-xs text-gray-500 pl-2">
-                = Previous Investments × (1 + {data.investmentReturn}%) + New
-                Investments
-              </div>
-
-              <div className="mt-2 font-medium">
-                Total Net Worth: {formatCurrency(data.buying)}
-              </div>
-              <div className="text-xs text-gray-500 pl-2">
-                = Home Equity + Investment Portfolio
+              <div>
+                <div className="text-sm text-gray-600">Remaining Mortgage</div>
+                <div className="font-medium">{formatCurrency(data.remainingLoan)}</div>
+                {renderChangeIndicator(yearlyChanges?.remainingLoan)}
               </div>
             </div>
           </div>
-        </>
+
+          <div className="border-b pb-4">
+            <h4 className="flex items-center gap-2 text-blue-600 font-medium mb-3">
+              <DollarSign className="w-4 h-4" /> Financial Position
+            </h4>
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Home Equity</span>
+                  <span className="font-medium">{formatCurrency(data.homeEquity)}</span>
+                </div>
+                <div className="text-xs text-gray-500">= Home Value - Remaining Mortgage</div>
+                {renderChangeIndicator(yearlyChanges?.homeEquity)}
+              </div>
+              <div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Investment Portfolio</span>
+                  <span className="font-medium">{formatCurrency(data.investmentsBuying)}</span>
+                </div>
+                <div className="text-xs text-gray-500">Return Rate: {data.investmentReturn}%</div>
+                {renderChangeIndicator(yearlyChanges?.investmentsBuying)}
+              </div>
+              <div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Tax Benefits</span>
+                  <span className="font-medium">{formatCurrency(data.yearlyTaxSavings)}</span>
+                </div>
+                <div className="text-xs text-gray-500">From mortgage interest & property tax deductions</div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-baseline">
+              <h4 className="text-lg font-semibold text-blue-600">Total Net Worth</h4>
+              <span className="text-xl font-bold">{formatCurrency(data.buying)}</span>
+            </div>
+            {renderChangeIndicator(yearlyChanges?.netWorthBuying)}
+          </div>
+        </div>
       ) : (
-        <>
-          <div className="space-y-2">
-            <h4 className="font-medium text-green-600">Renting Scenario</h4>
-            <div className="pl-4 space-y-1">
+        <div className="space-y-6">
+          <div className="border-b pb-4">
+            <h4 className="flex items-center gap-2 text-green-600 font-medium mb-3">
+              <DollarSign className="w-4 h-4" /> Financial Position
+            </h4>
+            <div className="space-y-3">
               <div>
-                Investment Portfolio: {formatCurrency(data.investmentsRenting)}
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Investment Portfolio</span>
+                  <span className="font-medium">{formatCurrency(data.investmentsRenting)}</span>
+                </div>
+                <div className="text-xs text-gray-500">Return Rate: {data.investmentReturn}%</div>
+                {renderChangeIndicator(yearlyChanges?.investmentsRenting)}
               </div>
-              <div className="text-xs text-gray-500 pl-2">
-                = Previous Investments × (1 + {data.investmentReturn}%) + New
-                Investments
-              </div>
-
-              <div className="mt-2">
-                Annual Rent Costs: {formatCurrency(data.annualRentCosts)}
-              </div>
-              <div className="text-xs text-gray-500 pl-2">
-                = Monthly Rent × 12 + Monthly Utilities × 12 + Insurance × 12
-              </div>
-
-              <div className="mt-2 font-medium">
-                Total Net Worth: {formatCurrency(data.renting)}
-              </div>
-              <div className="text-xs text-gray-500 pl-2">
-                = Investment Portfolio
+              <div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Annual Housing Costs</span>
+                  <span className="font-medium">{formatCurrency(data.annualRentCosts)}</span>
+                </div>
+                <div className="text-xs text-gray-500">Including rent, utilities, and insurance</div>
               </div>
             </div>
           </div>
-        </>
+
+          <div>
+            <div className="flex justify-between items-baseline">
+              <h4 className="text-lg font-semibold text-green-600">Total Net Worth</h4>
+              <span className="text-xl font-bold">{formatCurrency(data.renting)}</span>
+            </div>
+            {renderChangeIndicator(yearlyChanges?.netWorthRenting)}
+          </div>
+        </div>
       )}
 
-      <div className="mt-4 pt-2 border-t">
-        <div className="text-xs text-gray-600">
-          <div>Annual Salary (before tax): {formatCurrency(data.salary)}</div>
-          <div>Investment Rate: {data.investmentRate}%</div>
+      <div className="pt-4 border-t">
+        <h4 className="flex items-center gap-2 text-gray-600 font-medium mb-2">
+          <Percent className="w-4 h-4" /> Investment Metrics
+        </h4>
+        <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            Annual Investment:{" "}
-            {formatCurrency((data.salary * data.investmentRate) / 100)}
+            <div className="text-gray-600">Investment Rate</div>
+            <div className="font-medium">{data.investmentRate}% of income</div>
+          </div>
+          <div>
+            <div className="text-gray-600">Annual Investment</div>
+            <div className="font-medium">
+              {formatCurrency((data.salary * data.investmentRate) / 100)}
+            </div>
           </div>
         </div>
       </div>
@@ -373,7 +458,7 @@ const HousingCalculator = () => {
 
   return (
     <div className="min-h-screen bg-white p-6">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-screen-2xl mx-auto">
         <div className="mb-8">
           <h1 className="text-2xl font-light text-gray-800 mb-4">
             Net Worth Calculator: Buy vs. Rent
@@ -668,8 +753,19 @@ const HousingCalculator = () => {
         </div>
 
         {/* Graph Section with Math Details */}
-<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="grid grid-cols-4 gap-6">
+          <div className="space-y-4">
+            <DetailedMathCard
+              data={activePoint || projectionData[0]}
+              previousYearData={activePoint ?
+                projectionData[Math.max(0, projectionData.findIndex(d => d === activePoint) - 1)]
+                : null
+              }
+              showBuying={true}
+            />
+          </div>
+
+          <div className="col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="h-96">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
@@ -774,11 +870,11 @@ const HousingCalculator = () => {
 
                 return breakEvenYear !== null
                   ? `In year ${breakEvenYear}, buying becomes better than renting. By year ${xAxisYears}, you'll have $${Math.abs(
-                      finalDifference
-                    ).toLocaleString()} more by buying.`
+                    finalDifference
+                  ).toLocaleString()} more by buying.`
                   : `Renting stays better for all ${xAxisYears} years. By the end, you'll have $${Math.abs(
-                      finalDifference
-                    ).toLocaleString()} more by renting.`;
+                    finalDifference
+                  ).toLocaleString()} more by renting.`;
               })()}
             </div>
           </div>
@@ -786,10 +882,10 @@ const HousingCalculator = () => {
           <div className="space-y-4">
             <DetailedMathCard
               data={activePoint || projectionData[0]}
-              showBuying={true}
-            />
-            <DetailedMathCard
-              data={activePoint || projectionData[0]}
+              previousYearData={activePoint ?
+                projectionData[Math.max(0, projectionData.findIndex(d => d === activePoint) - 1)]
+                : null
+              }
               showBuying={false}
             />
           </div>
@@ -836,9 +932,8 @@ const HousingCalculator = () => {
                         ${Math.abs(row.renting).toLocaleString()}
                       </td>
                       <td
-                        className={`px-4 py-2 text-right font-medium ${
-                          difference >= 0 ? "text-blue-600" : "text-green-600"
-                        }`}
+                        className={`px-4 py-2 text-right font-medium ${difference >= 0 ? "text-blue-600" : "text-green-600"
+                          }`}
                       >
                         {difference >= 0 ? "+" : "-"}$
                         {Math.abs(difference).toLocaleString()}
