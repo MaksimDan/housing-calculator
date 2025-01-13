@@ -221,7 +221,7 @@ const HousingCalculator = () => {
   const [salaryGrowthRate, setSalaryGrowthRate] = useState(3);
 
   // UI state
-  const [xAxisYears, setXAxisYears] = useState(15);
+  const [xAxisYears, setXAxisYears] = useState(30);
   const [activePoint, setActivePoint] = useState(null);
 
   // === FIXED RATES (annual) ===
