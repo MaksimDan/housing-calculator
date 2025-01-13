@@ -12,6 +12,105 @@ import {
   Legend,
 } from "recharts";
 
+const AffordabilityCheck = ({ projectionData }) => {
+  if (!projectionData) return null;
+
+  if (projectionData.error) {
+    // Format currency values
+    const formatCurrency = (value) => {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0
+      }).format(value);
+    };
+
+    // Extract numerical details from error message
+    let details = null;
+
+    if (projectionData.error.includes("Monthly housing costs exceed")) {
+      details = {
+        title: "Monthly Costs Exceed Income",
+        items: [
+          {
+            label: "Monthly Take-Home Pay",
+            value: formatCurrency(projectionData.monthlyTakeHome || 0)
+          },
+          {
+            label: "Monthly Housing Costs",
+            value: formatCurrency(projectionData.monthlyHousingCosts || 0)
+          },
+          {
+            label: "Monthly Shortfall",
+            value: formatCurrency((projectionData.monthlyHousingCosts || 0) - (projectionData.monthlyTakeHome || 0))
+          }
+        ]
+      };
+    } else if (projectionData.error.includes("Insufficient initial investment")) {
+      details = {
+        title: "Insufficient Down Payment",
+        items: [
+          {
+            label: "Required Upfront Costs",
+            value: formatCurrency(projectionData.requiredUpfront || 0)
+          },
+          {
+            label: "Available Investment",
+            value: formatCurrency(projectionData.availableInvestment || 0)
+          },
+          {
+            label: "Shortfall",
+            value: formatCurrency((projectionData.requiredUpfront || 0) - (projectionData.availableInvestment || 0))
+          }
+        ]
+      };
+    }
+
+    return (
+      <div className="w-full mb-4">
+        <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded">
+          <div className="flex flex-col">
+            <div className="ml-3">
+              <h3 className="text-red-800 font-medium">Cannot Afford Property</h3>
+              <div className="text-red-700 text-sm mb-2">
+                {projectionData.error}
+              </div>
+              {details && (
+                <div className="mt-2 bg-white bg-opacity-50 rounded p-3">
+                  <h4 className="text-red-800 font-medium text-sm mb-2">{details.title}</h4>
+                  <div className="space-y-2 max-w-lg">
+                    {details.items.map((item, index) => (
+                      <div key={index} className="grid" style={{ gridTemplateColumns: 'auto 120px' }}>
+                        <span className="text-red-700 text-sm">{item.label}</span>
+                        <span className="text-red-800 font-medium text-sm text-right">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full mb-4">
+      <div className="p-4 bg-green-50 border-l-4 border-green-500 rounded">
+        <div className="flex">
+          <div className="ml-3">
+            <h3 className="text-green-800 font-medium">Property is Affordable</h3>
+            <div className="text-green-700 text-sm">
+              Your income and savings are sufficient for this property based on the current settings.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DetailedMathCard = ({ data, showBuying, previousYearData }) => {
   if (!data) return null;
 
@@ -268,11 +367,25 @@ const HousingCalculator = () => {
   const projectionData = useMemo(() => {
     const data = [];
 
+    // === AFFORDABILITY CALCULATIONS ===
+    const calculateMonthlyTakeHome = (annualSalary) => {
+      const afterTaxAnnual = annualSalary * (1 - effectiveTaxRate / 100);
+      return afterTaxAnnual / 12;
+    };
+
     // === INITIAL COSTS FOR BUYING ===
     const downPaymentAmount = homePrice * (downPaymentPercent / 100);
     const closingCostsAmount = homePrice * (closingCostPercent / 100);
-    const totalUpfrontCosts =
-      downPaymentAmount + closingCostsAmount + movingCostBuying;
+    const totalUpfrontCosts = downPaymentAmount + closingCostsAmount + movingCostBuying;
+
+    // Verify sufficient initial investment
+    if (totalUpfrontCosts > initialInvestment) {
+      return {
+        error: "Insufficient initial investment for down payment and closing costs",
+        requiredUpfront: totalUpfrontCosts,
+        availableInvestment: initialInvestment
+      };
+    }
 
     // === STARTING FINANCIAL POSITIONS ===
     let buyingNetWorth = initialInvestment - totalUpfrontCosts;
@@ -294,6 +407,30 @@ const HousingCalculator = () => {
           Math.pow(1 + monthlyInterestRate, totalMonthlyPayments))) /
       (Math.pow(1 + monthlyInterestRate, totalMonthlyPayments) - 1);
 
+    // Initial affordability check
+    const initialMonthlyTakeHome = calculateMonthlyTakeHome(annualSalaryBeforeTax);
+    const initialMonthlyPropertyTax = (currentHomeValue * (propertyTaxRate / 100)) / 12;
+    const initialMonthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
+    const initialMonthlyMaintenance = (currentHomeValue * annualMaintainanceRate / 100) / 12;
+    const initialMonthlyPMI = downPaymentPercent < 20 ? (mortgageBalance * PMIRate) / 100 / 12 : 0;
+
+    const initialTotalMonthlyHousingCosts =
+      monthlyMortgagePayment +
+      initialMonthlyPropertyTax +
+      initialMonthlyHomeInsurance +
+      initialMonthlyMaintenance +
+      initialMonthlyPMI +
+      monthlyPropertyUtilities;
+
+    // Check if monthly payments are affordable
+    if (initialTotalMonthlyHousingCosts > initialMonthlyTakeHome) {
+      return {
+        error: "Monthly housing costs exceed monthly take-home pay",
+        monthlyHousingCosts: initialTotalMonthlyHousingCosts,
+        monthlyTakeHome: initialMonthlyTakeHome
+      };
+    }
+
     for (let year = 0; year <= mortgageYears; year++) {
       const mortgageBreakdown = calculateYearlyMortgageBreakdown(
         mortgageBalance,
@@ -313,12 +450,9 @@ const HousingCalculator = () => {
 
       // === MONTHLY HOUSING COSTS ===
       const monthlyPropertyTax = yearlyPropertyTaxes / 12;
-      const monthlyHomeInsurance =
-        (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
-      const monthlyMaintenance =
-        (currentHomeValue * annualMaintainanceRate) / 100 / 12;
-      const monthlyPMI =
-        downPaymentPercent < 20 ? (mortgageBalance * PMIRate) / 100 / 12 : 0;
+      const monthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
+      const monthlyMaintenance = (currentHomeValue * annualMaintainanceRate) / 100 / 12;
+      const monthlyPMI = downPaymentPercent < 20 ? (mortgageBalance * PMIRate) / 100 / 12 : 0;
 
       const totalMonthlyHomeownerCosts =
         monthlyMortgagePayment +
@@ -337,27 +471,33 @@ const HousingCalculator = () => {
       const totalMonthlyRenterCosts =
         currentMonthlyRent + monthlyRenterInsurance + monthlyRentUtilities;
 
+      // Calculate monthly take home pay (needed for both year 0 and later)
+      const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary);
+
       if (year > 0) {
         // === YEARLY UPDATES ===
         currentAnnualSalary *= 1 + salaryGrowthRate / 100;
-        const yearlyPotentialSavings =
-          currentAnnualSalary * (investmentRate / 100);
+
+        // Calculate actual available money for investments after housing costs
+        const monthlyAvailableForInvestment = monthlyTakeHome - netMonthlyHomeownerCosts;
+        const desiredMonthlyInvestment = monthlyTakeHome * (investmentRate / 100);
+
+        // Use the lower of desired investment rate or actually available money
+        const actualMonthlyInvestment = Math.max(0, Math.min(
+          desiredMonthlyInvestment,
+          monthlyAvailableForInvestment
+        ));
+
+        const yearlyHomeownerInvestment = actualMonthlyInvestment * 12;
 
         // Home appreciation
         const previousHomeValue = currentHomeValue;
         currentHomeValue *= 1 + homeAppreciation / 100;
-        const yearlyEquityFromAppreciation =
-          currentHomeValue - previousHomeValue;
+        const yearlyEquityFromAppreciation = currentHomeValue - previousHomeValue;
 
         mortgageBalance = mortgageBreakdown.endingBalance;
 
         // === INVESTMENT CALCULATIONS ===
-        const yearlyHomeownerCosts = netMonthlyHomeownerCosts * 12;
-        const yearlyHomeownerInvestment = Math.max(
-          0,
-          yearlyPotentialSavings - yearlyHomeownerCosts
-        );
-
         const previousBuyingInvestments =
           buyingNetWorth - (currentHomeValue - mortgageBalance);
 
@@ -366,7 +506,7 @@ const HousingCalculator = () => {
         // Update buying net worth
         buyingNetWorth =
           previousBuyingInvestments * (1 + investmentReturn / 100) + // Investment growth
-          yearlyHomeownerInvestment + // New investments
+          yearlyHomeownerInvestment + // New investments (now using actual affordable amount)
           yearlyEquityFromAppreciation + // Market appreciation
           yearlyEquityFromMortgage + // Principal payments
           yearlyQualityOfLifeBenefit;
@@ -376,9 +516,10 @@ const HousingCalculator = () => {
         // Rental income increases with inflation
         currentMonthlyRentalIncome *= 1 + rentIncrease / 100;
 
-        // Renting scenario
+        // Renting scenario (remains largely unchanged as it's simpler)
         const yearlyRentCosts = totalMonthlyRenterCosts * 12;
-        const yearlyRenterInvestment = yearlyPotentialSavings - yearlyRentCosts;
+        const yearlyRenterInvestment =
+          (monthlyTakeHome - totalMonthlyRenterCosts) * 12 * (investmentRate / 100);
 
         currentMonthlyRent *= 1 + rentIncrease / 100;
         rentingNetWorth =
@@ -400,6 +541,8 @@ const HousingCalculator = () => {
         remainingLoan: Math.round(mortgageBalance),
         yearlyPrincipalPaid: Math.round(yearlyEquityFromMortgage),
         yearlyInterestPaid: Math.round(yearlyLostToMortgageInterest),
+        monthlyPayment: Math.round(netMonthlyHomeownerCosts),
+        availableMonthlyInvestment: Math.round(monthlyTakeHome - netMonthlyHomeownerCosts),
         investmentRate,
         investmentReturn,
         annualRentCosts: Math.round(totalMonthlyRenterCosts * 12),
@@ -437,6 +580,8 @@ const HousingCalculator = () => {
     mortgageYears,
     movingCostRenting
   ]);
+
+  const isValidProjectionData = (data) => Array.isArray(data) && !data.error;
 
   const Input = ({ label, value, onChange, min, max, step, suffix = "" }) => (
     <div className="mb-6">
@@ -484,6 +629,8 @@ const HousingCalculator = () => {
             </li>
           </ul>
         </div>
+
+        <AffordabilityCheck projectionData={projectionData} />
 
         {/* Input Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
@@ -774,198 +921,202 @@ const HousingCalculator = () => {
         </div>
 
         {/* Graph Section with Math Details */}
-        <div className="grid grid-cols-4 gap-6">
-          <div className="space-y-4">
-            <DetailedMathCard
-              data={activePoint || projectionData[0]}
-              previousYearData={activePoint ?
-                projectionData[Math.max(0, projectionData.findIndex(d => d === activePoint) - 1)]
-                : null
-              }
-              showBuying={true}
-            />
-          </div>
+        {isValidProjectionData(projectionData) ? (
 
-          <div className="col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="h-96">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={projectionData.slice(0, xAxisYears + 1)}
-                  margin={{ top: 30, right: 30, left: 60, bottom: 5 }}
-                  onMouseMove={(e) => {
-                    if (e.activePayload) {
-                      setActivePoint(e.activePayload[0].payload);
-                    }
-                  }}
-                  onMouseLeave={() => setActivePoint(null)}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis
-                    dataKey="year"
-                    stroke="#666"
-                    label={{
-                      value: "Years",
-                      position: "insideBottom",
-                      offset: -5,
-                    }}
-                    domain={[0, xAxisYears]}
-                  />
-                  <YAxis
-                    stroke="#666"
-                    tickFormatter={(value) => `${Math.abs(value / 1000)}k`}
-                    label={{
-                      value: "Net Worth",
-                      angle: -90,
-                      position: "insideLeft",
-                      offset: -45,
-                    }}
-                  />
-                  <Tooltip
-                    formatter={(value, name) => {
-                      if (name === "difference") {
-                        return [`$${Math.abs(value).toLocaleString()}`, "Difference (Buy vs Rent)"];
+          <div className="grid grid-cols-4 gap-6">
+            <div className="space-y-4">
+              <DetailedMathCard
+                data={activePoint || projectionData[0]}
+                previousYearData={activePoint ?
+                  projectionData[Math.max(0, projectionData.findIndex(d => d === activePoint) - 1)]
+                  : null
+                }
+                showBuying={true}
+              />
+            </div>
+
+            <div className="col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="h-96">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={projectionData.slice(0, xAxisYears + 1)}
+                    margin={{ top: 30, right: 30, left: 60, bottom: 5 }}
+                    onMouseMove={(e) => {
+                      if (e.activePayload) {
+                        setActivePoint(e.activePayload[0].payload);
                       }
-                      return [
-                        `$${Math.abs(value).toLocaleString()}`,
-                        value < 0 ? "Initial Investment/Costs" : "Net Worth",
-                      ];
                     }}
-                    labelFormatter={(value) => `Year ${value}`}
-                  />
-                  <Legend
-                    verticalAlign="top"
-                    height={36}
-                    formatter={(value) => {
-                      const labels = {
-                        buying: "Buy Property & Invest",
-                        renting: "Rent & Invest",
-                        difference: "Net Worth Difference"
-                      };
-                      return labels[value] || value;
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="buying"
-                    name="buying"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="renting"
-                    name="renting"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey={(dataPoint) => dataPoint.buying - dataPoint.renting}
-                    name="difference"
-                    stroke="#9333ea"
-                    strokeWidth={2}
-                    strokeDasharray="4 4"
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+                    onMouseLeave={() => setActivePoint(null)}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis
+                      dataKey="year"
+                      stroke="#666"
+                      label={{
+                        value: "Years",
+                        position: "insideBottom",
+                        offset: -5,
+                      }}
+                      domain={[0, xAxisYears]}
+                    />
+                    <YAxis
+                      stroke="#666"
+                      tickFormatter={(value) => `${Math.abs(value / 1000)}k`}
+                      label={{
+                        value: "Net Worth",
+                        angle: -90,
+                        position: "insideLeft",
+                        offset: -45,
+                      }}
+                    />
+                    <Tooltip
+                      formatter={(value, name) => {
+                        if (name === "difference") {
+                          return [`$${Math.abs(value).toLocaleString()}`, "Difference (Buy vs Rent)"];
+                        }
+                        return [
+                          `$${Math.abs(value).toLocaleString()}`,
+                          value < 0 ? "Initial Investment/Costs" : "Net Worth",
+                        ];
+                      }}
+                      labelFormatter={(value) => `Year ${value}`}
+                    />
+                    <Legend
+                      verticalAlign="top"
+                      height={36}
+                      formatter={(value) => {
+                        const labels = {
+                          buying: "Buy Property & Invest",
+                          renting: "Rent & Invest",
+                          difference: "Net Worth Difference"
+                        };
+                        return labels[value] || value;
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="buying"
+                      name="buying"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="renting"
+                      name="renting"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey={(dataPoint) => dataPoint.buying - dataPoint.renting}
+                      name="difference"
+                      stroke="#9333ea"
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
 
-            <div className="text-center text-gray-600 mt-4">
-              {(() => {
-                const findBreakEvenYear = () => {
-                  for (let i = 0; i < projectionData.length; i++) {
-                    if (projectionData[i].buying > projectionData[i].renting) {
-                      return i;
+              <div className="text-center text-gray-600 mt-4">
+                {(() => {
+                  const findBreakEvenYear = () => {
+                    for (let i = 0; i < projectionData.length; i++) {
+                      if (projectionData[i].buying > projectionData[i].renting) {
+                        return i;
+                      }
                     }
-                  }
-                  return null;
-                };
+                    return null;
+                  };
 
-                const breakEvenYear = findBreakEvenYear();
-                const finalDifference =
-                  projectionData[xAxisYears].buying -
-                  projectionData[xAxisYears].renting;
+                  const breakEvenYear = findBreakEvenYear();
+                  const finalDifference =
+                    projectionData[xAxisYears].buying -
+                    projectionData[xAxisYears].renting;
 
-                return breakEvenYear !== null
-                  ? `In year ${breakEvenYear}, buying becomes better than renting. By year ${xAxisYears}, you'll have $${Math.abs(
-                    finalDifference
-                  ).toLocaleString()} more by buying.`
-                  : `Renting stays better for all ${xAxisYears} years. By the end, you'll have $${Math.abs(
-                    finalDifference
-                  ).toLocaleString()} more by renting.`;
-              })()}
+                  return breakEvenYear !== null
+                    ? `In year ${breakEvenYear}, buying becomes better than renting. By year ${xAxisYears}, you'll have $${Math.abs(
+                      finalDifference
+                    ).toLocaleString()} more by buying.`
+                    : `Renting stays better for all ${xAxisYears} years. By the end, you'll have $${Math.abs(
+                      finalDifference
+                    ).toLocaleString()} more by renting.`;
+                })()}
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-4">
-            <DetailedMathCard
-              data={activePoint || projectionData[0]}
-              previousYearData={activePoint ?
-                projectionData[Math.max(0, projectionData.findIndex(d => d === activePoint) - 1)]
-                : null
-              }
-              showBuying={false}
-            />
-          </div>
-        </div>
+            <div className="space-y-4">
+              <DetailedMathCard
+                data={activePoint || projectionData[0]}
+                previousYearData={activePoint ?
+                  projectionData[Math.max(0, projectionData.findIndex(d => d === activePoint) - 1)]
+                  : null
+                }
+                showBuying={false}
+              />
+            </div>
+          </div>) : null}
 
         {/* Net Worth Table */}
-        <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-medium mb-4">
-            Net Worth Comparison Table
-          </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="px-4 py-2 text-left font-medium text-gray-600">
-                    Year
-                  </th>
-                  <th className="px-4 py-2 text-right font-medium text-blue-600">
-                    Buying
-                  </th>
-                  <th className="px-4 py-2 text-right font-medium text-green-600">
-                    Renting
-                  </th>
-                  <th className="px-4 py-2 text-right font-medium text-gray-600">
-                    Difference
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {projectionData.slice(0, xAxisYears + 1).map((row) => {
-                  const difference = row.buying - row.renting;
-                  return (
-                    <tr
-                      key={row.year}
-                      className="border-b border-gray-100 hover:bg-gray-50"
-                    >
-                      <td className="px-4 py-2 text-left text-gray-600">
-                        {row.year}
-                      </td>
-                      <td className="px-4 py-2 text-right font-medium text-blue-600">
-                        ${Math.abs(row.buying).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2 text-right font-medium text-green-600">
-                        ${Math.abs(row.renting).toLocaleString()}
-                      </td>
-                      <td
-                        className={`px-4 py-2 text-right font-medium ${difference >= 0 ? "text-blue-600" : "text-green-600"
-                          }`}
+        {isValidProjectionData(projectionData) ? (
+
+          <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-medium mb-4">
+              Net Worth Comparison Table
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="px-4 py-2 text-left font-medium text-gray-600">
+                      Year
+                    </th>
+                    <th className="px-4 py-2 text-right font-medium text-blue-600">
+                      Buying
+                    </th>
+                    <th className="px-4 py-2 text-right font-medium text-green-600">
+                      Renting
+                    </th>
+                    <th className="px-4 py-2 text-right font-medium text-gray-600">
+                      Difference
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projectionData.slice(0, xAxisYears + 1).map((row) => {
+                    const difference = row.buying - row.renting;
+                    return (
+                      <tr
+                        key={row.year}
+                        className="border-b border-gray-100 hover:bg-gray-50"
                       >
-                        {difference >= 0 ? "+" : "-"}$
-                        {Math.abs(difference).toLocaleString()}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                        <td className="px-4 py-2 text-left text-gray-600">
+                          {row.year}
+                        </td>
+                        <td className="px-4 py-2 text-right font-medium text-blue-600">
+                          ${Math.abs(row.buying).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right font-medium text-green-600">
+                          ${Math.abs(row.renting).toLocaleString()}
+                        </td>
+                        <td
+                          className={`px-4 py-2 text-right font-medium ${difference >= 0 ? "text-blue-600" : "text-green-600"
+                            }`}
+                        >
+                          {difference >= 0 ? "+" : "-"}$
+                          {Math.abs(difference).toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>) : null}
       </div>
     </div>
   );
