@@ -205,6 +205,7 @@ const HousingCalculator = () => {
   const [rentDeposit, setRentDeposit] = useState(500); // Security deposit for renting apartment
   const [annualMaintainanceRate, setAnnualMaintainanceRate] = useState(1);
   const [monthyQualityOfLife, setMonthyQualityOfLife] = useState(0);
+  const [mortgageYears, setMortgageYears] = useState(30);
 
   // Monthly costs
   const [monthlyRenterInsurance, setMonthlyRenterInsurance] = useState(10);
@@ -224,7 +225,6 @@ const HousingCalculator = () => {
 
   // === FIXED RATES (annual) ===
   const ANNUAL_HOMEOWNERS_INSURANCE_RATE = 0.0065; // 0.65% of home value
-  const MORTGAGE_YEARS = 30;
 
   // Calculate mortgage payment breakdown for a given year
   // Returns both principal (builds equity) and interest (lost money)
@@ -286,14 +286,14 @@ const HousingCalculator = () => {
 
     // Calculate fixed monthly mortgage payment
     const monthlyInterestRate = mortgageRate / 100 / 12;
-    const totalMonthlyPayments = MORTGAGE_YEARS * 12;
+    const totalMonthlyPayments = mortgageYears * 12;
     const monthlyMortgagePayment =
       (mortgageBalance *
         (monthlyInterestRate *
           Math.pow(1 + monthlyInterestRate, totalMonthlyPayments))) /
       (Math.pow(1 + monthlyInterestRate, totalMonthlyPayments) - 1);
 
-    for (let year = 0; year <= MORTGAGE_YEARS; year++) {
+    for (let year = 0; year <= mortgageYears; year++) {
       const mortgageBreakdown = calculateYearlyMortgageBreakdown(
         mortgageBalance,
         monthlyMortgagePayment,
@@ -433,6 +433,7 @@ const HousingCalculator = () => {
     PMIRate,
     annualMaintainanceRate,
     monthyQualityOfLife,
+    mortgageYears
   ]);
 
   const Input = ({ label, value, onChange, min, max, step, suffix = "" }) => (
@@ -632,6 +633,15 @@ const HousingCalculator = () => {
               max={10000}
               step={100}
               suffix="$"
+            />
+            <Input
+              label="Mortgage Years"
+              value={mortgageYears}
+              onChange={setMortgageYears}
+              min={5}
+              max={30}
+              step={1}
+              suffix=""
             />
             <Input
               label={
