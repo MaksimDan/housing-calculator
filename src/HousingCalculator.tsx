@@ -283,56 +283,58 @@ const DetailedMathCard = ({ data, showBuying, previousYearData }) => {
   );
 };
 
+const ANNUAL_HOMEOWNERS_INSURANCE_RATE = 0.0065;
+
 const HousingCalculator = () => {
-  // === USER INPUT SETTINGS ===
-  // Income and savings
+  // Financial Inputs
   const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = useState(350000);
-  const [effectiveTaxRate, setEffectiveTaxRate] = useState(40); // percentage
-  const [standardDeduction, setStandardDeduction] = useState(21900); // yearly tax deduction
-  const [investmentRate, setInvestmentRate] = useState(20); // percentage of income saved
+  const [effectiveTaxRate, setEffectiveTaxRate] = useState(40);
+  const [standardDeduction, setStandardDeduction] = useState(21900);
+  const [investmentRate, setInvestmentRate] = useState(20);
   const [initialInvestment, setInitialInvestment] = useState(1000000);
 
-  // Property details
+  // Property Details
   const [homePrice, setHomePrice] = useState(700000);
   const [downPaymentPercent, setDownPaymentPercent] = useState(20);
-  const [mortgageRate, setMortgageRate] = useState(6.5); // annual interest rate
-  const [PMIRate, setPMIRate] = useState(1); // % of loan amount if down payment < 20%
-  const [propertyTaxRate, setPropertyTaxRate] = useState(1.2); // annual rate
-  const [monthlyRent, setMonthlyRent] = useState(2000);
+  const [mortgageRate, setMortgageRate] = useState(6.5);
+  const [mortgageYears, setMortgageYears] = useState(30);
+  const [PMIRate, setPMIRate] = useState(1);
+  const [propertyTaxRate, setPropertyTaxRate] = useState(1.2);
   const [closingCostPercent, setClosingCostPercent] = useState(3);
+  const [annualMaintainanceRate, setAnnualMaintainanceRate] = useState(1);
+
+  // Rental Related
+  const [monthlyRent, setMonthlyRent] = useState(2000);
+  const [monthlyRentalIncome, setMonthlyRentalIncome] = useState(0);
+  const [rentDeposit, setRentDeposit] = useState(500);
+
+  // Moving Costs
   const [movingCostBuying, setMovingCostBuying] = useState(2000);
   const [movingCostRenting, setMovingCostRenting] = useState(1000);
-  const [rentDeposit, setRentDeposit] = useState(500); // Security deposit for renting apartment
-  const [annualMaintainanceRate, setAnnualMaintainanceRate] = useState(1);
-  const [monthyQualityOfLife, setMonthyQualityOfLife] = useState(500);
-  const [mortgageYears, setMortgageYears] = useState(30);
 
-  // Monthly costs
+  // Monthly Expenses
   const [monthlyRenterInsurance, setMonthlyRenterInsurance] = useState(10);
   const [monthlyRentUtilities, setMonthlyRentUtilities] = useState(150);
   const [monthlyPropertyUtilities, setMonthlyPropertyUtilities] = useState(200);
-  const [monthlyRentalIncome, setMonthlyRentalIncome] = useState(0);
+  const [monthyQualityOfLife, setMonthyQualityOfLife] = useState(500);
 
-  // Growth rates (all percentages)
+  // Growth Rates
   const [homeAppreciation, setHomeAppreciation] = useState(4.5);
   const [investmentReturn, setInvestmentReturn] = useState(8);
   const [rentIncrease, setRentIncrease] = useState(3);
   const [salaryGrowthRate, setSalaryGrowthRate] = useState(3);
 
-  // UI state
+  // UI State
   const [xAxisYears, setXAxisYears] = useState(30);
   const [activePoint, setActivePoint] = useState(null);
 
-  // === FIXED RATES (annual) ===
-  const ANNUAL_HOMEOWNERS_INSURANCE_RATE = 0.0065; // 0.65% of home value
+  // Helper Functions
+  const calculateMonthlyTakeHome = (annualSalary) => {
+    const afterTaxAnnual = annualSalary * (1 - effectiveTaxRate / 100);
+    return afterTaxAnnual / 12;
+  };
 
-  // Calculate mortgage payment breakdown for a given year
-  // Returns both principal (builds equity) and interest (lost money)
-  const calculateYearlyMortgageBreakdown = (
-    loanBalance,
-    monthlyPayment,
-    monthlyRate
-  ) => {
+  const calculateYearlyMortgageBreakdown = (loanBalance, monthlyPayment, monthlyRate) => {
     let yearlyInterestPaid = 0;
     let yearlyPrincipalPaid = 0;
     let currentBalance = loanBalance;
@@ -343,7 +345,6 @@ const HousingCalculator = () => {
 
       yearlyInterestPaid += monthlyInterestPaid;
       yearlyPrincipalPaid += monthlyPrincipalPaid;
-
       currentBalance -= monthlyPrincipalPaid;
     }
 
@@ -354,31 +355,21 @@ const HousingCalculator = () => {
     };
   };
 
-  // Calculate tax savings from mortgage interest and property tax deductions
   const calculateTaxSavings = (mortgageInterest, propertyTaxes) => {
     const totalItemizedDeductions = mortgageInterest + propertyTaxes;
-    const extraDeductionBenefit = Math.max(
-      0,
-      totalItemizedDeductions - standardDeduction
-    );
+    const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - standardDeduction);
     return extraDeductionBenefit * (effectiveTaxRate / 100);
   };
 
   const projectionData = useMemo(() => {
     const data = [];
 
-    // === AFFORDABILITY CALCULATIONS ===
-    const calculateMonthlyTakeHome = (annualSalary) => {
-      const afterTaxAnnual = annualSalary * (1 - effectiveTaxRate / 100);
-      return afterTaxAnnual / 12;
-    };
-
-    // === INITIAL COSTS FOR BUYING ===
+    // Initial Setup
     const downPaymentAmount = homePrice * (downPaymentPercent / 100);
     const closingCostsAmount = homePrice * (closingCostPercent / 100);
     const totalUpfrontCosts = downPaymentAmount + closingCostsAmount + movingCostBuying;
 
-    // Verify sufficient initial investment
+    // Validate initial investment
     if (totalUpfrontCosts > initialInvestment) {
       return {
         error: "Insufficient initial investment for down payment and closing costs",
@@ -387,27 +378,25 @@ const HousingCalculator = () => {
       };
     }
 
-    // === STARTING FINANCIAL POSITIONS ===
+    // Initialize Financial Positions
     let buyingNetWorth = initialInvestment - totalUpfrontCosts;
     let rentingNetWorth = initialInvestment - rentDeposit - movingCostRenting;
 
-    // === TRACK VALUES THAT CHANGE YEARLY ===
+    // Initialize Tracking Variables
     let currentHomeValue = homePrice;
     let currentMonthlyRent = monthlyRent;
     let currentAnnualSalary = annualSalaryBeforeTax;
     let mortgageBalance = homePrice - downPaymentAmount;
     let currentMonthlyRentalIncome = monthlyRentalIncome;
 
-    // Calculate fixed monthly mortgage payment
+    // Calculate Monthly Mortgage Payment
     const monthlyInterestRate = mortgageRate / 100 / 12;
     const totalMonthlyPayments = mortgageYears * 12;
-    const monthlyMortgagePayment =
-      (mortgageBalance *
-        (monthlyInterestRate *
-          Math.pow(1 + monthlyInterestRate, totalMonthlyPayments))) /
+    const monthlyMortgagePayment = (mortgageBalance *
+      (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, totalMonthlyPayments))) /
       (Math.pow(1 + monthlyInterestRate, totalMonthlyPayments) - 1);
 
-    // Initial affordability check
+    // Validate Affordability
     const initialMonthlyTakeHome = calculateMonthlyTakeHome(annualSalaryBeforeTax);
     const initialMonthlyPropertyTax = (currentHomeValue * (propertyTaxRate / 100)) / 12;
     const initialMonthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
@@ -422,7 +411,6 @@ const HousingCalculator = () => {
       initialMonthlyPMI +
       monthlyPropertyUtilities;
 
-    // Check if monthly payments are affordable
     if (initialTotalMonthlyHousingCosts > initialMonthlyTakeHome) {
       return {
         error: "Monthly housing costs exceed monthly take-home pay",
@@ -431,6 +419,7 @@ const HousingCalculator = () => {
       };
     }
 
+    // Year-by-Year Calculations
     for (let year = 0; year <= mortgageYears; year++) {
       const mortgageBreakdown = calculateYearlyMortgageBreakdown(
         mortgageBalance,
@@ -438,17 +427,14 @@ const HousingCalculator = () => {
         monthlyInterestRate
       );
 
-      const yearlyEquityFromMortgage = mortgageBreakdown.yearlyPrincipalPaid;
-      const yearlyLostToMortgageInterest = mortgageBreakdown.yearlyInterestPaid;
-
-      // === PROPERTY TAX AND TAX BENEFITS ===
+      // Calculate Yearly Values
       const yearlyPropertyTaxes = currentHomeValue * (propertyTaxRate / 100);
       const yearlyTaxSavings = calculateTaxSavings(
-        yearlyLostToMortgageInterest,
+        mortgageBreakdown.yearlyInterestPaid,
         yearlyPropertyTaxes
       );
 
-      // === MONTHLY HOUSING COSTS ===
+      // Calculate Monthly Costs
       const monthlyPropertyTax = yearlyPropertyTaxes / 12;
       const monthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
       const monthlyMaintenance = (currentHomeValue * annualMaintainanceRate) / 100 / 12;
@@ -463,84 +449,68 @@ const HousingCalculator = () => {
         monthlyPropertyUtilities;
 
       const monthlyTaxBenefit = yearlyTaxSavings / 12;
-      const netMonthlyHomeownerCosts =
-        totalMonthlyHomeownerCosts -
-        currentMonthlyRentalIncome -
-        monthlyTaxBenefit;
+      const netMonthlyHomeownerCosts = totalMonthlyHomeownerCosts -
+        currentMonthlyRentalIncome - monthlyTaxBenefit;
 
       const totalMonthlyRenterCosts =
         currentMonthlyRent + monthlyRenterInsurance + monthlyRentUtilities;
 
-      // Calculate monthly take home pay (needed for both year 0 and later)
       const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary);
 
+      // Update Values for Next Year
       if (year > 0) {
-        // === YEARLY UPDATES ===
         currentAnnualSalary *= 1 + salaryGrowthRate / 100;
 
-        // Calculate actual available money for investments after housing costs
         const monthlyAvailableForInvestment = monthlyTakeHome - netMonthlyHomeownerCosts;
         const desiredMonthlyInvestment = monthlyTakeHome * (investmentRate / 100);
-
-        // Use the lower of desired investment rate or actually available money
         const actualMonthlyInvestment = Math.max(0, Math.min(
           desiredMonthlyInvestment,
           monthlyAvailableForInvestment
         ));
 
         const yearlyHomeownerInvestment = actualMonthlyInvestment * 12;
-
-        // Home appreciation
         const previousHomeValue = currentHomeValue;
         currentHomeValue *= 1 + homeAppreciation / 100;
         const yearlyEquityFromAppreciation = currentHomeValue - previousHomeValue;
 
         mortgageBalance = mortgageBreakdown.endingBalance;
 
-        // === INVESTMENT CALCULATIONS ===
-        const previousBuyingInvestments =
-          buyingNetWorth - (currentHomeValue - mortgageBalance);
-
+        const previousBuyingInvestments = buyingNetWorth - (currentHomeValue - mortgageBalance);
         const yearlyQualityOfLifeBenefit = monthyQualityOfLife * 12;
 
-        // Update buying net worth
+        // Update Net Worth Calculations
         buyingNetWorth =
-          previousBuyingInvestments * (1 + investmentReturn / 100) + // Investment growth
-          yearlyHomeownerInvestment + // New investments (now using actual affordable amount)
-          yearlyEquityFromAppreciation + // Market appreciation
-          yearlyEquityFromMortgage + // Principal payments
-          yearlyQualityOfLifeBenefit;
+          previousBuyingInvestments * (1 + investmentReturn / 100) +
+          yearlyHomeownerInvestment +
+          yearlyEquityFromAppreciation +
+          mortgageBreakdown.yearlyPrincipalPaid +
+          yearlyQualityOfLifeBenefit +
+          (currentHomeValue - mortgageBalance);
 
-        buyingNetWorth += currentHomeValue - mortgageBalance;
-
-        // Rental income increases with inflation
         currentMonthlyRentalIncome *= 1 + rentIncrease / 100;
+        currentMonthlyRent *= 1 + rentIncrease / 100;
 
-        // Renting scenario (remains largely unchanged as it's simpler)
-        const yearlyRentCosts = totalMonthlyRenterCosts * 12;
         const yearlyRenterInvestment =
           (monthlyTakeHome - totalMonthlyRenterCosts) * 12 * (investmentRate / 100);
 
-        currentMonthlyRent *= 1 + rentIncrease / 100;
         rentingNetWorth =
-          rentingNetWorth * (1 + investmentReturn / 100) + // Investment growth
-          yearlyRenterInvestment; // New investments after rent
+          rentingNetWorth * (1 + investmentReturn / 100) +
+          yearlyRenterInvestment;
       }
 
+      // Store Year's Data
       data.push({
         year,
         buying: Math.round(buyingNetWorth),
         renting: Math.round(rentingNetWorth),
         salary: Math.round(currentAnnualSalary),
         homeEquity: Math.round(currentHomeValue - mortgageBalance),
-        investmentsBuying: Math.round(
-          buyingNetWorth - (currentHomeValue - mortgageBalance)
-        ),
+        investmentsBuying: Math.round(buyingNetWorth - (currentHomeValue - mortgageBalance)),
         investmentsRenting: Math.round(rentingNetWorth),
         homeValue: Math.round(currentHomeValue),
         remainingLoan: Math.round(mortgageBalance),
-        yearlyPrincipalPaid: Math.round(yearlyEquityFromMortgage),
-        yearlyInterestPaid: Math.round(yearlyLostToMortgageInterest),
+        yearlyPrincipalPaid: Math.round(mortgageBreakdown.yearlyPrincipalPaid),
+        yearlyInterestPaid: Math.round(mortgageBreakdown.yearlyInterestPaid),
         monthlyPayment: Math.round(netMonthlyHomeownerCosts),
         availableMonthlyInvestment: Math.round(monthlyTakeHome - netMonthlyHomeownerCosts),
         investmentRate,
@@ -550,35 +520,16 @@ const HousingCalculator = () => {
         yearlyTaxSavings: Math.round(yearlyTaxSavings),
       });
     }
-
     return data;
   }, [
-    homePrice,
-    downPaymentPercent,
-    mortgageRate,
-    propertyTaxRate,
-    monthlyRent,
-    homeAppreciation,
-    investmentReturn,
-    rentIncrease,
-    closingCostPercent,
-    monthlyRenterInsurance,
-    monthlyRentUtilities,
-    monthlyPropertyUtilities,
-    salaryGrowthRate,
-    initialInvestment,
-    annualSalaryBeforeTax,
-    effectiveTaxRate,
-    investmentRate,
-    standardDeduction,
-    monthlyRentalIncome,
-    movingCostBuying,
-    rentDeposit,
-    PMIRate,
-    annualMaintainanceRate,
-    monthyQualityOfLife,
-    mortgageYears,
-    movingCostRenting
+    homePrice, downPaymentPercent, mortgageRate, propertyTaxRate,
+    monthlyRent, homeAppreciation, investmentReturn, rentIncrease,
+    closingCostPercent, monthlyRenterInsurance, monthlyRentUtilities,
+    monthlyPropertyUtilities, salaryGrowthRate, initialInvestment,
+    annualSalaryBeforeTax, effectiveTaxRate, investmentRate,
+    standardDeduction, monthlyRentalIncome, movingCostBuying,
+    rentDeposit, PMIRate, annualMaintainanceRate, monthyQualityOfLife,
+    mortgageYears, movingCostRenting
   ]);
 
   const isValidProjectionData = (data) => Array.isArray(data) && !data.error;
@@ -732,8 +683,8 @@ const HousingCalculator = () => {
               value={PMIRate}
               onChange={setPMIRate}
               min={0}
-              max={100}
-              step={1}
+              max={30}
+              step={.5}
               suffix="%"
             />
             <Input
