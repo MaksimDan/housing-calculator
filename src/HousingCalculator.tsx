@@ -201,10 +201,11 @@ const HousingCalculator = () => {
   const [propertyTaxRate, setPropertyTaxRate] = useState(1.2); // annual rate
   const [monthlyRent, setMonthlyRent] = useState(2000);
   const [closingCostPercent, setClosingCostPercent] = useState(3);
-  const [movingCost, setMovingCost] = useState(2000);
+  const [movingCostBuying, setMovingCostBuying] = useState(2000);
+  const [movingCostRenting, setMovingCostRenting] = useState(1000);
   const [rentDeposit, setRentDeposit] = useState(500); // Security deposit for renting apartment
   const [annualMaintainanceRate, setAnnualMaintainanceRate] = useState(1);
-  const [monthyQualityOfLife, setMonthyQualityOfLife] = useState(0);
+  const [monthyQualityOfLife, setMonthyQualityOfLife] = useState(500);
   const [mortgageYears, setMortgageYears] = useState(30);
 
   // Monthly costs
@@ -214,13 +215,13 @@ const HousingCalculator = () => {
   const [monthlyRentalIncome, setMonthlyRentalIncome] = useState(0);
 
   // Growth rates (all percentages)
-  const [homeAppreciation, setHomeAppreciation] = useState(4);
+  const [homeAppreciation, setHomeAppreciation] = useState(4.5);
   const [investmentReturn, setInvestmentReturn] = useState(8);
   const [rentIncrease, setRentIncrease] = useState(3);
   const [salaryGrowthRate, setSalaryGrowthRate] = useState(3);
 
   // UI state
-  const [xAxisYears, setXAxisYears] = useState(10);
+  const [xAxisYears, setXAxisYears] = useState(15);
   const [activePoint, setActivePoint] = useState(null);
 
   // === FIXED RATES (annual) ===
@@ -271,11 +272,11 @@ const HousingCalculator = () => {
     const downPaymentAmount = homePrice * (downPaymentPercent / 100);
     const closingCostsAmount = homePrice * (closingCostPercent / 100);
     const totalUpfrontCosts =
-      downPaymentAmount + closingCostsAmount + movingCost;
+      downPaymentAmount + closingCostsAmount + movingCostBuying;
 
     // === STARTING FINANCIAL POSITIONS ===
     let buyingNetWorth = initialInvestment - totalUpfrontCosts;
-    let rentingNetWorth = initialInvestment - rentDeposit;
+    let rentingNetWorth = initialInvestment - rentDeposit - movingCostRenting;
 
     // === TRACK VALUES THAT CHANGE YEARLY ===
     let currentHomeValue = homePrice;
@@ -428,12 +429,13 @@ const HousingCalculator = () => {
     investmentRate,
     standardDeduction,
     monthlyRentalIncome,
-    movingCost,
+    movingCostBuying,
     rentDeposit,
     PMIRate,
     annualMaintainanceRate,
     monthyQualityOfLife,
-    mortgageYears
+    mortgageYears,
+    movingCostRenting
   ]);
 
   const Input = ({ label, value, onChange, min, max, step, suffix = "" }) => (
@@ -627,8 +629,8 @@ const HousingCalculator = () => {
             {/* Moving cost */}
             <Input
               label="Moving cost (one time)"
-              value={movingCost}
-              onChange={setMovingCost}
+              value={movingCostBuying}
+              onChange={setMovingCostBuying}
               min={0}
               max={10000}
               step={100}
@@ -703,6 +705,15 @@ const HousingCalculator = () => {
               step={1}
               suffix="$"
             />
+            <Input
+              label="Moving cost (one time)"
+              value={movingCostRenting}
+              onChange={setMovingCostRenting}
+              min={0}
+              max={5000}
+              step={100}
+              suffix="$"
+            />
           </div>
 
           {/* Growth Assumptions Card */}
@@ -726,8 +737,8 @@ const HousingCalculator = () => {
               value={homeAppreciation}
               onChange={setHomeAppreciation}
               min={0}
-              max={10}
-              step={0.5}
+              max={20}
+              step={0.1}
               suffix="%"
             />
             <Input
