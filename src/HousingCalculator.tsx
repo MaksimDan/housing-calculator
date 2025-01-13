@@ -438,7 +438,10 @@ const HousingCalculator = () => {
       const monthlyPropertyTax = yearlyPropertyTaxes / 12;
       const monthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
       const monthlyMaintenance = (currentHomeValue * annualMaintainanceRate) / 100 / 12;
-      const monthlyPMI = downPaymentPercent < 20 ? (mortgageBalance * PMIRate) / 100 / 12 : 0;
+      const currentEquityPercent = ((currentHomeValue - mortgageBalance) / currentHomeValue) * 100;
+      const monthlyPMI = (downPaymentPercent < 20 && currentEquityPercent < 20)
+        ? (mortgageBalance * PMIRate) / 100 / 12
+        : 0;
 
       const totalMonthlyHomeownerCosts =
         monthlyMortgagePayment +
