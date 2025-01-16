@@ -301,7 +301,7 @@ const HousingCalculator = () => {
   const [PMIRate, setPMIRate] = useState(1);
   const [propertyTaxRate, setPropertyTaxRate] = useState(1.2);
   const [closingCostPercent, setClosingCostPercent] = useState(3);
-  const [annualMaintainanceRate, setAnnualMaintainanceRate] = useState(1);
+  const [annualMaintainanceRate, setAnnualMaintainanceRate] = useState(2);
 
   // Rental Related
   const [monthlyRent, setMonthlyRent] = useState(2000);
