@@ -563,23 +563,19 @@ const HousingCalculator = () => {
       <div className="max-w-screen-2xl mx-auto">
         <div className="mb-8">
           <h1 className="text-2xl font-light text-gray-800 mb-4">
-            Net Worth Calculator: Buy vs. Rent
+            Build Wealth: Buy vs. Rent Calculator
           </h1>
           <p className="text-sm text-gray-600 mb-2">
-            The graph shows total net worth over time:
+            Compare long-term wealth building strategies through property ownership versus renting:
           </p>
           <ul className="text-sm text-gray-600 list-disc pl-5">
-            <li className="mb-1">
-              <span className="text-blue-500 font-medium">
-                Buy Property & Invest
-              </span>
-              : Home equity + Investment portfolio ({investmentRate}% of salary
-              invested) - Mortgage & costs + Rental income
+            <li className="mb-2">
+              <span className="text-blue-500 font-medium">Property Owner Strategy</span>:
+              Combines home equity growth through mortgage payments and appreciation, plus investment returns from remaining income after housing costs. Accounts for tax benefits, maintenance costs, and potential rental income.
             </li>
-            <li className="mb-1">
-              <span className="text-green-500 font-medium">Rent & Invest</span>:
-              Investment portfolio ({investmentRate}% of salary invested) -
-              Rental costs
+            <li className="mb-2">
+              <span className="text-green-500 font-medium">Renter Strategy</span>:
+              Focuses on building wealth through investment returns from income saved after rental expenses, without the responsibilities of property ownership.
             </li>
           </ul>
         </div>
