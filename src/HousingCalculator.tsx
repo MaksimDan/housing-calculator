@@ -261,24 +261,6 @@ const DetailedMathCard = ({ data, showBuying, previousYearData }) => {
           </div>
         </div>
       )}
-
-      <div className="pt-4 border-t">
-        <h4 className="flex items-center gap-2 text-gray-600 font-medium mb-2">
-          <Percent className="w-4 h-4" /> Investment Metrics
-        </h4>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <div className="text-gray-600">Investment Rate</div>
-            <div className="font-medium">{data.investmentRate}% of income</div>
-          </div>
-          <div>
-            <div className="text-gray-600">Annual Investment</div>
-            <div className="font-medium">
-              {formatCurrency((data.salary * data.investmentRate) / 100)}
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
@@ -290,7 +272,6 @@ const HousingCalculator = () => {
   const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = useState(350000);
   const [effectiveTaxRate, setEffectiveTaxRate] = useState(40);
   const [standardDeduction, setStandardDeduction] = useState(21900);
-  const [investmentRate, setInvestmentRate] = useState(20);
   const [initialInvestment, setInitialInvestment] = useState(1000000);
 
   // Property Details
@@ -464,14 +445,14 @@ const HousingCalculator = () => {
       if (year > 0) {
         currentAnnualSalary *= 1 + salaryGrowthRate / 100;
 
-        const monthlyAvailableForInvestment = monthlyTakeHome - netMonthlyHomeownerCosts;
-        const desiredMonthlyInvestment = monthlyTakeHome * (investmentRate / 100);
-        const actualMonthlyInvestment = Math.max(0, Math.min(
-          desiredMonthlyInvestment,
-          monthlyAvailableForInvestment
-        ));
+        // Invest all available money in both scenartios at the end of each month
+        const monthlyAvailableForBuyerInvestment = monthlyTakeHome - netMonthlyHomeownerCosts;
+        const monthlyAvailableForRenterInvestment = monthlyTakeHome - totalMonthlyRenterCosts;
+        
+        // Calculate yearly investments using all available money
+        const yearlyHomeownerInvestment = Math.max(0, monthlyAvailableForBuyerInvestment) * 12;
+        const yearlyRenterInvestment = Math.max(0, monthlyAvailableForRenterInvestment) * 12;
 
-        const yearlyHomeownerInvestment = actualMonthlyInvestment * 12;
         const previousHomeValue = currentHomeValue;
         currentHomeValue *= 1 + homeAppreciation / 100;
         const yearlyEquityFromAppreciation = currentHomeValue - previousHomeValue;
@@ -493,9 +474,6 @@ const HousingCalculator = () => {
         currentMonthlyRentalIncome *= 1 + rentIncrease / 100;
         currentMonthlyRent *= 1 + rentIncrease / 100;
 
-        const yearlyRenterInvestment =
-          (monthlyTakeHome - totalMonthlyRenterCosts) * 12 * (investmentRate / 100);
-
         rentingNetWorth =
           rentingNetWorth * (1 + investmentReturn / 100) +
           yearlyRenterInvestment;
@@ -516,8 +494,7 @@ const HousingCalculator = () => {
         yearlyInterestPaid: Math.round(mortgageBreakdown.yearlyInterestPaid),
         monthlyPayment: Math.round(netMonthlyHomeownerCosts),
         availableMonthlyInvestment: Math.round(monthlyTakeHome - netMonthlyHomeownerCosts),
-        investmentRate,
-        investmentReturn,
+        monthlyRent: Math.round(currentMonthlyRent),
         annualRentCosts: Math.round(totalMonthlyRenterCosts * 12),
         monthlyRentalIncome: Math.round(currentMonthlyRentalIncome),
         yearlyTaxSavings: Math.round(yearlyTaxSavings),
@@ -529,7 +506,7 @@ const HousingCalculator = () => {
     monthlyRent, homeAppreciation, investmentReturn, rentIncrease,
     closingCostPercent, monthlyRenterInsurance, monthlyRentUtilities,
     monthlyPropertyUtilities, salaryGrowthRate, initialInvestment,
-    annualSalaryBeforeTax, effectiveTaxRate, investmentRate,
+    annualSalaryBeforeTax, effectiveTaxRate,
     standardDeduction, monthlyRentalIncome, movingCostBuying,
     rentDeposit, PMIRate, annualMaintainanceRate, monthyQualityOfLife,
     mortgageYears, movingCostRenting
@@ -622,15 +599,6 @@ const HousingCalculator = () => {
               max={40000}
               step={100}
               suffix="$"
-            />
-            <Input
-              label="Percentage of Salary Invested"
-              value={investmentRate}
-              onChange={setInvestmentRate}
-              min={0}
-              max={100}
-              step={1}
-              suffix="%"
             />
           </div>
 
