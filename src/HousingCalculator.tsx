@@ -369,6 +369,7 @@ const HousingCalculator = () => {
     let currentAnnualSalary = annualSalaryBeforeTax;
     let mortgageBalance = homePrice - downPaymentAmount;
     let currentMonthlyRentalIncome = monthlyRentalIncome;
+    let previousBuyingInvestments = buyingNetWorth;
 
     // Calculate Monthly Mortgage Payment
     const monthlyInterestRate = mortgageRate / 100 / 12;
@@ -445,31 +446,28 @@ const HousingCalculator = () => {
       if (year > 0) {
         currentAnnualSalary *= 1 + salaryGrowthRate / 100;
 
-        // Invest all available money in both scenartios at the end of each month
+        // Invest all available money in both scenarios at the end of each month
         const monthlyAvailableForBuyerInvestment = monthlyTakeHome - netMonthlyHomeownerCosts;
         const monthlyAvailableForRenterInvestment = monthlyTakeHome - totalMonthlyRenterCosts;
-        
+
         // Calculate yearly investments using all available money
         const yearlyHomeownerInvestment = Math.max(0, monthlyAvailableForBuyerInvestment) * 12;
         const yearlyRenterInvestment = Math.max(0, monthlyAvailableForRenterInvestment) * 12;
 
         const previousHomeValue = currentHomeValue;
         currentHomeValue *= 1 + homeAppreciation / 100;
-        const yearlyEquityFromAppreciation = currentHomeValue - previousHomeValue;
-
         mortgageBalance = mortgageBreakdown.endingBalance;
-
-        const previousBuyingInvestments = buyingNetWorth - (currentHomeValue - mortgageBalance);
         const yearlyQualityOfLifeBenefit = monthyQualityOfLife * 12;
 
-        // Update Net Worth Calculations
+        // Updated buying net worth calculation
         buyingNetWorth =
           previousBuyingInvestments * (1 + investmentReturn / 100) +
           yearlyHomeownerInvestment +
-          yearlyEquityFromAppreciation +
-          mortgageBreakdown.yearlyPrincipalPaid +
           yearlyQualityOfLifeBenefit +
           (currentHomeValue - mortgageBalance);
+
+        // Update values for next iteration
+        previousBuyingInvestments = buyingNetWorth - (currentHomeValue - mortgageBalance);
 
         currentMonthlyRentalIncome *= 1 + rentIncrease / 100;
         currentMonthlyRent *= 1 + rentIncrease / 100;
