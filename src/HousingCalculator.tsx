@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { HelpCircle } from "lucide-react";
 import { TrendingUp, TrendingDown, Home, DollarSign, Percent } from 'lucide-react';
 import {
@@ -11,6 +11,114 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { Play, Pause } from 'lucide-react';
+
+const AnimatedInput = ({
+  label,
+  value,
+  onChange,
+  min = 0,
+  max = 100,
+  step = 1,
+  suffix = '',
+  // Add smaller step size for animations
+  animationStep = step / 10,
+  // Animation interval in milliseconds
+  animationInterval = 50
+}) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const animationRef = useRef(null);
+  
+  const stopAnimation = useCallback(() => {
+    if (animationRef.current) {
+      clearInterval(animationRef.current);
+      animationRef.current = null;
+    }
+    setIsPlaying(false);
+  }, []);
+
+  const animate = useCallback(() => {
+    const nextValue = value + animationStep;
+    if (nextValue > max) {
+      onChange(min);
+      stopAnimation();
+    } else {
+      // Round to avoid floating point precision issues
+      const roundedValue = Math.round(nextValue * 100) / 100;
+      onChange(roundedValue);
+    }
+  }, [value, animationStep, max, min, onChange, stopAnimation]);
+
+  const togglePlay = useCallback(() => {
+    // Always clean up existing interval first
+    if (animationRef.current) {
+      clearInterval(animationRef.current);
+      animationRef.current = null;
+    }
+    setIsPlaying(!isPlaying);
+  }, [isPlaying]);
+
+  // Handle animation interval
+  useEffect(() => {
+    if (isPlaying) {
+      // Clean up any existing interval first
+      if (animationRef.current) {
+        clearInterval(animationRef.current);
+        animationRef.current = null;
+      }
+      // Then start new animation
+      animate(); // Immediate first step
+      animationRef.current = setInterval(animate, animationInterval);
+    }
+    return () => {
+      if (animationRef.current) {
+        clearInterval(animationRef.current);
+        animationRef.current = null;
+      }
+    };
+  }, [isPlaying, animate, animationInterval]);
+
+  // Stop animation when reaching max value
+  useEffect(() => {
+    if (value >= max && isPlaying) {
+      stopAnimation();
+      onChange(min);
+    }
+  }, [value, max, min, isPlaying, onChange, stopAnimation]);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex justify-between items-center">
+        <span className="text-sm font-medium text-gray-700">{label}</span>
+        <span className="text-sm text-gray-600">
+          {value.toLocaleString()}{suffix}
+        </span>
+      </div>
+      <div className="flex items-center gap-4">
+        <input
+          type="range"
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          min={min}
+          max={max}
+          step={step}
+          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+        />
+        <button
+          onClick={togglePlay}
+          className="rounded p-2 text-gray-300 hover:bg-gray-100 hover:text-gray-600 transition-all duration-200 ease-in-out"
+        >
+          {isPlaying ? (
+            <Pause className="h-4 w-4" />
+          ) : (
+            <Play className="h-4 w-4" />
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 
 const AffordabilityCheck = ({ projectionData }) => {
   if (!projectionData) return null;
@@ -562,7 +670,7 @@ const HousingCalculator = () => {
           {/* Financial Parameters Card */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-medium mb-4">Financial Parameters</h2>
-            <Input
+            <AnimatedInput
               label="Initial Investment Portfolio"
               value={initialInvestment}
               onChange={setInitialInvestment}
@@ -571,7 +679,7 @@ const HousingCalculator = () => {
               step={10000}
               suffix="$"
             />
-            <Input
+            <AnimatedInput
               label="Annual Salary (before tax)"
               value={annualSalaryBeforeTax}
               onChange={setAnnualSalaryBeforeTax}
@@ -580,7 +688,7 @@ const HousingCalculator = () => {
               step={10000}
               suffix="$"
             />
-            <Input
+            <AnimatedInput
               label="Effective tax rate (percentage)"
               value={effectiveTaxRate}
               onChange={setEffectiveTaxRate}
@@ -589,7 +697,7 @@ const HousingCalculator = () => {
               step={1}
               suffix="%"
             />
-            <Input
+            <AnimatedInput
               label="Standard Deduction"
               value={standardDeduction}
               onChange={setStandardDeduction}
@@ -605,7 +713,7 @@ const HousingCalculator = () => {
             <h2 className="text-lg font-medium mb-4">Property Details</h2>
 
             {/* Purchase Related */}
-            <Input
+            <AnimatedInput
               label="Home Price"
               value={homePrice}
               onChange={setHomePrice}
@@ -614,16 +722,16 @@ const HousingCalculator = () => {
               step={10000}
               suffix="$"
             />
-            <Input
+            <AnimatedInput
               label="Down Payment"
               value={downPaymentPercent}
               onChange={setDownPaymentPercent}
               min={5}
               max={50}
-              step={1}
+              step={.1}
               suffix="%"
             />
-            <Input
+            <AnimatedInput
               label="Closing Cost"
               value={closingCostPercent}
               onChange={setClosingCostPercent}
@@ -634,16 +742,16 @@ const HousingCalculator = () => {
             />
 
             {/* Monthly Costs */}
-            <Input
+            <AnimatedInput
               label="Mortgage Rate"
               value={mortgageRate}
               onChange={setMortgageRate}
-              min={0}
-              max={10}
+              min={.1}
+              max={15}
               step={0.1}
               suffix="%"
             />
-            <Input
+            <AnimatedInput
               label="PMI Rate"
               value={PMIRate}
               onChange={setPMIRate}
@@ -652,7 +760,7 @@ const HousingCalculator = () => {
               step={.5}
               suffix="%"
             />
-            <Input
+            <AnimatedInput
               label="Annual Maintenance Rate"
               value={annualMaintainanceRate}
               onChange={setAnnualMaintainanceRate}
@@ -661,7 +769,7 @@ const HousingCalculator = () => {
               step={1}
               suffix="%"
             />
-            <Input
+            <AnimatedInput
               label="Property Tax Rate"
               value={propertyTaxRate}
               onChange={setPropertyTaxRate}
@@ -670,7 +778,7 @@ const HousingCalculator = () => {
               step={0.1}
               suffix="%"
             />
-            <Input
+            <AnimatedInput
               label="Monthly Property Utilities"
               value={monthlyPropertyUtilities}
               onChange={setMonthlyPropertyUtilities}
@@ -680,7 +788,7 @@ const HousingCalculator = () => {
               suffix="$"
             />
             {/* New Rental Income Input */}
-            <Input
+            <AnimatedInput
               label="Monthly Rental Income (after tax)"
               value={monthlyRentalIncome}
               onChange={setMonthlyRentalIncome}
@@ -690,7 +798,7 @@ const HousingCalculator = () => {
               suffix="$"
             />
             {/* Moving cost */}
-            <Input
+            <AnimatedInput
               label="Moving cost (one time)"
               value={movingCostBuying}
               onChange={setMovingCostBuying}
@@ -699,7 +807,7 @@ const HousingCalculator = () => {
               step={100}
               suffix="$"
             />
-            <Input
+            <AnimatedInput
               label="Mortgage Years"
               value={mortgageYears}
               onChange={setMortgageYears}
@@ -708,7 +816,7 @@ const HousingCalculator = () => {
               step={1}
               suffix=""
             />
-            <Input
+            <AnimatedInput
               label={
                 <div className="flex items-center gap-1">
                   Monthly Quality of Life Benefit
@@ -732,7 +840,7 @@ const HousingCalculator = () => {
           {/* Renting Details Card */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-medium mb-4">Renting Details</h2>
-            <Input
+            <AnimatedInput
               label="Monthly Rent"
               value={monthlyRent}
               onChange={setMonthlyRent}
@@ -741,7 +849,7 @@ const HousingCalculator = () => {
               step={100}
               suffix="$"
             />
-            <Input
+            <AnimatedInput
               label="Security Deposit (one time)"
               value={rentDeposit}
               onChange={setRentDeposit}
@@ -750,7 +858,7 @@ const HousingCalculator = () => {
               step={100}
               suffix="$"
             />
-            <Input
+            <AnimatedInput
               label="Monthly Rent Utilities"
               value={monthlyRentUtilities}
               onChange={setMonthlyRentUtilities}
@@ -759,7 +867,7 @@ const HousingCalculator = () => {
               step={10}
               suffix="$"
             />
-            <Input
+            <AnimatedInput
               label="Monthly Renter's Insurance"
               value={monthlyRenterInsurance}
               onChange={setMonthlyRenterInsurance}
@@ -768,7 +876,7 @@ const HousingCalculator = () => {
               step={1}
               suffix="$"
             />
-            <Input
+            <AnimatedInput
               label="Moving cost (one time)"
               value={movingCostRenting}
               onChange={setMovingCostRenting}
@@ -784,7 +892,7 @@ const HousingCalculator = () => {
             <h2 className="text-lg font-medium mb-4">Growth Assumptions</h2>
 
             {/* Timeline */}
-            <Input
+            <AnimatedInput
               label="Graph Timeline"
               value={xAxisYears}
               onChange={setXAxisYears}
@@ -795,7 +903,7 @@ const HousingCalculator = () => {
             />
 
             {/* Asset Growth */}
-            <Input
+            <AnimatedInput
               label="Home Appreciation"
               value={homeAppreciation}
               onChange={setHomeAppreciation}
@@ -804,7 +912,7 @@ const HousingCalculator = () => {
               step={0.1}
               suffix="%"
             />
-            <Input
+            <AnimatedInput
               label="Investment Return"
               value={investmentReturn}
               onChange={setInvestmentReturn}
@@ -815,7 +923,7 @@ const HousingCalculator = () => {
             />
 
             {/* Cost Increases */}
-            <Input
+            <AnimatedInput
               label="Rent Increase"
               value={rentIncrease}
               onChange={setRentIncrease}
@@ -824,7 +932,7 @@ const HousingCalculator = () => {
               step={0.5}
               suffix="%"
             />
-            <Input
+            <AnimatedInput
               label="Salary Growth Rate"
               value={salaryGrowthRate}
               onChange={setSalaryGrowthRate}
