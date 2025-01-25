@@ -26,7 +26,7 @@ const HousingCalculator = () => {
   // Property Details - Inputs that affect purchase costs and ongoing expenses
   const [homePrice, setHomePrice] = useState(700000);
   const [downPaymentPercent, setDownPaymentPercent] = useState(20);
-  const [mortgageRate, setMortgageRate] = useState(6.5);
+  const [effectoveMortgageRate, setEffectiveMortgageRate] = useState(6.5);
   const [mortgageYears, setMortgageYears] = useState(30);
   const [PMIRate, setPMIRate] = useState(1);  // Private Mortgage Insurance rate if down payment < 20%
   const [propertyTaxRate, setPropertyTaxRate] = useState(1.2);
@@ -46,6 +46,7 @@ const HousingCalculator = () => {
   const [monthlyRenterInsurance, setMonthlyRenterInsurance] = useState(10);
   const [monthlyRentUtilities, setMonthlyRentUtilities] = useState(150);
   const [monthlyPropertyUtilities, setMonthlyPropertyUtilities] = useState(200);
+  // This is a subjective metric that artificially inflates net worth for the buying scenario. It is up the user to induce it.
   const [monthyQualityOfLife, setMonthyQualityOfLife] = useState(500);
 
   // Annual Growth/Return Rates
@@ -136,7 +137,7 @@ const HousingCalculator = () => {
     let previousBuyingInvestments = buyingNetWorth - (currentHomeValue - mortgageBalance);
 
     // Calculate monthly mortgage payment (stays constant through loan term)
-    const monthlyInterestRate = mortgageRate / 100 / 12;
+    const monthlyInterestRate = effectoveMortgageRate / 100 / 12;
     const totalMonthlyPayments = mortgageYears * 12;
     const monthlyMortgagePayment = (mortgageBalance *
       (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, totalMonthlyPayments))) /
@@ -187,8 +188,9 @@ const HousingCalculator = () => {
       const monthlyMaintenance = (currentHomeValue * annualMaintainanceRate) / 100 / 12;
 
       // Check if PMI is still needed (required when equity < 20%)
-      const currentEquityPercent = ((currentHomeValue - mortgageBalance) / currentHomeValue) * 100;
-      const monthlyPMI = currentEquityPercent < 20
+      // Calculate equity percentage based on original purchase price
+      const equityPercentOriginal = ((homePrice - mortgageBalance) / homePrice) * 100;
+      const monthlyPMI = equityPercentOriginal < 20
         ? (mortgageBalance * PMIRate) / 100 / 12
         : 0;
 
@@ -284,7 +286,7 @@ const HousingCalculator = () => {
     }
     return data;
   }, [
-    homePrice, downPaymentPercent, mortgageRate, propertyTaxRate,
+    homePrice, downPaymentPercent, effectoveMortgageRate, propertyTaxRate,
     monthlyRent, homeAppreciation, investmentReturn, rentIncrease,
     closingCostPercent, monthlyRenterInsurance, monthlyRentUtilities,
     monthlyPropertyUtilities, salaryGrowthRate, initialInvestment,
@@ -398,9 +400,9 @@ const HousingCalculator = () => {
 
             {/* Monthly Costs */}
             <AnimatedInput
-              label="Mortgage Rate"
-              value={mortgageRate}
-              onChange={setMortgageRate}
+              label="Effective Mortgage Rate"
+              value={effectoveMortgageRate}
+              onChange={setEffectiveMortgageRate}
               min={.1}
               max={15}
               step={0.1}
@@ -474,7 +476,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <div className="flex items-center gap-1">
-                  Monthly Quality of Life Benefit
+                  Monthly Quality of Life Benefit (Subjective Inflator)
                   <div
                     className="text-gray-400 hover:text-gray-600 cursor-help"
                     title="How much you'd be willing to pay monthly for homeownership benefits like: control over space, freedom to renovate, sense of permanence, no landlord, community belonging"
