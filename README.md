@@ -1,6 +1,6 @@
 # Housing Investment Calculator
 
-https://vercel.com/maksimdans-projects/housing-calculator
+https://housing-calculator-livid.vercel.app/
 
 An interactive web tool to compare the financial outcomes of buying vs. renting a home over time. This calculator helps visualize long-term wealth building scenarios based on various financial inputs.
 
