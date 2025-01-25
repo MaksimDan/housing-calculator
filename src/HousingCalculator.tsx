@@ -382,7 +382,7 @@ const HousingCalculator = () => {
               value={downPaymentPercent}
               onChange={setDownPaymentPercent}
               min={5}
-              max={50}
+              max={100}
               step={.1}
               suffix="%"
             />
@@ -571,8 +571,8 @@ const HousingCalculator = () => {
               label="Investment Return"
               value={investmentReturn}
               onChange={setInvestmentReturn}
-              min={2}
-              max={12}
+              min={1}
+              max={50}
               step={0.5}
               suffix="%"
             />
@@ -583,8 +583,8 @@ const HousingCalculator = () => {
               value={rentIncrease}
               onChange={setRentIncrease}
               min={0}
-              max={10}
-              step={0.5}
+              max={15}
+              step={0.1}
               suffix="%"
             />
             <AnimatedInput
@@ -592,8 +592,8 @@ const HousingCalculator = () => {
               value={salaryGrowthRate}
               onChange={setSalaryGrowthRate}
               min={0}
-              max={10}
-              step={0.5}
+              max={20}
+              step={0.1}
               suffix="%"
             />
           </div>
