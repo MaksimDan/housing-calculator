@@ -214,6 +214,27 @@ const HousingCalculator = () => {
 
       const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary);
 
+      // Store this year's data for visualization and analysis
+      data.push({
+        year,
+        buying: Math.round(buyingNetWorth),
+        renting: Math.round(rentingNetWorth),
+        salary: Math.round(currentAnnualSalary),
+        homeEquity: Math.round(currentHomeValue - mortgageBalance),
+        investmentsBuying: Math.round(buyingNetWorth - (currentHomeValue - mortgageBalance)),
+        investmentsRenting: Math.round(rentingNetWorth),
+        homeValue: Math.round(currentHomeValue),
+        remainingLoan: Math.round(mortgageBalance),
+        yearlyPrincipalPaid: Math.round(mortgageBreakdown.yearlyPrincipalPaid),
+        yearlyInterestPaid: Math.round(mortgageBreakdown.yearlyInterestPaid),
+        monthlyPayment: Math.round(netMonthlyHomeownerCosts),
+        availableMonthlyInvestment: Math.round(monthlyTakeHome - netMonthlyHomeownerCosts),
+        monthlyRent: Math.round(currentMonthlyRent),
+        annualRentCosts: Math.round(totalMonthlyRenterCosts * 12),
+        monthlyRentalIncome: Math.round(currentMonthlyRentalIncome),
+        yearlyTaxSavings: Math.round(yearlyTaxSavings),
+      });
+
       // Update values for next year (if not the initial year)
       if (year > 0) {
         // Increase salary by growth rate
@@ -262,27 +283,6 @@ const HousingCalculator = () => {
           rentingNetWorth * (1 + investmentReturn / 100) +
           yearlyRenterInvestment;
       }
-
-      // Store this year's data for visualization and analysis
-      data.push({
-        year,
-        buying: Math.round(buyingNetWorth),
-        renting: Math.round(rentingNetWorth),
-        salary: Math.round(currentAnnualSalary),
-        homeEquity: Math.round(currentHomeValue - mortgageBalance),
-        investmentsBuying: Math.round(buyingNetWorth - (currentHomeValue - mortgageBalance)),
-        investmentsRenting: Math.round(rentingNetWorth),
-        homeValue: Math.round(currentHomeValue),
-        remainingLoan: Math.round(mortgageBalance),
-        yearlyPrincipalPaid: Math.round(mortgageBreakdown.yearlyPrincipalPaid),
-        yearlyInterestPaid: Math.round(mortgageBreakdown.yearlyInterestPaid),
-        monthlyPayment: Math.round(netMonthlyHomeownerCosts),
-        availableMonthlyInvestment: Math.round(monthlyTakeHome - netMonthlyHomeownerCosts),
-        monthlyRent: Math.round(currentMonthlyRent),
-        annualRentCosts: Math.round(totalMonthlyRenterCosts * 12),
-        monthlyRentalIncome: Math.round(currentMonthlyRentalIncome),
-        yearlyTaxSavings: Math.round(yearlyTaxSavings),
-      });
     }
     return data;
   }, [
@@ -479,7 +479,7 @@ const HousingCalculator = () => {
                   Monthly Quality of Life Benefit (Subjective Inflator)
                   <div
                     className="text-gray-400 hover:text-gray-600 cursor-help"
-                    title="How much you'd be willing to pay monthly for homeownership benefits like: control over space, freedom to renovate, sense of permanence, no landlord, community belonging"
+                    title="How much you'd be willing to pay monthly for homeownership benefits like: control over space, freedom to renovate, sense of permanence, no landlord, community belonging. This will articially inflate your net worth in the buying scenario."
                   >
                     <HelpCircle className="w-4 h-4" />
                   </div>
