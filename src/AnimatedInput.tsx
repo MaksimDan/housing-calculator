@@ -14,6 +14,7 @@ export const AnimatedInput = ({
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const animationRef = useRef(null);
+  const initialValueRef = useRef(value); // Store the initial value
   
   const stopAnimation = useCallback(() => {
     if (animationRef.current) {
@@ -26,13 +27,13 @@ export const AnimatedInput = ({
   const animate = useCallback(() => {
     const nextValue = value + animationStep;
     if (nextValue > max) {
-      onChange(min);
+      onChange(initialValueRef.current); // Reset to initial value instead of min
       stopAnimation();
     } else {
       const roundedValue = Math.round(nextValue * 100) / 100;
       onChange(roundedValue);
     }
-  }, [value, animationStep, max, min, onChange, stopAnimation]);
+  }, [value, animationStep, max, onChange, stopAnimation]);
 
   const togglePlay = useCallback(() => {
     if (animationRef.current) {
@@ -62,9 +63,16 @@ export const AnimatedInput = ({
   useEffect(() => {
     if (value >= max && isPlaying) {
       stopAnimation();
-      onChange(min);
+      onChange(initialValueRef.current); // Reset to initial value instead of min
     }
-  }, [value, max, min, isPlaying, onChange, stopAnimation]);
+  }, [value, max, isPlaying, onChange, stopAnimation]);
+
+  // Update initial value ref if the value prop changes while not playing
+  useEffect(() => {
+    if (!isPlaying) {
+      initialValueRef.current = value;
+    }
+  }, [value, isPlaying]);
 
   return (
     <div className="flex flex-col gap-2">
