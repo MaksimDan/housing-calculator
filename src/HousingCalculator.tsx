@@ -258,30 +258,43 @@ const HousingCalculator = () => {
         // Quality of life benefit (if any) added to buying scenario
         const yearlyQualityOfLifeBenefit = monthyQualityOfLife * 12;
 
-        // Calculate new buying net worth:
-        // 1. Previous investments grow at investment return rate
-        // 2. Add new investments from savings
-        // 3. Add quality of life benefit
-        // 4. Add current home equity (home value minus mortgage)
-        buyingNetWorth =
-          previousBuyingInvestments * (1 + investmentReturn / 100) +
-          yearlyHomeownerInvestment +
-          yearlyQualityOfLifeBenefit +
-          (currentHomeValue - mortgageBalance);
+        // Calculate monthly return rate
+        const monthlyReturn = investmentReturn / 100 / 12;
 
-        // Track how much of buying net worth is in investments vs home equity
-        previousBuyingInvestments = buyingNetWorth - (currentHomeValue - mortgageBalance);
+        // Calculate monthly investment amounts
+        const monthlyHomeownerInvestment = yearlyHomeownerInvestment / 12;
+        const monthlyRenterInvestment = yearlyRenterInvestment / 12;
+
+        // Start with previous balances
+        let buyingInvestmentBalance = previousBuyingInvestments;
+        let rentingInvestmentBalance = rentingNetWorth;
+
+        // Compound monthly for both scenarios
+        for (let month = 0; month < 12; month++) {
+          // Buying scenario
+          buyingInvestmentBalance += monthlyHomeownerInvestment;
+          buyingInvestmentBalance *= (1 + monthlyReturn);
+
+          // Renting scenario
+          rentingInvestmentBalance += monthlyRenterInvestment;
+          rentingInvestmentBalance *= (1 + monthlyReturn);
+        }
+
+        // Add quality of life benefit to buying scenario
+        buyingInvestmentBalance += yearlyQualityOfLifeBenefit;
+
+        // Calculate final net worth for buying scenario
+        buyingNetWorth = buyingInvestmentBalance + (currentHomeValue - mortgageBalance);
+
+        // Track investments portion for next year
+        previousBuyingInvestments = buyingInvestmentBalance;
 
         // Update rental income and rent with their respective growth rates
         currentMonthlyRentalIncome *= 1 + rentIncrease / 100;
         currentMonthlyRent *= 1 + rentIncrease / 100;
 
-        // Calculate new renting net worth:
-        // 1. Previous investments grow at investment return rate
-        // 2. Add new investments from savings
-        rentingNetWorth =
-          rentingNetWorth * (1 + investmentReturn / 100) +
-          yearlyRenterInvestment;
+        // Update renting net worth
+        rentingNetWorth = rentingInvestmentBalance;
       }
     }
     return data;
