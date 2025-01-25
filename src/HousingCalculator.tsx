@@ -615,6 +615,47 @@ const HousingCalculator = () => {
             </div>
 
             <div className="col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              {(() => {
+                const findBreakEvenYear = () => {
+                  for (let i = 0; i < projectionData.length; i++) {
+                    if (projectionData[i].buying > projectionData[i].renting) {
+                      return i;
+                    }
+                  }
+                  return null;
+                };
+
+                const breakEvenYear = findBreakEvenYear();
+                const finalDifference = projectionData[xAxisYears].buying - projectionData[xAxisYears].renting;
+                const isBuyingBetterAtEnd = finalDifference > 0;
+
+                return (
+                  <>
+                    <div className={`text-center p-4 rounded-lg ${isBuyingBetterAtEnd
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'bg-green-50 text-green-700 border border-green-200'}`}>
+                      {breakEvenYear !== null
+                        ? `In year ${breakEvenYear}, buying becomes better than renting${isBuyingBetterAtEnd
+                          ? `. By year ${xAxisYears}, you'll have $${Math.abs(
+                            finalDifference
+                          ).toLocaleString()} more by buying.`
+                          : `, but by year ${xAxisYears}, renting becomes better again. You'll have $${Math.abs(
+                            finalDifference
+                          ).toLocaleString()} more by renting.`
+                        }`
+                        : `Renting starts better${isBuyingBetterAtEnd
+                          ? `, but by year ${xAxisYears}, buying becomes better. You'll have $${Math.abs(
+                            finalDifference
+                          ).toLocaleString()} more by buying.`
+                          : ` and stays better for all ${xAxisYears} years. By the end, you'll have $${Math.abs(
+                            finalDifference
+                          ).toLocaleString()} more by renting.`
+                        }`}
+                    </div>
+
+                  </>
+                );
+              })()}
               <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
@@ -699,32 +740,6 @@ const HousingCalculator = () => {
                     />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
-
-              <div className="text-center text-gray-600 mt-4">
-                {(() => {
-                  const findBreakEvenYear = () => {
-                    for (let i = 0; i < projectionData.length; i++) {
-                      if (projectionData[i].buying > projectionData[i].renting) {
-                        return i;
-                      }
-                    }
-                    return null;
-                  };
-
-                  const breakEvenYear = findBreakEvenYear();
-                  const finalDifference =
-                    projectionData[xAxisYears].buying -
-                    projectionData[xAxisYears].renting;
-
-                  return breakEvenYear !== null
-                    ? `In year ${breakEvenYear}, buying becomes better than renting. By year ${xAxisYears}, you'll have $${Math.abs(
-                      finalDifference
-                    ).toLocaleString()} more by buying.`
-                    : `Renting stays better for all ${xAxisYears} years. By the end, you'll have $${Math.abs(
-                      finalDifference
-                    ).toLocaleString()} more by renting.`;
-                })()}
               </div>
             </div>
 
