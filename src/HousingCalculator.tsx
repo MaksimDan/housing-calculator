@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { HelpCircle } from "lucide-react";
 import {
   LineChart,
@@ -16,48 +16,101 @@ import { DetailedMathCard } from './DetailedMathCard';
 
 const ANNUAL_HOMEOWNERS_INSURANCE_RATE = 0.0065;
 
+// Custom hook for persisting state in localStorage
+const usePersistedState = (key, defaultValue) => {
+  // On initial load, check localStorage first, fallback to default
+  const [value, setValue] = useState(() => {
+    const persistedValue = localStorage.getItem(key);
+    return persistedValue !== null ? JSON.parse(persistedValue) : defaultValue;
+  });
+
+  // Update localStorage whenever value changes
+  useEffect(() => {
+    localStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
+
+  return [value, setValue];
+};
+
 const HousingCalculator = () => {
   // Core Financial Inputs
-  const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = useState(350000);
-  const [effectiveTaxRate, setEffectiveTaxRate] = useState(40);
-  const [standardDeduction, setStandardDeduction] = useState(21900);
-  const [initialInvestment, setInitialInvestment] = useState(1000000);  // Starting cash available
+  const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = usePersistedState('housing-annualSalary', 350000);
+  const [effectiveTaxRate, setEffectiveTaxRate] = usePersistedState('housing-taxRate', 40);
+  const [standardDeduction, setStandardDeduction] = usePersistedState('housing-standardDeduction', 21900);
+  const [initialInvestment, setInitialInvestment] = usePersistedState('housing-initialInvestment', 1000000);
 
   // Property Details - Inputs that affect purchase costs and ongoing expenses
-  const [homePrice, setHomePrice] = useState(700000);
-  const [downPaymentPercent, setDownPaymentPercent] = useState(20);
-  const [effectoveMortgageRate, setEffectiveMortgageRate] = useState(6.5);
-  const [mortgageYears, setMortgageYears] = useState(30);
-  const [PMIRate, setPMIRate] = useState(1);  // Private Mortgage Insurance rate if down payment < 20%
-  const [propertyTaxRate, setPropertyTaxRate] = useState(1.2);
-  const [closingCostPercent, setClosingCostPercent] = useState(3);
-  const [annualMaintainanceRate, setAnnualMaintainanceRate] = useState(2);
+  const [homePrice, setHomePrice] = usePersistedState('housing-homePrice', 700000);
+  const [downPaymentPercent, setDownPaymentPercent] = usePersistedState('housing-downPayment', 20);
+  const [effectiveMortgageRate, setEffectiveMortgageRate] = usePersistedState('housing-mortgageRate', 6.5);
+  const [mortgageYears, setMortgageYears] = usePersistedState('housing-mortgageYears', 30);
+  const [PMIRate, setPMIRate] = usePersistedState('housing-PMIRate', 1);
+  const [propertyTaxRate, setPropertyTaxRate] = usePersistedState('housing-propertyTaxRate', 1.2);
+  const [closingCostPercent, setClosingCostPercent] = usePersistedState('housing-closingCost', 3);
+  const [annualMaintenanceRate, setannualMaintenanceRate] = usePersistedState('housing-maintenanceRate', 2);
 
   // Rental Related - Inputs for rental scenario and potential rental income
-  const [monthlyRent, setMonthlyRent] = useState(2000);
-  const [monthlyRentalIncome, setMonthlyRentalIncome] = useState(0);  // If planning to rent out part of owned property
-  const [rentDeposit, setRentDeposit] = useState(500);
+  const [monthlyRent, setMonthlyRent] = usePersistedState('housing-monthlyRent', 2000);
+  const [monthlyRentalIncome, setMonthlyRentalIncome] = usePersistedState('housing-rentalIncome', 0);
+  const [rentDeposit, setRentDeposit] = usePersistedState('housing-rentDeposit', 500);
 
   // One-time Moving Costs
-  const [movingCostBuying, setMovingCostBuying] = useState(2000);
-  const [movingCostRenting, setMovingCostRenting] = useState(1000);
+  const [movingCostBuying, setMovingCostBuying] = usePersistedState('housing-movingCostBuy', 2000);
+  const [movingCostRenting, setMovingCostRenting] = usePersistedState('housing-movingCostRent', 1000);
 
   // Monthly Recurring Expenses
-  const [monthlyRenterInsurance, setMonthlyRenterInsurance] = useState(10);
-  const [monthlyRentUtilities, setMonthlyRentUtilities] = useState(150);
-  const [monthlyPropertyUtilities, setMonthlyPropertyUtilities] = useState(200);
-  // This is a subjective metric that artificially inflates net worth for the buying scenario. It is up the user to induce it.
-  const [monthyQualityOfLife, setMonthyQualityOfLife] = useState(500);
+  const [monthlyRenterInsurance, setMonthlyRenterInsurance] = usePersistedState('housing-renterInsurance', 10);
+  const [monthlyRentUtilities, setMonthlyRentUtilities] = usePersistedState('housing-rentUtilities', 150);
+  const [monthlyPropertyUtilities, setMonthlyPropertyUtilities] = usePersistedState('housing-propertyUtilities', 200);
+  const [monthyQualityOfLife, setMonthyQualityOfLife] = usePersistedState('housing-qualityOfLife', 500);
 
   // Annual Growth/Return Rates
-  const [homeAppreciation, setHomeAppreciation] = useState(4.5);
-  const [investmentReturn, setInvestmentReturn] = useState(8);
-  const [rentIncrease, setRentIncrease] = useState(3);
-  const [salaryGrowthRate, setSalaryGrowthRate] = useState(3);
+  const [homeAppreciation, setHomeAppreciation] = usePersistedState('housing-appreciation', 4.5);
+  const [investmentReturn, setInvestmentReturn] = usePersistedState('housing-investmentReturn', 8);
+  const [rentIncrease, setRentIncrease] = usePersistedState('housing-rentIncrease', 3);
+  const [salaryGrowthRate, setSalaryGrowthRate] = usePersistedState('housing-salaryGrowth', 3);
 
   // UI State for visualization
-  const [xAxisYears, setXAxisYears] = useState(30);
-  const [activePoint, setActivePoint] = useState(null);
+  const [xAxisYears, setXAxisYears] = usePersistedState('housing-xAxisYears', 30);
+  const [activePoint, setActivePoint] = useState(null);  // Keep this as regular useState since it's temporary UI state
+
+  // Add this near the top of your HousingCalculator component
+  const resetToDefaults = () => {
+    // Clear all housing-related localStorage items
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('housing-')) {
+        localStorage.removeItem(key);
+      }
+    });
+
+    // Reset all state values to their defaults
+    setAnnualSalaryBeforeTax(350000);
+    setEffectiveTaxRate(40);
+    setStandardDeduction(21900);
+    setInitialInvestment(1000000);
+    setHomePrice(700000);
+    setDownPaymentPercent(20);
+    setEffectiveMortgageRate(6.5);
+    setMortgageYears(30);
+    setPMIRate(1);
+    setPropertyTaxRate(1.2);
+    setClosingCostPercent(3);
+    setannualMaintenanceRate(2);
+    setMonthlyRent(2000);
+    setMonthlyRentalIncome(0);
+    setRentDeposit(500);
+    setMovingCostBuying(2000);
+    setMovingCostRenting(1000);
+    setMonthlyRenterInsurance(10);
+    setMonthlyRentUtilities(150);
+    setMonthlyPropertyUtilities(200);
+    setMonthyQualityOfLife(500);
+    setHomeAppreciation(4.5);
+    setInvestmentReturn(8);
+    setRentIncrease(3);
+    setSalaryGrowthRate(3);
+    setXAxisYears(30);
+  };
 
   // Helper Functions
 
@@ -137,7 +190,7 @@ const HousingCalculator = () => {
     let previousBuyingInvestments = buyingNetWorth - (currentHomeValue - mortgageBalance);
 
     // Calculate monthly mortgage payment (stays constant through loan term)
-    const monthlyInterestRate = effectoveMortgageRate / 100 / 12;
+    const monthlyInterestRate = effectiveMortgageRate / 100 / 12;
     const totalMonthlyPayments = mortgageYears * 12;
     const monthlyMortgagePayment = (mortgageBalance *
       (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, totalMonthlyPayments))) /
@@ -147,7 +200,7 @@ const HousingCalculator = () => {
     const initialMonthlyTakeHome = calculateMonthlyTakeHome(annualSalaryBeforeTax);
     const initialMonthlyPropertyTax = (currentHomeValue * (propertyTaxRate / 100)) / 12;
     const initialMonthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
-    const initialMonthlyMaintenance = (currentHomeValue * annualMaintainanceRate / 100) / 12;
+    const initialMonthlyMaintenance = (currentHomeValue * annualMaintenanceRate / 100) / 12;
     const initialMonthlyPMI = downPaymentPercent < 20 ? (mortgageBalance * PMIRate) / 100 / 12 : 0;
 
     const initialTotalMonthlyHousingCosts =
@@ -185,7 +238,7 @@ const HousingCalculator = () => {
       // Calculate monthly housing costs for homeowner
       const monthlyPropertyTax = yearlyPropertyTaxes / 12;
       const monthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
-      const monthlyMaintenance = (currentHomeValue * annualMaintainanceRate) / 100 / 12;
+      const monthlyMaintenance = (currentHomeValue * annualMaintenanceRate) / 100 / 12;
 
       // Check if PMI is still needed (required when equity < 20%)
       // Calculate equity percentage based on original purchase price
@@ -299,13 +352,13 @@ const HousingCalculator = () => {
     }
     return data;
   }, [
-    homePrice, downPaymentPercent, effectoveMortgageRate, propertyTaxRate,
+    homePrice, downPaymentPercent, effectiveMortgageRate, propertyTaxRate,
     monthlyRent, homeAppreciation, investmentReturn, rentIncrease,
     closingCostPercent, monthlyRenterInsurance, monthlyRentUtilities,
     monthlyPropertyUtilities, salaryGrowthRate, initialInvestment,
     annualSalaryBeforeTax, effectiveTaxRate,
     standardDeduction, monthlyRentalIncome, movingCostBuying,
-    rentDeposit, PMIRate, annualMaintainanceRate, monthyQualityOfLife,
+    rentDeposit, PMIRate, annualMaintenanceRate, monthyQualityOfLife,
     mortgageYears, movingCostRenting
   ]);
 
@@ -332,8 +385,29 @@ const HousingCalculator = () => {
             </li>
           </ul>
         </div>
-
         <AffordabilityCheck projectionData={projectionData} />
+
+        <button
+  onClick={resetToDefaults}
+  className="ml-auto p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200 flex items-center justify-center border border-gray-300"
+  title="Reset to Defaults"
+>
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width="16" 
+    height="16" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+    <path d="M3 3v5h5"/>
+  </svg>
+</button>
+
 
         {/* Input Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
@@ -414,7 +488,7 @@ const HousingCalculator = () => {
             {/* Monthly Costs */}
             <AnimatedInput
               label="Effective Mortgage Rate"
-              value={effectoveMortgageRate}
+              value={effectiveMortgageRate}
               onChange={setEffectiveMortgageRate}
               min={.1}
               max={15}
@@ -432,8 +506,8 @@ const HousingCalculator = () => {
             />
             <AnimatedInput
               label="Annual Maintenance Rate"
-              value={annualMaintainanceRate}
-              onChange={setAnnualMaintainanceRate}
+              value={annualMaintenanceRate}
+              onChange={setannualMaintenanceRate}
               min={0}
               max={100}
               step={1}
