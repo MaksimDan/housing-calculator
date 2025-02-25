@@ -48,6 +48,7 @@ const HousingCalculator = () => {
   const [propertyTaxRate, setPropertyTaxRate] = usePersistedState('housing-propertyTaxRate', 1.2);
   const [closingCostPercent, setClosingCostPercent] = usePersistedState('housing-closingCost', 3);
   const [annualMaintenanceRate, setannualMaintenanceRate] = usePersistedState('housing-maintenanceRate', 2);
+  const [monthlyHOAFee, setMonthlyHOAFee] = usePersistedState('housing-hoaFee', 0);
 
   // Rental Related - Inputs for rental scenario and potential rental income
   const [monthlyRent, setMonthlyRent] = usePersistedState('housing-monthlyRent', 2000);
@@ -62,7 +63,7 @@ const HousingCalculator = () => {
   const [monthlyRenterInsurance, setMonthlyRenterInsurance] = usePersistedState('housing-renterInsurance', 10);
   const [monthlyRentUtilities, setMonthlyRentUtilities] = usePersistedState('housing-rentUtilities', 150);
   const [monthlyPropertyUtilities, setMonthlyPropertyUtilities] = usePersistedState('housing-propertyUtilities', 200);
-  const [monthyQualityOfLife, setMonthyQualityOfLife] = usePersistedState('housing-qualityOfLife', 500);
+  const [monthlyQualityOfLife, setMonthlyQualityOfLife] = usePersistedState('housing-qualityOfLife', 500);
 
   // Annual Growth/Return Rates
   const [homeAppreciation, setHomeAppreciation] = usePersistedState('housing-appreciation', 4.5);
@@ -96,6 +97,7 @@ const HousingCalculator = () => {
     setPropertyTaxRate(1.2);
     setClosingCostPercent(3);
     setannualMaintenanceRate(2);
+    setMonthlyHOAFee(0);
     setMonthlyRent(2000);
     setMonthlyRentalIncome(0);
     setRentDeposit(500);
@@ -104,7 +106,7 @@ const HousingCalculator = () => {
     setMonthlyRenterInsurance(10);
     setMonthlyRentUtilities(150);
     setMonthlyPropertyUtilities(200);
-    setMonthyQualityOfLife(500);
+    setMonthlyQualityOfLife(500);
     setHomeAppreciation(4.5);
     setInvestmentReturn(8);
     setRentIncrease(3);
@@ -209,7 +211,8 @@ const HousingCalculator = () => {
       initialMonthlyHomeInsurance +
       initialMonthlyMaintenance +
       initialMonthlyPMI +
-      monthlyPropertyUtilities;
+      monthlyPropertyUtilities +
+      monthlyHOAFee;
 
     if (initialTotalMonthlyHousingCosts > initialMonthlyTakeHome) {
       return {
@@ -254,7 +257,8 @@ const HousingCalculator = () => {
         monthlyHomeInsurance +
         monthlyMaintenance +
         monthlyPMI +
-        monthlyPropertyUtilities;
+        monthlyPropertyUtilities +
+        monthlyHOAFee;
 
       // Calculate net monthly cost after rental income and tax benefits
       const monthlyTaxBenefit = yearlyTaxSavings / 12;
@@ -309,7 +313,7 @@ const HousingCalculator = () => {
         mortgageBalance = mortgageBreakdown.endingBalance;
 
         // Quality of life benefit (if any) added to buying scenario
-        const yearlyQualityOfLifeBenefit = monthyQualityOfLife * 12;
+        const yearlyQualityOfLifeBenefit = monthlyQualityOfLife * 12;
 
         // Calculate monthly return rate
         const monthlyReturn = investmentReturn / 100 / 12;
@@ -358,8 +362,8 @@ const HousingCalculator = () => {
     monthlyPropertyUtilities, salaryGrowthRate, initialInvestment,
     annualSalaryBeforeTax, effectiveTaxRate,
     standardDeduction, monthlyRentalIncome, movingCostBuying,
-    rentDeposit, PMIRate, annualMaintenanceRate, monthyQualityOfLife,
-    mortgageYears, movingCostRenting
+    rentDeposit, PMIRate, annualMaintenanceRate, monthlyQualityOfLife,
+    mortgageYears, movingCostRenting, monthlyHOAFee
   ]);
 
   const isValidProjectionData = (data) => Array.isArray(data) && !data.error;
@@ -388,25 +392,25 @@ const HousingCalculator = () => {
         <AffordabilityCheck projectionData={projectionData} />
 
         <button
-  onClick={resetToDefaults}
-  className="ml-auto p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200 flex items-center justify-center border border-gray-300"
-  title="Reset to Defaults"
->
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width="16" 
-    height="16" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round"
-  >
-    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-    <path d="M3 3v5h5"/>
-  </svg>
-</button>
+          onClick={resetToDefaults}
+          className="ml-auto p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200 flex items-center justify-center border border-gray-300"
+          title="Reset to Defaults"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+          </svg>
+        </button>
 
 
         {/* Input Cards Grid */}
@@ -514,6 +518,15 @@ const HousingCalculator = () => {
               suffix="%"
             />
             <AnimatedInput
+              label="Monthly HOA Fee"
+              value={monthlyHOAFee}
+              onChange={setMonthlyHOAFee}
+              min={0}
+              max={3000}
+              step={1}
+              suffix="$"
+            />
+            <AnimatedInput
               label="Property Tax Rate"
               value={propertyTaxRate}
               onChange={setPropertyTaxRate}
@@ -572,8 +585,8 @@ const HousingCalculator = () => {
                   </div>
                 </div>
               }
-              value={monthyQualityOfLife}
-              onChange={setMonthyQualityOfLife}
+              value={monthlyQualityOfLife}
+              onChange={setMonthlyQualityOfLife}
               min={0}
               max={10000}
               step={100}
