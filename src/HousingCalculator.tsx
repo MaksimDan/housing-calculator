@@ -1,3 +1,4 @@
+// File: src/HousingCalculator.tsx
 import React, { useState, useMemo, useEffect } from "react";
 import { HelpCircle } from "lucide-react";
 import {
@@ -46,6 +47,7 @@ const HousingCalculator = () => {
   const [mortgageYears, setMortgageYears] = usePersistedState('housing-mortgageYears', 30);
   const [PMIRate, setPMIRate] = usePersistedState('housing-PMIRate', 1);
   const [propertyTaxRate, setPropertyTaxRate] = usePersistedState('housing-propertyTaxRate', 1.2);
+  const [melloRoosTaxRate, setMelloRoosTaxRate] = usePersistedState('housing-melloRoosTaxRate', 0); // New state for Mello-Roos
   const [closingCostPercent, setClosingCostPercent] = usePersistedState('housing-closingCost', 3);
   const [annualMaintenanceRate, setannualMaintenanceRate] = usePersistedState('housing-maintenanceRate', 2);
   const [monthlyHOAFee, setMonthlyHOAFee] = usePersistedState('housing-hoaFee', 0);
@@ -73,18 +75,15 @@ const HousingCalculator = () => {
 
   // UI State for visualization
   const [xAxisYears, setXAxisYears] = usePersistedState('housing-xAxisYears', 30);
-  const [activePoint, setActivePoint] = useState(null);  // Keep this as regular useState since it's temporary UI state
+  const [activePoint, setActivePoint] = useState(null);
 
-  // Add this near the top of your HousingCalculator component
   const resetToDefaults = () => {
-    // Clear all housing-related localStorage items
     Object.keys(localStorage).forEach(key => {
       if (key.startsWith('housing-')) {
         localStorage.removeItem(key);
       }
     });
 
-    // Reset all state values to their defaults
     setAnnualSalaryBeforeTax(350000);
     setEffectiveTaxRate(40);
     setStandardDeduction(21900);
@@ -95,6 +94,7 @@ const HousingCalculator = () => {
     setMortgageYears(30);
     setPMIRate(1);
     setPropertyTaxRate(1.2);
+    setMelloRoosTaxRate(0); // Reset Mello-Roos
     setClosingCostPercent(3);
     setannualMaintenanceRate(2);
     setMonthlyHOAFee(0);
@@ -114,15 +114,11 @@ const HousingCalculator = () => {
     setXAxisYears(30);
   };
 
-  // Helper Functions
-
-  // Calculate monthly take-home pay after taxes
   const calculateMonthlyTakeHome = (annualSalary) => {
     const afterTaxAnnual = annualSalary * (1 - effectiveTaxRate / 100);
     return afterTaxAnnual / 12;
   };
 
-  // Calculate yearly mortgage amortization details
   const calculateYearlyMortgageBreakdown = (loanBalance, monthlyPayment, monthlyRate) => {
     let yearlyInterestPaid = 0;
     let yearlyPrincipalPaid = 0;
@@ -144,33 +140,23 @@ const HousingCalculator = () => {
     };
   };
 
-  // Calculate tax savings from mortgage interest and property tax deductions
-  const calculateTaxSavings = (mortgageInterest, propertyTaxes) => {
+  // Calculate tax savings from mortgage interest, property taxes, and Mello-Roos taxes
+  const calculateTaxSavings = (mortgageInterest, propertyTaxes, melloRoosTaxes) => {
     // Only benefit from itemizing if deductions exceed standard deduction
-    const totalItemizedDeductions = mortgageInterest + propertyTaxes;
+    const totalItemizedDeductions = mortgageInterest + propertyTaxes + melloRoosTaxes; // Include Mello-Roos
     const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - standardDeduction);
     return extraDeductionBenefit * (effectiveTaxRate / 100);
   };
 
-  // Main projection calculation
   const projectionData = useMemo(() => {
     const data = [];
 
-    // --- Initial Setup ---
-
-    // Calculate upfront costs
     const downPaymentAmount = homePrice * (downPaymentPercent / 100);
     const closingCostsAmount = homePrice * (closingCostPercent / 100);
 
-    // Calculate initial net worth for both scenarios
-    // For buying: We subtract closing costs and moving costs, but NOT down payment
-    // Down payment converts from cash to home equity, so it doesn't affect net worth
     let buyingNetWorth = initialInvestment - closingCostsAmount - movingCostBuying;
-
-    // For renting: We subtract security deposit and moving costs
     let rentingNetWorth = initialInvestment - rentDeposit - movingCostRenting;
 
-    // Validate if we have enough initial investment to cover all upfront cash needs
     const totalCashNeeded = downPaymentAmount + closingCostsAmount + movingCostBuying;
     if (totalCashNeeded > initialInvestment) {
       return {
@@ -180,27 +166,22 @@ const HousingCalculator = () => {
       };
     }
 
-    // Initialize tracking variables for year-over-year calculations
-    let currentHomeValue = homePrice;  // Tracks home value with appreciation
-    let currentMonthlyRent = monthlyRent;  // Tracks rent with annual increases
-    let currentAnnualSalary = annualSalaryBeforeTax;  // Tracks salary growth
-    let mortgageBalance = homePrice - downPaymentAmount;  // Tracks remaining mortgage
-    let currentMonthlyRentalIncome = monthlyRentalIncome;  // Tracks rental income if any
-
-    // Calculate how much of buying net worth is in non-home investments
-    // This is important because investment returns only apply to this portion
+    let currentHomeValue = homePrice;
+    let currentMonthlyRent = monthlyRent;
+    let currentAnnualSalary = annualSalaryBeforeTax;
+    let mortgageBalance = homePrice - downPaymentAmount;
+    let currentMonthlyRentalIncome = monthlyRentalIncome;
     let previousBuyingInvestments = buyingNetWorth - (currentHomeValue - mortgageBalance);
 
-    // Calculate monthly mortgage payment (stays constant through loan term)
     const monthlyInterestRate = effectiveMortgageRate / 100 / 12;
     const totalMonthlyPayments = mortgageYears * 12;
     const monthlyMortgagePayment = (mortgageBalance *
       (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, totalMonthlyPayments))) /
       (Math.pow(1 + monthlyInterestRate, totalMonthlyPayments) - 1);
 
-    // --- Validate Monthly Affordability ---
     const initialMonthlyTakeHome = calculateMonthlyTakeHome(annualSalaryBeforeTax);
     const initialMonthlyPropertyTax = (currentHomeValue * (propertyTaxRate / 100)) / 12;
+    const initialMonthlyMelloRoosTax = (currentHomeValue * (melloRoosTaxRate / 100)) / 12; // Initial Mello-Roos
     const initialMonthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
     const initialMonthlyMaintenance = (currentHomeValue * annualMaintenanceRate / 100) / 12;
     const initialMonthlyPMI = downPaymentPercent < 20 ? (mortgageBalance * PMIRate) / 100 / 12 : 0;
@@ -208,6 +189,7 @@ const HousingCalculator = () => {
     const initialTotalMonthlyHousingCosts =
       monthlyMortgagePayment +
       initialMonthlyPropertyTax +
+      initialMonthlyMelloRoosTax + // Add Mello-Roos to initial costs
       initialMonthlyHomeInsurance +
       initialMonthlyMaintenance +
       initialMonthlyPMI +
@@ -222,56 +204,50 @@ const HousingCalculator = () => {
       };
     }
 
-    // --- Year-by-Year Calculations ---
     for (let year = 0; year <= mortgageYears; year++) {
-      // Calculate this year's mortgage payments breakdown
       const mortgageBreakdown = calculateYearlyMortgageBreakdown(
         mortgageBalance,
         monthlyMortgagePayment,
         monthlyInterestRate
       );
 
-      // Calculate annual property tax and potential tax savings
       const yearlyPropertyTaxes = currentHomeValue * (propertyTaxRate / 100);
+      const yearlyMelloRoosTaxes = currentHomeValue * (melloRoosTaxRate / 100); // Yearly Mello-Roos
       const yearlyTaxSavings = calculateTaxSavings(
         mortgageBreakdown.yearlyInterestPaid,
-        yearlyPropertyTaxes
+        yearlyPropertyTaxes,
+        yearlyMelloRoosTaxes // Pass Mello-Roos to tax savings
       );
 
-      // Calculate monthly housing costs for homeowner
       const monthlyPropertyTax = yearlyPropertyTaxes / 12;
+      const monthlyMelloRoosTax = yearlyMelloRoosTaxes / 12; // Monthly Mello-Roos
       const monthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
       const monthlyMaintenance = (currentHomeValue * annualMaintenanceRate) / 100 / 12;
 
-      // Check if PMI is still needed (required when equity < 20%)
-      // Calculate equity percentage based on original purchase price
       const equityPercentOriginal = ((homePrice - mortgageBalance) / homePrice) * 100;
       const monthlyPMI = equityPercentOriginal < 20
         ? (mortgageBalance * PMIRate) / 100 / 12
         : 0;
 
-      // Sum up all monthly costs for homeowner
       const totalMonthlyHomeownerCosts =
         monthlyMortgagePayment +
         monthlyPropertyTax +
+        monthlyMelloRoosTax + // Add Mello-Roos to monthly costs
         monthlyHomeInsurance +
         monthlyMaintenance +
         monthlyPMI +
         monthlyPropertyUtilities +
         monthlyHOAFee;
 
-      // Calculate net monthly cost after rental income and tax benefits
       const monthlyTaxBenefit = yearlyTaxSavings / 12;
       const netMonthlyHomeownerCosts = totalMonthlyHomeownerCosts -
         currentMonthlyRentalIncome - monthlyTaxBenefit;
 
-      // Calculate total monthly costs for renter
       const totalMonthlyRenterCosts =
         currentMonthlyRent + monthlyRenterInsurance + monthlyRentUtilities;
 
       const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary);
 
-      // Store this year's data for visualization and analysis
       data.push({
         year,
         buying: Math.round(buyingNetWorth),
@@ -290,73 +266,48 @@ const HousingCalculator = () => {
         annualRentCosts: Math.round(totalMonthlyRenterCosts * 12),
         monthlyRentalIncome: Math.round(currentMonthlyRentalIncome),
         yearlyTaxSavings: Math.round(yearlyTaxSavings),
+        // yearlyMelloRoosTaxes: Math.round(yearlyMelloRoosTaxes) // Optional: if needed for detailed display
       });
 
-      // Update values for next year (if not the initial year)
       if (year > 0) {
-        // Increase salary by growth rate
         currentAnnualSalary *= 1 + salaryGrowthRate / 100;
 
-        // Calculate how much each scenario can invest monthly
         const monthlyAvailableForBuyerInvestment = monthlyTakeHome - netMonthlyHomeownerCosts;
         const monthlyAvailableForRenterInvestment = monthlyTakeHome - totalMonthlyRenterCosts;
 
-        // Convert to yearly investment amounts
         const yearlyHomeownerInvestment = Math.max(0, monthlyAvailableForBuyerInvestment) * 12;
         const yearlyRenterInvestment = Math.max(0, monthlyAvailableForRenterInvestment) * 12;
 
-        // Update home value with appreciation
-        const previousHomeValue = currentHomeValue;
         currentHomeValue *= 1 + homeAppreciation / 100;
-
-        // Update mortgage balance based on this year's payments
         mortgageBalance = mortgageBreakdown.endingBalance;
 
-        // Quality of life benefit (if any) added to buying scenario
         const yearlyQualityOfLifeBenefit = monthlyQualityOfLife * 12;
-
-        // Calculate monthly return rate
         const monthlyReturn = investmentReturn / 100 / 12;
-
-        // Calculate monthly investment amounts
         const monthlyHomeownerInvestment = yearlyHomeownerInvestment / 12;
         const monthlyRenterInvestment = yearlyRenterInvestment / 12;
 
-        // Start with previous balances
         let buyingInvestmentBalance = previousBuyingInvestments;
         let rentingInvestmentBalance = rentingNetWorth;
 
-        // Compound monthly for both scenarios
         for (let month = 0; month < 12; month++) {
-          // Buying scenario
           buyingInvestmentBalance += monthlyHomeownerInvestment;
           buyingInvestmentBalance *= (1 + monthlyReturn);
-
-          // Renting scenario
           rentingInvestmentBalance += monthlyRenterInvestment;
           rentingInvestmentBalance *= (1 + monthlyReturn);
         }
 
-        // Add quality of life benefit to buying scenario
         buyingInvestmentBalance += yearlyQualityOfLifeBenefit;
-
-        // Calculate final net worth for buying scenario
         buyingNetWorth = buyingInvestmentBalance + (currentHomeValue - mortgageBalance);
-
-        // Track investments portion for next year
         previousBuyingInvestments = buyingInvestmentBalance;
 
-        // Update rental income and rent with their respective growth rates
         currentMonthlyRentalIncome *= 1 + rentIncrease / 100;
         currentMonthlyRent *= 1 + rentIncrease / 100;
-
-        // Update renting net worth
         rentingNetWorth = rentingInvestmentBalance;
       }
     }
     return data;
   }, [
-    homePrice, downPaymentPercent, effectiveMortgageRate, propertyTaxRate,
+    homePrice, downPaymentPercent, effectiveMortgageRate, propertyTaxRate, melloRoosTaxRate, // Added melloRoosTaxRate
     monthlyRent, homeAppreciation, investmentReturn, rentIncrease,
     closingCostPercent, monthlyRenterInsurance, monthlyRentUtilities,
     monthlyPropertyUtilities, salaryGrowthRate, initialInvestment,
@@ -460,7 +411,6 @@ const HousingCalculator = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-medium mb-4">Property Details</h2>
 
-            {/* Purchase Related */}
             <AnimatedInput
               label="Home Price"
               value={homePrice}
@@ -488,8 +438,6 @@ const HousingCalculator = () => {
               step={0.1}
               suffix="%"
             />
-
-            {/* Monthly Costs */}
             <AnimatedInput
               label="Effective Mortgage Rate"
               value={effectiveMortgageRate}
@@ -506,6 +454,25 @@ const HousingCalculator = () => {
               min={0}
               max={30}
               step={.5}
+              suffix="%"
+            />
+            <AnimatedInput
+              label="Property Tax Rate"
+              value={propertyTaxRate}
+              onChange={setPropertyTaxRate}
+              min={0.5}
+              max={3}
+              step={0.1}
+              suffix="%"
+            />
+            {/* New Mello-Roos Input */}
+            <AnimatedInput
+              label="Mello-Roos Tax Rate"
+              value={melloRoosTaxRate}
+              onChange={setMelloRoosTaxRate}
+              min={0}
+              max={2} // Mello-Roos rates are typically lower than general property tax
+              step={0.05}
               suffix="%"
             />
             <AnimatedInput
@@ -527,15 +494,6 @@ const HousingCalculator = () => {
               suffix="$"
             />
             <AnimatedInput
-              label="Property Tax Rate"
-              value={propertyTaxRate}
-              onChange={setPropertyTaxRate}
-              min={0.5}
-              max={3}
-              step={0.1}
-              suffix="%"
-            />
-            <AnimatedInput
               label="Monthly Property Utilities"
               value={monthlyPropertyUtilities}
               onChange={setMonthlyPropertyUtilities}
@@ -544,7 +502,6 @@ const HousingCalculator = () => {
               step={10}
               suffix="$"
             />
-            {/* New Rental Income Input */}
             <AnimatedInput
               label="Monthly Rental Income (after tax)"
               value={monthlyRentalIncome}
@@ -554,7 +511,6 @@ const HousingCalculator = () => {
               step={100}
               suffix="$"
             />
-            {/* Moving cost */}
             <AnimatedInput
               label="Moving cost (one time)"
               value={movingCostBuying}
@@ -648,7 +604,6 @@ const HousingCalculator = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-medium mb-4">Growth Assumptions</h2>
 
-            {/* Timeline */}
             <AnimatedInput
               label="Graph Timeline"
               value={xAxisYears}
@@ -658,8 +613,6 @@ const HousingCalculator = () => {
               step={1}
               suffix=" years"
             />
-
-            {/* Asset Growth */}
             <AnimatedInput
               label="Home Appreciation"
               value={homeAppreciation}
@@ -678,8 +631,6 @@ const HousingCalculator = () => {
               step={0.5}
               suffix="%"
             />
-
-            {/* Cost Increases */}
             <AnimatedInput
               label="Rent Increase"
               value={rentIncrease}
