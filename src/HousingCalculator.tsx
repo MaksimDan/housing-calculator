@@ -460,18 +460,18 @@ const HousingCalculator = () => {
               suffix="$"
             />
             <AnimatedInput
-              label={
-                <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Percentage of home price paid upfront (20%+ avoids PMI)")} /> Down Payment
-                </>
-              }
-              value={downPaymentPercent}
-              onChange={setDownPaymentPercent}
-              min={5}
-              max={100}
-              step={.1}
-              suffix="%"
-            />
+  label={
+    <>
+      <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Percentage of home price paid upfront (20%+ avoids PMI)")} /> Down Payment (${(homePrice * (downPaymentPercent / 100)).toLocaleString()})
+    </>
+  }
+  value={downPaymentPercent}
+  onChange={setDownPaymentPercent}
+  min={5}
+  max={100}
+  step={.1}
+  suffix="%"
+/>
             <AnimatedInput
               label={
                 <>
