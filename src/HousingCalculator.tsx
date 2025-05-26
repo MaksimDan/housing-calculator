@@ -15,8 +15,6 @@ import { AnimatedInput } from './AnimatedInput';
 import { AffordabilityCheck } from './AffordabilityCheck';
 import { DetailedMathCard } from './DetailedMathCard';
 
-const ANNUAL_HOMEOWNERS_INSURANCE_RATE = 0.0065;
-
 // Custom hook for persisting state in localStorage
 const usePersistedState = (key, defaultValue) => {
   // On initial load, check localStorage first, fallback to default
@@ -47,10 +45,11 @@ const HousingCalculator = () => {
   const [mortgageYears, setMortgageYears] = usePersistedState('housing-mortgageYears', 30);
   const [PMIRate, setPMIRate] = usePersistedState('housing-PMIRate', 1);
   const [propertyTaxRate, setPropertyTaxRate] = usePersistedState('housing-propertyTaxRate', 1.2);
-  const [melloRoosTaxRate, setMelloRoosTaxRate] = usePersistedState('housing-melloRoosTaxRate', 0); // New state for Mello-Roos
+  const [melloRoosTaxRate, setMelloRoosTaxRate] = usePersistedState('housing-melloRoosTaxRate', 0);
   const [closingCostPercent, setClosingCostPercent] = usePersistedState('housing-closingCost', 3);
   const [annualMaintenanceRate, setannualMaintenanceRate] = usePersistedState('housing-maintenanceRate', 2);
   const [monthlyHOAFee, setMonthlyHOAFee] = usePersistedState('housing-hoaFee', 0);
+  const [monthlyHomeInsurance, setMonthlyHomeInsurance] = usePersistedState('housing-homeInsurance', 100);
 
   // Rental Related - Inputs for rental scenario and potential rental income
   const [monthlyRent, setMonthlyRent] = usePersistedState('housing-monthlyRent', 2000);
@@ -94,10 +93,11 @@ const HousingCalculator = () => {
     setMortgageYears(30);
     setPMIRate(1);
     setPropertyTaxRate(1.2);
-    setMelloRoosTaxRate(0); // Reset Mello-Roos
+    setMelloRoosTaxRate(0);
     setClosingCostPercent(3);
     setannualMaintenanceRate(2);
     setMonthlyHOAFee(0);
+    setMonthlyHomeInsurance(100);
     setMonthlyRent(2000);
     setMonthlyRentalIncome(0);
     setRentDeposit(500);
@@ -143,7 +143,7 @@ const HousingCalculator = () => {
   // Calculate tax savings from mortgage interest, property taxes, and Mello-Roos taxes
   const calculateTaxSavings = (mortgageInterest, propertyTaxes, melloRoosTaxes) => {
     // Only benefit from itemizing if deductions exceed standard deduction
-    const totalItemizedDeductions = mortgageInterest + propertyTaxes + melloRoosTaxes; // Include Mello-Roos
+    const totalItemizedDeductions = mortgageInterest + propertyTaxes + melloRoosTaxes;
     const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - standardDeduction);
     return extraDeductionBenefit * (effectiveTaxRate / 100);
   };
@@ -181,16 +181,15 @@ const HousingCalculator = () => {
 
     const initialMonthlyTakeHome = calculateMonthlyTakeHome(annualSalaryBeforeTax);
     const initialMonthlyPropertyTax = (currentHomeValue * (propertyTaxRate / 100)) / 12;
-    const initialMonthlyMelloRoosTax = (currentHomeValue * (melloRoosTaxRate / 100)) / 12; // Initial Mello-Roos
-    const initialMonthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
+    const initialMonthlyMelloRoosTax = (currentHomeValue * (melloRoosTaxRate / 100)) / 12;
     const initialMonthlyMaintenance = (currentHomeValue * annualMaintenanceRate / 100) / 12;
     const initialMonthlyPMI = downPaymentPercent < 20 ? (mortgageBalance * PMIRate) / 100 / 12 : 0;
 
     const initialTotalMonthlyHousingCosts =
       monthlyMortgagePayment +
       initialMonthlyPropertyTax +
-      initialMonthlyMelloRoosTax + // Add Mello-Roos to initial costs
-      initialMonthlyHomeInsurance +
+      initialMonthlyMelloRoosTax +
+      monthlyHomeInsurance +
       initialMonthlyMaintenance +
       initialMonthlyPMI +
       monthlyPropertyUtilities +
@@ -212,16 +211,15 @@ const HousingCalculator = () => {
       );
 
       const yearlyPropertyTaxes = currentHomeValue * (propertyTaxRate / 100);
-      const yearlyMelloRoosTaxes = currentHomeValue * (melloRoosTaxRate / 100); // Yearly Mello-Roos
+      const yearlyMelloRoosTaxes = currentHomeValue * (melloRoosTaxRate / 100);
       const yearlyTaxSavings = calculateTaxSavings(
         mortgageBreakdown.yearlyInterestPaid,
         yearlyPropertyTaxes,
-        yearlyMelloRoosTaxes // Pass Mello-Roos to tax savings
+        yearlyMelloRoosTaxes
       );
 
       const monthlyPropertyTax = yearlyPropertyTaxes / 12;
-      const monthlyMelloRoosTax = yearlyMelloRoosTaxes / 12; // Monthly Mello-Roos
-      const monthlyHomeInsurance = (currentHomeValue * ANNUAL_HOMEOWNERS_INSURANCE_RATE) / 12;
+      const monthlyMelloRoosTax = yearlyMelloRoosTaxes / 12;
       const monthlyMaintenance = (currentHomeValue * annualMaintenanceRate) / 100 / 12;
 
       const equityPercentOriginal = ((homePrice - mortgageBalance) / homePrice) * 100;
@@ -232,7 +230,7 @@ const HousingCalculator = () => {
       const totalMonthlyHomeownerCosts =
         monthlyMortgagePayment +
         monthlyPropertyTax +
-        monthlyMelloRoosTax + // Add Mello-Roos to monthly costs
+        monthlyMelloRoosTax +
         monthlyHomeInsurance +
         monthlyMaintenance +
         monthlyPMI +
@@ -266,7 +264,6 @@ const HousingCalculator = () => {
         annualRentCosts: Math.round(totalMonthlyRenterCosts * 12),
         monthlyRentalIncome: Math.round(currentMonthlyRentalIncome),
         yearlyTaxSavings: Math.round(yearlyTaxSavings),
-        // yearlyMelloRoosTaxes: Math.round(yearlyMelloRoosTaxes) // Optional: if needed for detailed display
       });
 
       if (year > 0) {
@@ -307,14 +304,14 @@ const HousingCalculator = () => {
     }
     return data;
   }, [
-    homePrice, downPaymentPercent, effectiveMortgageRate, propertyTaxRate, melloRoosTaxRate, // Added melloRoosTaxRate
+    homePrice, downPaymentPercent, effectiveMortgageRate, propertyTaxRate, melloRoosTaxRate,
     monthlyRent, homeAppreciation, investmentReturn, rentIncrease,
     closingCostPercent, monthlyRenterInsurance, monthlyRentUtilities,
     monthlyPropertyUtilities, salaryGrowthRate, initialInvestment,
     annualSalaryBeforeTax, effectiveTaxRate,
     standardDeduction, monthlyRentalIncome, movingCostBuying,
     rentDeposit, PMIRate, annualMaintenanceRate, monthlyQualityOfLife,
-    mortgageYears, movingCostRenting, monthlyHOAFee
+    mortgageYears, movingCostRenting, monthlyHOAFee, monthlyHomeInsurance
   ]);
 
   const isValidProjectionData = (data) => Array.isArray(data) && !data.error;
@@ -465,13 +462,12 @@ const HousingCalculator = () => {
               step={0.1}
               suffix="%"
             />
-            {/* New Mello-Roos Input */}
             <AnimatedInput
               label="Mello-Roos Tax Rate"
               value={melloRoosTaxRate}
               onChange={setMelloRoosTaxRate}
               min={0}
-              max={2} // Mello-Roos rates are typically lower than general property tax
+              max={2}
               step={0.05}
               suffix="%"
             />
@@ -491,6 +487,15 @@ const HousingCalculator = () => {
               min={0}
               max={3000}
               step={1}
+              suffix="$"
+            />
+            <AnimatedInput
+              label="Monthly Home Insurance"
+              value={monthlyHomeInsurance}
+              onChange={setMonthlyHomeInsurance}
+              min={50}
+              max={1000}
+              step={10}
               suffix="$"
             />
             <AnimatedInput
