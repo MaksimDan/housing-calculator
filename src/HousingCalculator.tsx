@@ -73,6 +73,7 @@ const HousingCalculator = () => {
   const [rentIncrease, setRentIncrease] = usePersistedState('housing-rentIncrease', 3);
   const [salaryGrowthRate, setSalaryGrowthRate] = usePersistedState('housing-salaryGrowth', 3);
   const [inflationRate, setInflationRate] = usePersistedState('housing-inflationRate', 2.5);
+  const [propertyTaxAssessmentCap, setPropertyTaxAssessmentCap] = usePersistedState('housing-taxAssessmentCap', 2);
 
   // UI State for visualization
   const [xAxisYears, setXAxisYears] = usePersistedState('housing-xAxisYears', 30);
@@ -115,6 +116,7 @@ const HousingCalculator = () => {
     setRentIncrease(3);
     setSalaryGrowthRate(3);
     setInflationRate(2.5);
+    setPropertyTaxAssessmentCap(2);
     setXAxisYears(30);
   };
 
@@ -171,6 +173,7 @@ const HousingCalculator = () => {
     }
 
     let currentHomeValue = homePrice;
+    let currentAssessedValue = homePrice; // Assessed value for property tax calculations
     let currentMonthlyRent = monthlyRent;
     let currentAnnualSalary = annualSalaryBeforeTax;
     let mortgageBalance = homePrice - downPaymentAmount;
@@ -192,8 +195,8 @@ const HousingCalculator = () => {
       (Math.pow(1 + monthlyInterestRate, totalMonthlyPayments) - 1);
 
     const initialMonthlyTakeHome = calculateMonthlyTakeHome(annualSalaryBeforeTax);
-    const initialMonthlyPropertyTax = (currentHomeValue * (propertyTaxRate / 100)) / 12;
-    const initialMonthlyMelloRoosTax = (currentHomeValue * (melloRoosTaxRate / 100)) / 12;
+    const initialMonthlyPropertyTax = (currentAssessedValue * (propertyTaxRate / 100)) / 12;
+    const initialMonthlyMelloRoosTax = (currentAssessedValue * (melloRoosTaxRate / 100)) / 12;
     const initialMonthlyMaintenance = (currentHomeValue * annualMaintenanceRate / 100) / 12;
     const initialMonthlyPMI = downPaymentPercent < 20 ? (mortgageBalance * PMIRate) / 100 / 12 : 0;
 
@@ -225,8 +228,8 @@ const HousingCalculator = () => {
         monthlyInterestRate
       );
 
-      const yearlyPropertyTaxes = currentHomeValue * (propertyTaxRate / 100);
-      const yearlyMelloRoosTaxes = currentHomeValue * (melloRoosTaxRate / 100);
+      const yearlyPropertyTaxes = currentAssessedValue * (propertyTaxRate / 100);
+      const yearlyMelloRoosTaxes = currentAssessedValue * (melloRoosTaxRate / 100);
       const yearlyTaxSavings = calculateTaxSavings(
         mortgageBreakdown.yearlyInterestPaid,
         yearlyPropertyTaxes,
@@ -289,6 +292,7 @@ const HousingCalculator = () => {
         currentMonthlyRent *= 1 + rentIncrease / 100;
         currentMonthlyRentalIncome *= 1 + rentIncrease / 100;
         currentHomeValue *= 1 + homeAppreciation / 100;
+        currentAssessedValue *= 1 + propertyTaxAssessmentCap / 100;
         
         // Apply inflation to various expense categories
         const inflationMultiplier = 1 + inflationRate / 100;
@@ -339,7 +343,7 @@ const HousingCalculator = () => {
     standardDeduction, monthlyRentalIncome, movingCostBuying,
     rentDeposit, PMIRate, annualMaintenanceRate, monthlyQualityOfLife,
     mortgageYears, movingCostRenting, monthlyHOAFee, monthlyHomeInsurance, 
-    monthlyMiscExpenses, inflationRate
+    monthlyMiscExpenses, inflationRate, propertyTaxAssessmentCap
   ]);
 
   const isValidProjectionData = (data) => Array.isArray(data) && !data.error;
@@ -812,6 +816,19 @@ const HousingCalculator = () => {
               }
               value={inflationRate}
               onChange={setInflationRate}
+              min={0}
+              max={10}
+              step={0.1}
+              suffix="%"
+            />
+            <AnimatedInput
+              label={
+                <>
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual cap on property tax assessment increases (e.g. California Prop 13 = ~2%). Property taxes grow by this rate.")} /> Property Tax Assessment Cap
+                </>
+              }
+              value={propertyTaxAssessmentCap}
+              onChange={setPropertyTaxAssessmentCap}
               min={0}
               max={10}
               step={0.1}
