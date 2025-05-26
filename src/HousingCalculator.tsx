@@ -37,6 +37,7 @@ const HousingCalculator = () => {
   const [effectiveTaxRate, setEffectiveTaxRate] = usePersistedState('housing-taxRate', 40);
   const [standardDeduction, setStandardDeduction] = usePersistedState('housing-standardDeduction', 21900);
   const [initialInvestment, setInitialInvestment] = usePersistedState('housing-initialInvestment', 1000000);
+  const [monthlyMiscExpenses, setMonthlyMiscExpenses] = usePersistedState('housing-miscExpenses', 3500);
 
   // Property Details - Inputs that affect purchase costs and ongoing expenses
   const [homePrice, setHomePrice] = usePersistedState('housing-homePrice', 700000);
@@ -87,6 +88,7 @@ const HousingCalculator = () => {
     setEffectiveTaxRate(40);
     setStandardDeduction(21900);
     setInitialInvestment(1000000);
+    setMonthlyMiscExpenses(3500);
     setHomePrice(700000);
     setDownPaymentPercent(20);
     setEffectiveMortgageRate(6.5);
@@ -195,10 +197,13 @@ const HousingCalculator = () => {
       monthlyPropertyUtilities +
       monthlyHOAFee;
 
-    if (initialTotalMonthlyHousingCosts > initialMonthlyTakeHome) {
+    const initialTotalMonthlyExpenses = initialTotalMonthlyHousingCosts + monthlyMiscExpenses;
+
+    if (initialTotalMonthlyExpenses > initialMonthlyTakeHome) {
       return {
-        error: "Monthly housing costs exceed monthly take-home pay",
+        error: "Monthly housing costs and living expenses exceed monthly take-home pay",
         monthlyHousingCosts: initialTotalMonthlyHousingCosts,
+        monthlyMiscExpenses: monthlyMiscExpenses,
         monthlyTakeHome: initialMonthlyTakeHome
       };
     }
@@ -259,18 +264,19 @@ const HousingCalculator = () => {
         yearlyPrincipalPaid: Math.round(mortgageBreakdown.yearlyPrincipalPaid),
         yearlyInterestPaid: Math.round(mortgageBreakdown.yearlyInterestPaid),
         monthlyPayment: Math.round(netMonthlyHomeownerCosts),
-        availableMonthlyInvestment: Math.round(monthlyTakeHome - netMonthlyHomeownerCosts),
+        availableMonthlyInvestment: Math.round(monthlyTakeHome - netMonthlyHomeownerCosts - monthlyMiscExpenses),
         monthlyRent: Math.round(currentMonthlyRent),
         annualRentCosts: Math.round(totalMonthlyRenterCosts * 12),
         monthlyRentalIncome: Math.round(currentMonthlyRentalIncome),
         yearlyTaxSavings: Math.round(yearlyTaxSavings),
+        monthlyMiscExpenses: Math.round(monthlyMiscExpenses),
       });
 
       if (year > 0) {
         currentAnnualSalary *= 1 + salaryGrowthRate / 100;
 
-        const monthlyAvailableForBuyerInvestment = monthlyTakeHome - netMonthlyHomeownerCosts;
-        const monthlyAvailableForRenterInvestment = monthlyTakeHome - totalMonthlyRenterCosts;
+        const monthlyAvailableForBuyerInvestment = monthlyTakeHome - netMonthlyHomeownerCosts - monthlyMiscExpenses;
+        const monthlyAvailableForRenterInvestment = monthlyTakeHome - totalMonthlyRenterCosts - monthlyMiscExpenses;
 
         const yearlyHomeownerInvestment = Math.max(0, monthlyAvailableForBuyerInvestment) * 12;
         const yearlyRenterInvestment = Math.max(0, monthlyAvailableForRenterInvestment) * 12;
@@ -311,7 +317,7 @@ const HousingCalculator = () => {
     annualSalaryBeforeTax, effectiveTaxRate,
     standardDeduction, monthlyRentalIncome, movingCostBuying,
     rentDeposit, PMIRate, annualMaintenanceRate, monthlyQualityOfLife,
-    mortgageYears, movingCostRenting, monthlyHOAFee, monthlyHomeInsurance
+    mortgageYears, movingCostRenting, monthlyHOAFee, monthlyHomeInsurance, monthlyMiscExpenses
   ]);
 
   const isValidProjectionData = (data) => Array.isArray(data) && !data.error;
@@ -402,6 +408,25 @@ const HousingCalculator = () => {
               onChange={setStandardDeduction}
               min={10000}
               max={40000}
+              step={100}
+              suffix="$"
+            />
+            <AnimatedInput
+              label={
+                <div className="flex items-center gap-1">
+                  Monthly Living Expenses
+                  <div
+                    className="text-gray-400 hover:text-gray-600 cursor-help"
+                    title="Food, clothing, entertainment, dining out, personal care, and other miscellaneous living expenses (applies to both buying and renting scenarios)"
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                  </div>
+                </div>
+              }
+              value={monthlyMiscExpenses}
+              onChange={setMonthlyMiscExpenses}
+              min={1000}
+              max={10000}
               step={100}
               suffix="$"
             />
@@ -543,7 +568,7 @@ const HousingCalculator = () => {
                   Monthly Quality of Life Benefit (Subjective Inflator)
                   <div
                     className="text-gray-400 hover:text-gray-600 cursor-help"
-                    title="How much you'd be willing to pay monthly for homeownership benefits like: control over space, freedom to renovate, sense of permanence, no landlord, community belonging. This will articially inflate your net worth in the buying scenario."
+                    title="How much you'd be willing to pay monthly for homeownership benefits like: control over space, freedom to renovate, sense of permanence, no landlord, community belonging. This will artificially inflate your net worth in the buying scenario."
                   >
                     <HelpCircle className="w-4 h-4" />
                   </div>
