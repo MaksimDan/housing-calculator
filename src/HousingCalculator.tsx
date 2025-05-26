@@ -72,6 +72,7 @@ const HousingCalculator = () => {
   const [investmentReturn, setInvestmentReturn] = usePersistedState('housing-investmentReturn', 8);
   const [rentIncrease, setRentIncrease] = usePersistedState('housing-rentIncrease', 3);
   const [salaryGrowthRate, setSalaryGrowthRate] = usePersistedState('housing-salaryGrowth', 3);
+  const [inflationRate, setInflationRate] = usePersistedState('housing-inflationRate', 2.5);
 
   // UI State for visualization
   const [xAxisYears, setXAxisYears] = usePersistedState('housing-xAxisYears', 30);
@@ -113,6 +114,7 @@ const HousingCalculator = () => {
     setInvestmentReturn(8);
     setRentIncrease(3);
     setSalaryGrowthRate(3);
+    setInflationRate(2.5);
     setXAxisYears(30);
   };
 
@@ -143,10 +145,10 @@ const HousingCalculator = () => {
   };
 
   // Calculate tax savings from mortgage interest, property taxes, and Mello-Roos taxes
-  const calculateTaxSavings = (mortgageInterest, propertyTaxes, melloRoosTaxes) => {
+  const calculateTaxSavings = (mortgageInterest, propertyTaxes, melloRoosTaxes, currentStandardDeduction) => {
     // Only benefit from itemizing if deductions exceed standard deduction
     const totalItemizedDeductions = mortgageInterest + propertyTaxes + melloRoosTaxes;
-    const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - standardDeduction);
+    const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - currentStandardDeduction);
     return extraDeductionBenefit * (effectiveTaxRate / 100);
   };
 
@@ -175,6 +177,14 @@ const HousingCalculator = () => {
     let currentMonthlyRentalIncome = monthlyRentalIncome;
     let previousBuyingInvestments = buyingNetWorth - (currentHomeValue - mortgageBalance);
 
+    // Initialize inflating expense variables
+    let currentMonthlyMiscExpenses = monthlyMiscExpenses;
+    let currentMonthlyHOAFee = monthlyHOAFee;
+    let currentMonthlyHomeInsurance = monthlyHomeInsurance;
+    let currentMonthlyPropertyUtilities = monthlyPropertyUtilities;
+    let currentMonthlyRentUtilities = monthlyRentUtilities;
+    let currentStandardDeduction = standardDeduction;
+
     const monthlyInterestRate = effectiveMortgageRate / 100 / 12;
     const totalMonthlyPayments = mortgageYears * 12;
     const monthlyMortgagePayment = (mortgageBalance *
@@ -191,19 +201,19 @@ const HousingCalculator = () => {
       monthlyMortgagePayment +
       initialMonthlyPropertyTax +
       initialMonthlyMelloRoosTax +
-      monthlyHomeInsurance +
+      currentMonthlyHomeInsurance +
       initialMonthlyMaintenance +
       initialMonthlyPMI +
-      monthlyPropertyUtilities +
-      monthlyHOAFee;
+      currentMonthlyPropertyUtilities +
+      currentMonthlyHOAFee;
 
-    const initialTotalMonthlyExpenses = initialTotalMonthlyHousingCosts + monthlyMiscExpenses;
+    const initialTotalMonthlyExpenses = initialTotalMonthlyHousingCosts + currentMonthlyMiscExpenses;
 
     if (initialTotalMonthlyExpenses > initialMonthlyTakeHome) {
       return {
         error: "Monthly housing costs and living expenses exceed monthly take-home pay",
         monthlyHousingCosts: initialTotalMonthlyHousingCosts,
-        monthlyMiscExpenses: monthlyMiscExpenses,
+        monthlyMiscExpenses: currentMonthlyMiscExpenses,
         monthlyTakeHome: initialMonthlyTakeHome
       };
     }
@@ -220,7 +230,8 @@ const HousingCalculator = () => {
       const yearlyTaxSavings = calculateTaxSavings(
         mortgageBreakdown.yearlyInterestPaid,
         yearlyPropertyTaxes,
-        yearlyMelloRoosTaxes
+        yearlyMelloRoosTaxes,
+        currentStandardDeduction
       );
 
       const monthlyPropertyTax = yearlyPropertyTaxes / 12;
@@ -236,18 +247,18 @@ const HousingCalculator = () => {
         monthlyMortgagePayment +
         monthlyPropertyTax +
         monthlyMelloRoosTax +
-        monthlyHomeInsurance +
+        currentMonthlyHomeInsurance +
         monthlyMaintenance +
         monthlyPMI +
-        monthlyPropertyUtilities +
-        monthlyHOAFee;
+        currentMonthlyPropertyUtilities +
+        currentMonthlyHOAFee;
 
       const monthlyTaxBenefit = yearlyTaxSavings / 12;
       const netMonthlyHomeownerCosts = totalMonthlyHomeownerCosts -
         currentMonthlyRentalIncome - monthlyTaxBenefit;
 
       const totalMonthlyRenterCosts =
-        currentMonthlyRent + monthlyRenterInsurance + monthlyRentUtilities;
+        currentMonthlyRent + monthlyRenterInsurance + currentMonthlyRentUtilities;
 
       const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary);
 
@@ -264,24 +275,36 @@ const HousingCalculator = () => {
         yearlyPrincipalPaid: Math.round(mortgageBreakdown.yearlyPrincipalPaid),
         yearlyInterestPaid: Math.round(mortgageBreakdown.yearlyInterestPaid),
         monthlyPayment: Math.round(netMonthlyHomeownerCosts),
-        availableMonthlyInvestment: Math.round(monthlyTakeHome - netMonthlyHomeownerCosts - monthlyMiscExpenses),
+        availableMonthlyInvestment: Math.round(monthlyTakeHome - netMonthlyHomeownerCosts - currentMonthlyMiscExpenses),
         monthlyRent: Math.round(currentMonthlyRent),
         annualRentCosts: Math.round(totalMonthlyRenterCosts * 12),
         monthlyRentalIncome: Math.round(currentMonthlyRentalIncome),
         yearlyTaxSavings: Math.round(yearlyTaxSavings),
-        monthlyMiscExpenses: Math.round(monthlyMiscExpenses),
+        monthlyMiscExpenses: Math.round(currentMonthlyMiscExpenses),
       });
 
       if (year > 0) {
+        // Apply growth rates
         currentAnnualSalary *= 1 + salaryGrowthRate / 100;
+        currentMonthlyRent *= 1 + rentIncrease / 100;
+        currentMonthlyRentalIncome *= 1 + rentIncrease / 100;
+        currentHomeValue *= 1 + homeAppreciation / 100;
+        
+        // Apply inflation to various expense categories
+        const inflationMultiplier = 1 + inflationRate / 100;
+        currentMonthlyMiscExpenses *= inflationMultiplier;
+        currentMonthlyHOAFee *= inflationMultiplier;
+        currentMonthlyHomeInsurance *= inflationMultiplier;
+        currentMonthlyPropertyUtilities *= inflationMultiplier;
+        currentMonthlyRentUtilities *= inflationMultiplier;
+        currentStandardDeduction *= inflationMultiplier;
 
-        const monthlyAvailableForBuyerInvestment = monthlyTakeHome - netMonthlyHomeownerCosts - monthlyMiscExpenses;
-        const monthlyAvailableForRenterInvestment = monthlyTakeHome - totalMonthlyRenterCosts - monthlyMiscExpenses;
+        const monthlyAvailableForBuyerInvestment = monthlyTakeHome - netMonthlyHomeownerCosts - currentMonthlyMiscExpenses;
+        const monthlyAvailableForRenterInvestment = monthlyTakeHome - totalMonthlyRenterCosts - currentMonthlyMiscExpenses;
 
         const yearlyHomeownerInvestment = Math.max(0, monthlyAvailableForBuyerInvestment) * 12;
         const yearlyRenterInvestment = Math.max(0, monthlyAvailableForRenterInvestment) * 12;
 
-        currentHomeValue *= 1 + homeAppreciation / 100;
         mortgageBalance = mortgageBreakdown.endingBalance;
 
         const yearlyQualityOfLifeBenefit = monthlyQualityOfLife * 12;
@@ -303,8 +326,6 @@ const HousingCalculator = () => {
         buyingNetWorth = buyingInvestmentBalance + (currentHomeValue - mortgageBalance);
         previousBuyingInvestments = buyingInvestmentBalance;
 
-        currentMonthlyRentalIncome *= 1 + rentIncrease / 100;
-        currentMonthlyRent *= 1 + rentIncrease / 100;
         rentingNetWorth = rentingInvestmentBalance;
       }
     }
@@ -317,7 +338,8 @@ const HousingCalculator = () => {
     annualSalaryBeforeTax, effectiveTaxRate,
     standardDeduction, monthlyRentalIncome, movingCostBuying,
     rentDeposit, PMIRate, annualMaintenanceRate, monthlyQualityOfLife,
-    mortgageYears, movingCostRenting, monthlyHOAFee, monthlyHomeInsurance, monthlyMiscExpenses
+    mortgageYears, movingCostRenting, monthlyHOAFee, monthlyHomeInsurance, 
+    monthlyMiscExpenses, inflationRate
   ]);
 
   const isValidProjectionData = (data) => Array.isArray(data) && !data.error;
@@ -417,7 +439,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual standard tax deduction amount for calculating mortgage interest tax savings")} /> Standard Deduction
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual standard tax deduction amount for calculating mortgage interest tax savings (adjusted for inflation)")} /> Standard Deduction
                 </>
               }
               value={standardDeduction}
@@ -430,7 +452,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly spending on food, clothing, entertainment, dining out, and personal care")} /> Monthly Living Expenses
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly spending on food, clothing, entertainment, dining out, and personal care (adjusted for inflation)")} /> Monthly Living Expenses
                 </>
               }
               value={monthlyMiscExpenses}
@@ -460,18 +482,18 @@ const HousingCalculator = () => {
               suffix="$"
             />
             <AnimatedInput
-  label={
-    <>
-      <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Percentage of home price paid upfront (20%+ avoids PMI)")} /> Down Payment (${(homePrice * (downPaymentPercent / 100)).toLocaleString()})
-    </>
-  }
-  value={downPaymentPercent}
-  onChange={setDownPaymentPercent}
-  min={5}
-  max={100}
-  step={.1}
-  suffix="%"
-/>
+              label={
+                <>
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Percentage of home price paid upfront (20%+ avoids PMI)")} /> Down Payment (${(homePrice * (downPaymentPercent / 100)).toLocaleString()})
+                </>
+              }
+              value={downPaymentPercent}
+              onChange={setDownPaymentPercent}
+              min={5}
+              max={100}
+              step={.1}
+              suffix="%"
+            />
             <AnimatedInput
               label={
                 <>
@@ -553,7 +575,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly homeowners association fees for shared amenities and maintenance")} /> Monthly HOA Fee
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly homeowners association fees for shared amenities and maintenance (adjusted for inflation)")} /> Monthly HOA Fee
                 </>
               }
               value={monthlyHOAFee}
@@ -566,7 +588,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly homeowners insurance premium")} /> Monthly Home Insurance
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly homeowners insurance premium (adjusted for inflation)")} /> Monthly Home Insurance
                 </>
               }
               value={monthlyHomeInsurance}
@@ -579,7 +601,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly utilities cost for the owned property (gas, electric, water, trash)")} /> Monthly Property Utilities
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly utilities cost for the owned property (gas, electric, water, trash) - adjusted for inflation")} /> Monthly Property Utilities
                 </>
               }
               value={monthlyPropertyUtilities}
@@ -675,7 +697,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly utilities cost for rental property (gas, electric, internet)")} /> Monthly Rent Utilities
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly utilities cost for rental property (gas, electric, internet) - adjusted for inflation")} /> Monthly Rent Utilities
                 </>
               }
               value={monthlyRentUtilities}
@@ -779,6 +801,19 @@ const HousingCalculator = () => {
               onChange={setSalaryGrowthRate}
               min={0}
               max={20}
+              step={0.1}
+              suffix="%"
+            />
+            <AnimatedInput
+              label={
+                <>
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual inflation rate affecting living expenses, utilities, insurance, HOA fees, and tax deductions (historical average ~2-3%)")} /> Annual Inflation Rate
+                </>
+              }
+              value={inflationRate}
+              onChange={setInflationRate}
+              min={0}
+              max={10}
               step={0.1}
               suffix="%"
             />
