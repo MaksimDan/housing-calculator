@@ -14,6 +14,7 @@ import {
 import { AnimatedInput } from './AnimatedInput';
 import { AffordabilityCheck } from './AffordabilityCheck';
 import { DetailedMathCard } from './DetailedMathCard';
+import SankeyWealthFlow from './SankeyWealthFlow';
 
 // Custom hook for persisting state in localStorage
 const usePersistedState = (key, defaultValue) => {
@@ -32,6 +33,8 @@ const usePersistedState = (key, defaultValue) => {
 };
 
 const HousingCalculator = () => {
+  const [activeScenario, setActiveScenario] = useState('buying');
+
   // Core Financial Inputs
   const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = usePersistedState('housing-annualSalary', 350000);
   const [effectiveTaxRate, setEffectiveTaxRate] = usePersistedState('housing-taxRate', 40);
@@ -293,7 +296,7 @@ const HousingCalculator = () => {
         currentMonthlyRentalIncome *= 1 + rentIncrease / 100;
         currentHomeValue *= 1 + homeAppreciation / 100;
         currentAssessedValue *= 1 + propertyTaxAssessmentCap / 100;
-        
+
         // Apply inflation to various expense categories
         const inflationMultiplier = 1 + inflationRate / 100;
         currentMonthlyMiscExpenses *= inflationMultiplier;
@@ -342,7 +345,7 @@ const HousingCalculator = () => {
     annualSalaryBeforeTax, effectiveTaxRate,
     standardDeduction, monthlyRentalIncome, movingCostBuying,
     rentDeposit, PMIRate, annualMaintenanceRate, monthlyQualityOfLife,
-    mortgageYears, movingCostRenting, monthlyHOAFee, monthlyHomeInsurance, 
+    mortgageYears, movingCostRenting, monthlyHOAFee, monthlyHomeInsurance,
     monthlyMiscExpenses, inflationRate, propertyTaxAssessmentCap
   ]);
 
@@ -372,28 +375,28 @@ const HousingCalculator = () => {
         <AffordabilityCheck projectionData={projectionData} />
 
         <div className="mb-6 flex justify-end">
-  <button
-    onClick={resetToDefaults}
-    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200 flex items-center gap-2 border border-gray-300"
-    title="Reset to Defaults"
-  >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-      <path d="M3 3v5h5" />
-    </svg>
-    Reset to Defaults
-  </button>
-</div>
+          <button
+            onClick={resetToDefaults}
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200 flex items-center gap-2 border border-gray-300"
+            title="Reset to Defaults"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+            Reset to Defaults
+          </button>
+        </div>
 
 
         {/* Input Cards Grid */}
@@ -836,6 +839,73 @@ const HousingCalculator = () => {
             />
           </div>
         </div>
+
+        {isValidProjectionData(projectionData) ? (
+          <div className="mt-8 mb-8">
+            {/* Tab Headers */}
+            <div className="mb-6">
+              <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-8">
+                  <button
+                    onClick={() => setActiveScenario('buying')}
+                    className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${activeScenario === 'buying'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      Property Owner Cash Flow
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveScenario('renting')}
+                    className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${activeScenario === 'renting'
+                        ? 'border-green-500 text-green-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      Renter Cash Flow
+                    </div>
+                  </button>
+                </nav>
+              </div>
+
+              {/* Tab Description */}
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                {activeScenario === 'buying' ? (
+                  <div>
+                    <h3 className="font-medium text-blue-700 mb-2">Property Owner Strategy</h3>
+                    <p className="text-sm text-gray-600">
+                      Visualizes how your income flows to mortgage payments, property taxes, maintenance,
+                      and other homeownership costs. Shows equity building through principal payments and
+                      home appreciation, plus investment growth from remaining income.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <h3 className="font-medium text-green-700 mb-2">Renter Strategy</h3>
+                    <p className="text-sm text-gray-600">
+                      Visualizes how your income flows to rent, utilities, and living expenses.
+                      Shows wealth building entirely through investment growth from the larger
+                      amount of remaining income after housing costs.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Sankey Flow Diagram */}
+            <SankeyWealthFlow
+              projectionData={projectionData}
+              scenario={activeScenario}
+              monthlyQualityOfLife={monthlyQualityOfLife}
+              xAxisYears={xAxisYears}
+            />
+          </div>
+        ) : null}
 
         {/* Graph Section with Math Details */}
         {isValidProjectionData(projectionData) ? (
