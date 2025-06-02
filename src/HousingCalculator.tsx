@@ -82,6 +82,8 @@ const HousingCalculator = () => {
   const [xAxisYears, setXAxisYears] = usePersistedState('housing-xAxisYears', 30);
   const [activePoint, setActivePoint] = useState(null);
 
+  const [mortgageInterestDeductionCap, setMortgageInterestDeductionCap] = usePersistedState('housing-mortgageInterestCap', 750000);
+
   const resetToDefaults = () => {
     Object.keys(localStorage).forEach(key => {
       if (key.startsWith('housing-')) {
@@ -121,6 +123,7 @@ const HousingCalculator = () => {
     setInflationRate(2.5);
     setPropertyTaxAssessmentCap(2);
     setXAxisYears(30);
+    setMortgageInterestDeductionCap(750000);
   };
 
   const calculateMonthlyTakeHome = (annualSalary) => {
@@ -151,8 +154,11 @@ const HousingCalculator = () => {
 
   // Calculate tax savings from mortgage interest, property taxes, and Mello-Roos taxes
   const calculateTaxSavings = (mortgageInterest, propertyTaxes, melloRoosTaxes, currentStandardDeduction) => {
+    // Apply the mortgage interest deduction cap
+    const cappedMortgageInterest = Math.min(mortgageInterest, (mortgageInterestDeductionCap / homePrice) * mortgageInterest);
+
     // Only benefit from itemizing if deductions exceed standard deduction
-    const totalItemizedDeductions = mortgageInterest + propertyTaxes + melloRoosTaxes;
+    const totalItemizedDeductions = cappedMortgageInterest + propertyTaxes + melloRoosTaxes;
     const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - currentStandardDeduction);
     return extraDeductionBenefit * (effectiveTaxRate / 100);
   };
@@ -469,7 +475,21 @@ const HousingCalculator = () => {
               step={100}
               suffix="$"
             />
+            <AnimatedInput
+              label={
+                <>
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Maximum mortgage debt eligible for interest deduction (federal limit is $750k for new loans)")} /> Mortgage Interest Deduction Cap
+                </>
+              }
+              value={mortgageInterestDeductionCap}
+              onChange={setMortgageInterestDeductionCap}
+              min={0}
+              max={1500000}
+              step={25000}
+              suffix="$"
+            />
           </div>
+
 
           {/* Property Details Card */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -849,8 +869,8 @@ const HousingCalculator = () => {
                   <button
                     onClick={() => setActiveScenario('buying')}
                     className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${activeScenario === 'buying'
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                   >
                     <div className="flex items-center gap-2">
@@ -861,8 +881,8 @@ const HousingCalculator = () => {
                   <button
                     onClick={() => setActiveScenario('renting')}
                     className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${activeScenario === 'renting'
-                        ? 'border-green-500 text-green-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                   >
                     <div className="flex items-center gap-2">
