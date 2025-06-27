@@ -230,12 +230,16 @@ const HousingCalculator = () => {
       };
     }
 
-    for (let year = 0; year <= mortgageYears; year++) {
-      const mortgageBreakdown = calculateYearlyMortgageBreakdown(
+    for (let year = 0; year <= Math.max(mortgageYears, xAxisYears); year++) {
+      const mortgageBreakdown = mortgageBalance > 0 ? calculateYearlyMortgageBreakdown(
         mortgageBalance,
         monthlyMortgagePayment,
         monthlyInterestRate
-      );
+      ) : {
+        yearlyInterestPaid: 0,
+        yearlyPrincipalPaid: 0,
+        endingBalance: 0
+      };
 
       const yearlyPropertyTaxes = currentAssessedValue * (propertyTaxRate / 100);
       const yearlyMelloRoosTaxes = currentAssessedValue * (melloRoosTaxRate / 100);
@@ -256,7 +260,7 @@ const HousingCalculator = () => {
         : 0;
 
       const totalMonthlyHomeownerCosts =
-        monthlyMortgagePayment +
+        (mortgageBalance > 0 ? monthlyMortgagePayment : 0) +
         monthlyPropertyTax +
         monthlyMelloRoosTax +
         currentMonthlyHomeInsurance +
@@ -352,7 +356,7 @@ const HousingCalculator = () => {
     standardDeduction, monthlyRentalIncome, movingCostBuying,
     rentDeposit, PMIRate, annualMaintenanceRate, monthlyQualityOfLife,
     mortgageYears, movingCostRenting, monthlyHOAFee, monthlyHomeInsurance,
-    monthlyMiscExpenses, inflationRate, propertyTaxAssessmentCap
+    monthlyMiscExpenses, inflationRate, propertyTaxAssessmentCap, xAxisYears
   ]);
 
   const isValidProjectionData = (data) => Array.isArray(data) && !data.error;
@@ -954,7 +958,7 @@ const HousingCalculator = () => {
                 };
 
                 const breakEvenYear = findBreakEvenYear();
-                const finalDifference = projectionData[xAxisYears].buying - projectionData[xAxisYears].renting;
+                const finalDifference = projectionData[Math.min(xAxisYears, projectionData.length - 1)].buying - projectionData[Math.min(xAxisYears, projectionData.length - 1)].renting;
                 const isBuyingBetterAtEnd = finalDifference > 0;
 
                 return (
