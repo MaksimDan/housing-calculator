@@ -627,8 +627,8 @@ const HousingCalculator = () => {
               value={annualMaintenanceRate}
               onChange={setannualMaintenanceRate}
               min={0}
-              max={100}
-              step={1}
+              max={30}
+              step={.1}
               suffix="%"
             />
             <AnimatedInput
