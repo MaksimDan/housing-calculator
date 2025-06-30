@@ -408,7 +408,6 @@ const HousingCalculator = () => {
           </button>
         </div>
 
-
         {/* Input Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           {/* Financial Parameters Card */}
@@ -443,7 +442,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your overall tax rate (federal + state + local) as a percentage")} /> Effective Tax Rate (${(annualSalaryBeforeTax * (effectiveTaxRate / 100)).toLocaleString()}/year)
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your overall tax rate (federal + state + local) as a percentage")} /> Effective Tax Rate (${(annualSalaryBeforeTax * (effectiveTaxRate / 100)).toLocaleString()})
                 </>
               }
               value={effectiveTaxRate}
@@ -494,7 +493,6 @@ const HousingCalculator = () => {
             />
           </div>
 
-
           {/* Property Details Card */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-medium mb-4">Property Details</h2>
@@ -541,7 +539,13 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual interest rate on your mortgage loan")} /> Mortgage Rate
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual interest rate on your mortgage loan")} /> Mortgage Rate (${(() => {
+                    const loanAmount = homePrice - homePrice * downPaymentPercent / 100;
+                    const monthlyRate = effectiveMortgageRate / 100 / 12;
+                    const numPayments = mortgageYears * 12;
+                    const monthlyPayment = (loanAmount * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1);
+                    return Math.round(monthlyPayment).toLocaleString();
+                  })()}/mo)
                 </>
               }
               value={effectiveMortgageRate}
@@ -554,7 +558,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual private mortgage insurance rate (required if down payment < 20%)")} /> PMI Rate
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual private mortgage insurance rate (required if down payment < 20%)")} /> PMI Rate {downPaymentPercent < 20 ? `(${Math.round((homePrice - homePrice * downPaymentPercent / 100) * PMIRate / 100 / 12).toLocaleString()}/mo)` : '(not required)'}
                 </>
               }
               value={PMIRate}
@@ -567,7 +571,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual property tax as percentage of home value (varies by location)")} /> Property Tax Rate (${(homePrice * (propertyTaxRate / 100)).toLocaleString()}/year)
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual property tax as percentage of home value (varies by location)")} /> Property Tax Rate (${(homePrice * (propertyTaxRate / 100)).toLocaleString()} year 1)
                 </>
               }
               value={propertyTaxRate}
@@ -580,7 +584,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual special assessment tax in some California communities (% of home value)")} /> Mello-Roos Tax Rate (${(homePrice * (melloRoosTaxRate / 100)).toLocaleString()}/year)
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual special assessment tax in some California communities (% of home value)")} /> Mello-Roos Tax Rate (${(homePrice * (melloRoosTaxRate / 100)).toLocaleString()} year 1)
                 </>
               }
               value={melloRoosTaxRate}
@@ -593,7 +597,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual maintenance and repairs as percentage of home value (typically 1-3%)")} /> Annual Maintenance Rate (${(homePrice * (annualMaintenanceRate / 100)).toLocaleString()}/year)
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual maintenance and repairs as percentage of home value (typically 1-3%)")} /> Annual Maintenance Rate (${(homePrice * (annualMaintenanceRate / 100)).toLocaleString()} year 1)
                 </>
               }
               value={annualMaintenanceRate}
@@ -786,7 +790,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual rate of home value appreciation (historical average ~3-5%)")} /> Home Appreciation
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual rate of home value appreciation (historical average ~3-5%)")} /> Home Appreciation (${(homePrice * (homeAppreciation / 100)).toLocaleString()} year 1)
                 </>
               }
               value={homeAppreciation}
@@ -812,7 +816,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual percentage increase in rental costs (typically 2-5%)")} /> Annual Rent Increase
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual percentage increase in rental costs (typically 2-5%)")} /> Annual Rent Increase (${Math.round(monthlyRent * (rentIncrease / 100)).toLocaleString()}/mo year 1)
                 </>
               }
               value={rentIncrease}
@@ -825,7 +829,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual percentage increase in your salary (promotions, raises, inflation)")} /> Annual Salary Growth
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual percentage increase in your salary (promotions, raises, inflation)")} /> Annual Salary Growth (${(annualSalaryBeforeTax * (salaryGrowthRate / 100)).toLocaleString()} year 1)
                 </>
               }
               value={salaryGrowthRate}
