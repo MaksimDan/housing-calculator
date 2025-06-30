@@ -385,7 +385,28 @@ const HousingCalculator = () => {
         </div>
         <AffordabilityCheck projectionData={projectionData} />
 
-        <div className="mb-6 flex justify-end">
+        <div className="mb-6 flex justify-between items-center">
+          {/* Wealth Summary Card */}
+          {isValidProjectionData(projectionData) && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <div className="text-sm text-gray-600 mb-2">Net Worth at Year {xAxisYears}</div>
+              <div className="flex gap-6">
+                <div className="text-center">
+                  <div className="text-xs text-blue-600 mb-1">Buying</div>
+                  <div className="text-lg font-semibold text-blue-600">
+                    ${projectionData[Math.min(xAxisYears, projectionData.length - 1)].buying.toLocaleString()}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-green-600 mb-1">Renting</div>
+                  <div className="text-lg font-semibold text-green-600">
+                    ${projectionData[Math.min(xAxisYears, projectionData.length - 1)].renting.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={resetToDefaults}
             className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200 flex items-center gap-2 border border-gray-300"
