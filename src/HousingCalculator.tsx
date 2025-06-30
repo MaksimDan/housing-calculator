@@ -545,8 +545,10 @@ const HousingCalculator = () => {
                     const monthlyRate = effectiveMortgageRate / 100 / 12;
                     const numPayments = mortgageYears * 12;
                     const monthlyPayment = (loanAmount * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1);
-                    return Math.round(monthlyPayment).toLocaleString();
-                  })()}/mo)
+                    const totalPayments = monthlyPayment * numPayments;
+                    const totalInterest = totalPayments - loanAmount;
+                    return Math.round(totalInterest).toLocaleString();
+                  })()} lifetime interest)
                 </>
               }
               value={effectiveMortgageRate}
