@@ -363,7 +363,7 @@ const HousingCalculator = () => {
 
   return (
     <div className="min-h-screen bg-white p-6">
-      <div className="max-w-screen-2xl mx-auto">
+      <div className="mx-auto" style={{ maxWidth: '1843px' }}>
         <div className="mb-8">
           <h1 className="text-2xl font-light text-gray-800 mb-4">
             Build Wealth: Buy vs. Rent Calculator
