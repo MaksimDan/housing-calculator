@@ -15,6 +15,7 @@ import { AnimatedInput } from './AnimatedInput';
 import { AffordabilityCheck } from './AffordabilityCheck';
 import { DetailedMathCard } from './DetailedMathCard';
 import SankeyWealthFlow from './SankeyWealthFlow';
+import MortgageAmortizationChart from './MortgageAmortizationChart';
 
 // Custom hook for persisting state in localStorage
 const usePersistedState = (key, defaultValue) => {
@@ -934,6 +935,19 @@ const HousingCalculator = () => {
             />
           </div>
         ) : null}
+
+        {/* Mortgage Amortization Chart */}
+        {isValidProjectionData(projectionData) && (
+          <div className="mb-8">
+            <MortgageAmortizationChart
+              projectionData={projectionData}
+              mortgageYears={mortgageYears}
+              homePrice={homePrice}
+              downPaymentPercent={downPaymentPercent}
+              effectiveMortgageRate={effectiveMortgageRate}
+            />
+          </div>
+        )}
 
         {/* Graph Section with Math Details */}
         {isValidProjectionData(projectionData) ? (
