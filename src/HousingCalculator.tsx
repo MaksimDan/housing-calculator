@@ -933,7 +933,7 @@ const HousingCalculator = () => {
                     <p className="text-sm text-gray-600">
                       Visualizes how your income flows to mortgage payments, property taxes, maintenance,
                       and other homeownership costs. Shows equity building through principal payments and
-                      home appreciation, plus investment growth from remaining income.
+                      home appreciation, plus investment growth from remaining income. Does not assume home is sold.
                     </p>
                   </div>
                 ) : (
@@ -942,7 +942,7 @@ const HousingCalculator = () => {
                     <p className="text-sm text-gray-600">
                       Visualizes how your income flows to rent, utilities, and living expenses.
                       Shows wealth building entirely through investment growth from the larger
-                      amount of remaining income after housing costs.
+                      amount of remaining income after housing costs. Does not assume that stocks are sold.
                     </p>
                   </div>
                 )}
