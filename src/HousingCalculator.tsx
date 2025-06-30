@@ -528,7 +528,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("One-time fees for loan processing, inspections, and legal costs (% of home price)")} /> Closing Costs
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("One-time fees for loan processing, inspections, and legal costs (% of home price)")} /> Closing Costs (${(homePrice * (closingCostPercent / 100)).toLocaleString()})
                 </>
               }
               value={closingCostPercent}
