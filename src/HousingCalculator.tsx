@@ -1,6 +1,6 @@
 // File: src/HousingCalculator.tsx
 import React, { useState, useMemo, useEffect } from "react";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, Share2, Check } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -35,6 +35,7 @@ const usePersistedState = (key, defaultValue) => {
 
 const HousingCalculator = () => {
   const [activeScenario, setActiveScenario] = useState('buying');
+  const [showCopied, setShowCopied] = useState(false);
 
   // Core Financial Inputs
   const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = usePersistedState('housing-annualSalary', 350000);
@@ -84,6 +85,105 @@ const HousingCalculator = () => {
   const [activePoint, setActivePoint] = useState(null);
 
   const [mortgageInterestDeductionCap, setMortgageInterestDeductionCap] = usePersistedState('housing-mortgageInterestCap', 750000);
+
+  // Read URL parameters on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    if (urlParams.toString()) {
+      // Map URL parameters to state setters
+      const stateSetters = {
+        annualSalary: setAnnualSalaryBeforeTax,
+        taxRate: setEffectiveTaxRate,
+        standardDeduction: setStandardDeduction,
+        initialInvestment: setInitialInvestment,
+        miscExpenses: setMonthlyMiscExpenses,
+        homePrice: setHomePrice,
+        downPayment: setDownPaymentPercent,
+        mortgageRate: setEffectiveMortgageRate,
+        mortgageYears: setMortgageYears,
+        PMIRate: setPMIRate,
+        propertyTaxRate: setPropertyTaxRate,
+        melloRoosTaxRate: setMelloRoosTaxRate,
+        closingCost: setClosingCostPercent,
+        maintenanceRate: setannualMaintenanceRate,
+        hoaFee: setMonthlyHOAFee,
+        homeInsurance: setMonthlyHomeInsurance,
+        monthlyRent: setMonthlyRent,
+        rentalIncome: setMonthlyRentalIncome,
+        rentDeposit: setRentDeposit,
+        movingCostBuy: setMovingCostBuying,
+        movingCostRent: setMovingCostRenting,
+        renterInsurance: setMonthlyRenterInsurance,
+        rentUtilities: setMonthlyRentUtilities,
+        propertyUtilities: setMonthlyPropertyUtilities,
+        qualityOfLife: setMonthlyQualityOfLife,
+        appreciation: setHomeAppreciation,
+        investmentReturn: setInvestmentReturn,
+        rentIncrease: setRentIncrease,
+        salaryGrowth: setSalaryGrowthRate,
+        inflationRate: setInflationRate,
+        taxAssessmentCap: setPropertyTaxAssessmentCap,
+        xAxisYears: setXAxisYears,
+        mortgageInterestCap: setMortgageInterestDeductionCap
+      };
+
+      // Apply each parameter from URL
+      Object.entries(stateSetters).forEach(([param, setter]) => {
+        const value = urlParams.get(param);
+        if (value !== null) {
+          setter(parseFloat(value));
+        }
+      });
+    }
+  }, []); // Only run on mount
+
+  const handleShare = () => {
+    const params = new URLSearchParams();
+    
+    // Add all current values to URL parameters
+    params.append('annualSalary', annualSalaryBeforeTax);
+    params.append('taxRate', effectiveTaxRate);
+    params.append('standardDeduction', standardDeduction);
+    params.append('initialInvestment', initialInvestment);
+    params.append('miscExpenses', monthlyMiscExpenses);
+    params.append('homePrice', homePrice);
+    params.append('downPayment', downPaymentPercent);
+    params.append('mortgageRate', effectiveMortgageRate);
+    params.append('mortgageYears', mortgageYears);
+    params.append('PMIRate', PMIRate);
+    params.append('propertyTaxRate', propertyTaxRate);
+    params.append('melloRoosTaxRate', melloRoosTaxRate);
+    params.append('closingCost', closingCostPercent);
+    params.append('maintenanceRate', annualMaintenanceRate);
+    params.append('hoaFee', monthlyHOAFee);
+    params.append('homeInsurance', monthlyHomeInsurance);
+    params.append('monthlyRent', monthlyRent);
+    params.append('rentalIncome', monthlyRentalIncome);
+    params.append('rentDeposit', rentDeposit);
+    params.append('movingCostBuy', movingCostBuying);
+    params.append('movingCostRent', movingCostRenting);
+    params.append('renterInsurance', monthlyRenterInsurance);
+    params.append('rentUtilities', monthlyRentUtilities);
+    params.append('propertyUtilities', monthlyPropertyUtilities);
+    params.append('qualityOfLife', monthlyQualityOfLife);
+    params.append('appreciation', homeAppreciation);
+    params.append('investmentReturn', investmentReturn);
+    params.append('rentIncrease', rentIncrease);
+    params.append('salaryGrowth', salaryGrowthRate);
+    params.append('inflationRate', inflationRate);
+    params.append('taxAssessmentCap', propertyTaxAssessmentCap);
+    params.append('xAxisYears', xAxisYears);
+    params.append('mortgageInterestCap', mortgageInterestDeductionCap);
+
+    const shareUrl = `${window.location.origin}/?${params.toString()}`;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setShowCopied(true);
+      setTimeout(() => setShowCopied(false), 2000);
+    });
+  };
 
   const resetToDefaults = () => {
     Object.keys(localStorage).forEach(key => {
@@ -407,27 +507,47 @@ const HousingCalculator = () => {
             </div>
           )}
 
-          <button
-            onClick={resetToDefaults}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200 flex items-center gap-2 border border-gray-300"
-            title="Reset to Defaults"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          <div className="flex gap-2">
+            <button
+              onClick={resetToDefaults}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200 flex items-center gap-2 border border-gray-300"
+              title="Reset to Defaults"
             >
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-              <path d="M3 3v5h5" />
-            </svg>
-            Reset to Defaults
-          </button>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
+              Reset to Defaults
+            </button>
+            
+            <button
+              onClick={handleShare}
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200 flex items-center gap-2"
+              title="Share Calculator Settings"
+            >
+              {showCopied ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Link Copied!
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-4 h-4" />
+                  Share Settings
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Input Cards Grid */}
