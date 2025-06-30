@@ -567,7 +567,7 @@ const HousingCalculator = () => {
             <AnimatedInput
               label={
                 <>
-                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual property tax as percentage of home value (varies by location)")} /> Property Tax Rate
+                  <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual property tax as percentage of home value (varies by location)")} /> Property Tax Rate (${(homePrice * (propertyTaxRate / 100)).toLocaleString()}/year)
                 </>
               }
               value={propertyTaxRate}
