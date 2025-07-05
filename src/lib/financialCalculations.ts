@@ -33,6 +33,8 @@ export interface HousingCalculatorInputs {
     propertyTaxAssessmentCap: number;
     xAxisYears: number;
     mortgageInterestDeductionCap: number;
+    saltCap: number;
+    stateIncomeTaxRate: number;
 }
 
 const calculateMonthlyTakeHome = (annualSalary: number, effectiveTaxRate: number) => {
@@ -68,10 +70,16 @@ const calculateTaxSavings = (
     currentStandardDeduction: number,
     mortgageInterestDeductionCap: number,
     homePrice: number,
-    effectiveTaxRate: number
+    effectiveTaxRate: number,
+    saltCap: number,
+    annualSalary: number,
+    stateIncomeTaxRate: number
 ) => {
+    const stateIncomeTax = annualSalary * (stateIncomeTaxRate / 100);
     const cappedMortgageInterest = Math.min(mortgageInterest, (mortgageInterestDeductionCap / homePrice) * mortgageInterest);
-    const totalItemizedDeductions = cappedMortgageInterest + propertyTaxes + melloRoosTaxes;
+    const totalSaltTaxes = propertyTaxes + melloRoosTaxes + stateIncomeTax;
+    const cappedSaltDeduction = Math.min(totalSaltTaxes, saltCap);
+    const totalItemizedDeductions = cappedMortgageInterest + cappedSaltDeduction;
     const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - currentStandardDeduction);
     return extraDeductionBenefit * (effectiveTaxRate / 100);
 };
@@ -111,6 +119,8 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         propertyTaxAssessmentCap,
         xAxisYears,
         mortgageInterestDeductionCap,
+        saltCap,
+        stateIncomeTaxRate,
     } = inputs;
 
     const data = [];
@@ -198,7 +208,10 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
             currentStandardDeduction,
             mortgageInterestDeductionCap,
             homePrice,
-            effectiveTaxRate
+            effectiveTaxRate,
+            saltCap,
+            currentAnnualSalary,
+            stateIncomeTaxRate
         );
 
         const monthlyPropertyTax = yearlyPropertyTaxes / 12;

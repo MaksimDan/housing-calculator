@@ -17,6 +17,10 @@ interface InputCardsProps {
     setMonthlyMiscExpenses: (value: number) => void;
     mortgageInterestDeductionCap: number;
     setMortgageInterestDeductionCap: (value: number) => void;
+    saltCap: number;
+    setSaltCap: (value: number) => void;
+    stateIncomeTaxRate: number;
+    setStateIncomeTaxRate: (value: number) => void;
 
     // Property Details
     homePrice: number;
@@ -86,6 +90,8 @@ const InputCards: React.FC<InputCardsProps> = ({
     standardDeduction, setStandardDeduction,
     monthlyMiscExpenses, setMonthlyMiscExpenses,
     mortgageInterestDeductionCap, setMortgageInterestDeductionCap,
+    saltCap, setSaltCap,
+    stateIncomeTaxRate, setStateIncomeTaxRate,
     homePrice, setHomePrice,
     downPaymentPercent, setDownPaymentPercent,
     closingCostPercent, setClosingCostPercent,
@@ -196,6 +202,32 @@ const InputCards: React.FC<InputCardsProps> = ({
                     max={1500000}
                     step={25000}
                     suffix="$"
+                />
+                <AnimatedInput
+                    label={
+                        <>
+                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Maximum state and local tax (SALT) deduction, typically capped at $10,000")} /> SALT Cap
+                        </>
+                    }
+                    value={saltCap}
+                    onChange={setSaltCap}
+                    min={0}
+                    max={50000}
+                    step={1000}
+                    suffix="$"
+                />
+                <AnimatedInput
+                    label={
+                        <>
+                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your state income tax rate as a percentage")} /> State Income Tax Rate
+                        </>
+                    }
+                    value={stateIncomeTaxRate}
+                    onChange={setStateIncomeTaxRate}
+                    min={0}
+                    max={15}
+                    step={0.1}
+                    suffix="%"
                 />
             </div>
 

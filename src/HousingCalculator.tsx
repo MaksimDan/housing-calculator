@@ -65,6 +65,8 @@ const HousingCalculator = () => {
   const [activePoint, setActivePoint] = useState(null);
 
   const [mortgageInterestDeductionCap, setMortgageInterestDeductionCap] = usePersistedState('housing-mortgageInterestCap', 750000);
+  const [saltCap, setSaltCap] = usePersistedState('housing-saltCap', 40000);
+  const [stateIncomeTaxRate, setStateIncomeTaxRate] = usePersistedState('housing-stateIncomeTaxRate', 9.3);
 
   // Read URL parameters on mount
   useEffect(() => {
@@ -105,7 +107,9 @@ const HousingCalculator = () => {
         inflationRate: setInflationRate,
         taxAssessmentCap: setPropertyTaxAssessmentCap,
         xAxisYears: setXAxisYears,
-        mortgageInterestCap: setMortgageInterestDeductionCap
+        mortgageInterestCap: setMortgageInterestDeductionCap,
+        saltCap: setSaltCap,
+        stateIncomeTaxRate: setStateIncomeTaxRate
       };
 
       // Apply each parameter from URL
@@ -155,6 +159,8 @@ const HousingCalculator = () => {
     params.append('taxAssessmentCap', propertyTaxAssessmentCap);
     params.append('xAxisYears', xAxisYears);
     params.append('mortgageInterestCap', mortgageInterestDeductionCap);
+    params.append('saltCap', saltCap);
+    params.append('stateIncomeTaxRate', stateIncomeTaxRate);
 
     const shareUrl = `${window.location.origin}/?${params.toString()}`;
 
@@ -213,6 +219,8 @@ const HousingCalculator = () => {
 
     setXAxisYears(30);
     setMortgageInterestDeductionCap(750000);
+    setSaltCap(40000);
+    setStateIncomeTaxRate(9.3);
   };
 
   const projectionData = useMemo(() => {
@@ -250,6 +258,8 @@ const HousingCalculator = () => {
       propertyTaxAssessmentCap,
       xAxisYears,
       mortgageInterestDeductionCap,
+      saltCap,
+      stateIncomeTaxRate,
     };
     return calculateProjectionData(inputs);
   }, [
@@ -261,7 +271,8 @@ const HousingCalculator = () => {
     standardDeduction, monthlyRentalIncome, movingCostBuying,
     rentDeposit, PMIRate, annualMaintenanceRate, monthlyQualityOfLife,
     mortgageYears, movingCostRenting, monthlyHOAFee, monthlyHomeInsurance,
-    monthlyMiscExpenses, inflationRate, propertyTaxAssessmentCap, xAxisYears
+    monthlyMiscExpenses, inflationRate, propertyTaxAssessmentCap, xAxisYears,
+    saltCap, stateIncomeTaxRate
   ]);
 
   const isValidProjectionData = (data) => Array.isArray(data) && !data.error;
@@ -309,6 +320,8 @@ const HousingCalculator = () => {
           standardDeduction={standardDeduction} setStandardDeduction={setStandardDeduction}
           monthlyMiscExpenses={monthlyMiscExpenses} setMonthlyMiscExpenses={setMonthlyMiscExpenses}
           mortgageInterestDeductionCap={mortgageInterestDeductionCap} setMortgageInterestDeductionCap={setMortgageInterestDeductionCap}
+          saltCap={saltCap} setSaltCap={setSaltCap}
+          stateIncomeTaxRate={stateIncomeTaxRate} setStateIncomeTaxRate={setStateIncomeTaxRate}
           homePrice={homePrice} setHomePrice={setHomePrice}
           downPaymentPercent={downPaymentPercent} setDownPaymentPercent={setDownPaymentPercent}
           closingCostPercent={closingCostPercent} setClosingCostPercent={setClosingCostPercent}
