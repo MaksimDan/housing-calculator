@@ -12,6 +12,7 @@ import { ActionButtons } from './components/ActionButtons';
 import { ScenarioTabs } from './components/ScenarioTabs';
 import { NetWorthChart } from './components/NetWorthChart';
 import { NetWorthTable } from './components/NetWorthTable';
+import { TaxSavingsSummary } from './components/TaxSavingsSummary';
 
 const HousingCalculator = () => {
   const [activeScenario, setActiveScenario] = useState('buying');
@@ -301,12 +302,21 @@ const HousingCalculator = () => {
         <AffordabilityCheck projectionData={projectionData} />
 
         <div className="mb-6 flex justify-between items-center">
-          {isValidProjectionData(projectionData) && (
-            <WealthSummary
-              xAxisYears={xAxisYears}
-              projectionData={projectionData}
-            />
-          )}
+          <div className="flex gap-6">
+            {isValidProjectionData(projectionData) && (
+              <WealthSummary
+                xAxisYears={xAxisYears}
+                projectionData={projectionData}
+              />
+            )}
+            {isValidProjectionData(projectionData) && projectionData[0] && (
+              <TaxSavingsSummary
+                yearlyTaxSavings={projectionData[0].yearlyTaxSavings}
+                totalItemizedDeductions={projectionData[0].totalItemizedDeductions}
+                effectiveTaxRate={effectiveTaxRate}
+              />
+            )}
+          </div>
           <ActionButtons
             resetToDefaults={resetToDefaults}
             handleShare={handleShare}

@@ -81,7 +81,8 @@ const calculateTaxSavings = (
     const cappedSaltDeduction = Math.min(totalSaltTaxes, saltCap);
     const totalItemizedDeductions = cappedMortgageInterest + cappedSaltDeduction;
     const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - currentStandardDeduction);
-    return extraDeductionBenefit * (effectiveTaxRate / 100);
+    const yearlyTaxSavings = extraDeductionBenefit * (effectiveTaxRate / 100);
+    return { yearlyTaxSavings, totalItemizedDeductions };
 };
 
 export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
@@ -201,7 +202,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
 
         const yearlyPropertyTaxes = currentAssessedValue * (propertyTaxRate / 100);
         const yearlyMelloRoosTaxes = currentAssessedValue * (melloRoosTaxRate / 100);
-        const yearlyTaxSavings = calculateTaxSavings(
+        const { yearlyTaxSavings, totalItemizedDeductions } = calculateTaxSavings(
             mortgageBreakdown.yearlyInterestPaid,
             yearlyPropertyTaxes,
             yearlyMelloRoosTaxes,
@@ -261,6 +262,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
             monthlyRentalIncome: Math.round(currentMonthlyRentalIncome),
             yearlyTaxSavings: Math.round(yearlyTaxSavings),
             monthlyMiscExpenses: Math.round(currentMonthlyMiscExpenses),
+            totalItemizedDeductions: Math.round(totalItemizedDeductions),
         });
 
         if (year > 0) {
