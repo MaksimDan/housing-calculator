@@ -52,9 +52,9 @@ const HousingCalculator = () => {
   const [mortgageYears, setMortgageYears] = usePersistedState('housing-mortgageYears', 30);
   const [PMIRate, setPMIRate] = usePersistedState('housing-PMIRate', 0.8);
   const [propertyTaxRate, setPropertyTaxRate] = usePersistedState('housing-propertyTaxRate', 1.15);
-  const [melloRoosTaxRate, setMelloRoosTaxRate] = usePersistedState('housing-melloRoosTaxRate', 0.2);
+  const [melloRoosTaxRate, setMelloRoosTaxRate] = usePersistedState('housing-melloRoosTaxRate', 0.0);
   const [closingCostPercent, setClosingCostPercent] = usePersistedState('housing-closingCost', 2.5);
-  const [annualMaintenanceRate, setannualMaintenanceRate] = usePersistedState('housing-maintenanceRate', 1.5);
+  const [annualMaintenanceRate, setannualMaintenanceRate] = usePersistedState('housing-maintenanceRate', .5);
   const [monthlyHOAFee, setMonthlyHOAFee] = usePersistedState('housing-hoaFee', 150);
   const [monthlyHomeInsurance, setMonthlyHomeInsurance] = usePersistedState('housing-homeInsurance', 200);
 
@@ -207,9 +207,9 @@ const HousingCalculator = () => {
     setMortgageYears(30);
     setPMIRate(0.8);
     setPropertyTaxRate(1.15);
-    setMelloRoosTaxRate(0.2);
+    setMelloRoosTaxRate(0.0);
     setClosingCostPercent(2.5);
-    setannualMaintenanceRate(1.5);
+    setannualMaintenanceRate(.5);
     setMonthlyHOAFee(150);
     setMonthlyHomeInsurance(200);
 
