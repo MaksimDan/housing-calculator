@@ -43,10 +43,10 @@ const HousingCalculator = () => {
   const [effectiveTaxRate, setEffectiveTaxRate] = usePersistedState('housing-taxRate', 35);
   const [standardDeduction, setStandardDeduction] = usePersistedState('housing-standardDeduction', 20550);
   const [initialInvestment, setInitialInvestment] = usePersistedState('housing-initialInvestment', 250000);
-  const [monthlyMiscExpenses, setMonthlyMiscExpenses] = usePersistedState('housing-miscExpenses', 4500);
+  const [monthlyMiscExpenses, setMonthlyMiscExpenses] = usePersistedState('housing-miscExpenses', 1000);
 
   // Property Details
-  const [homePrice, setHomePrice] = usePersistedState('housing-homePrice', 875000);
+  const [homePrice, setHomePrice] = usePersistedState('housing-homePrice', 400000);
   const [downPaymentPercent, setDownPaymentPercent] = usePersistedState('housing-downPayment', 20);
   const [effectiveMortgageRate, setEffectiveMortgageRate] = usePersistedState('housing-mortgageRate', 6.8);
   const [mortgageYears, setMortgageYears] = usePersistedState('housing-mortgageYears', 30);
@@ -187,43 +187,51 @@ const HousingCalculator = () => {
   };
 
   const resetToDefaults = () => {
+    // Clear the persisted state from localStorage
     Object.keys(localStorage).forEach(key => {
       if (key.startsWith('housing-')) {
         localStorage.removeItem(key);
       }
     });
 
-    setAnnualSalaryBeforeTax(350000);
-    setEffectiveTaxRate(40);
-    setStandardDeduction(21900);
-    setInitialInvestment(1000000);
-    setMonthlyMiscExpenses(3500);
-    setHomePrice(700000);
+    // Reset state variables to their initial default values
+    setAnnualSalaryBeforeTax(120000);
+    setEffectiveTaxRate(35);
+    setStandardDeduction(20550);
+    setInitialInvestment(250000);
+    setMonthlyMiscExpenses(1000);
+
+    setHomePrice(400000);
     setDownPaymentPercent(20);
-    setEffectiveMortgageRate(6.5);
+    setEffectiveMortgageRate(6.8);
     setMortgageYears(30);
-    setPMIRate(1);
-    setPropertyTaxRate(1.2);
-    setMelloRoosTaxRate(0);
-    setClosingCostPercent(3);
-    setannualMaintenanceRate(2);
-    setMonthlyHOAFee(0);
-    setMonthlyHomeInsurance(100);
-    setMonthlyRent(2000);
+    setPMIRate(0.8);
+    setPropertyTaxRate(1.15);
+    setMelloRoosTaxRate(0.2);
+    setClosingCostPercent(2.5);
+    setannualMaintenanceRate(1.5);
+    setMonthlyHOAFee(150);
+    setMonthlyHomeInsurance(200);
+
+    setMonthlyRent(2600);
     setMonthlyRentalIncome(0);
-    setRentDeposit(500);
-    setMovingCostBuying(2000);
-    setMovingCostRenting(1000);
-    setMonthlyRenterInsurance(10);
-    setMonthlyRentUtilities(150);
-    setMonthlyPropertyUtilities(200);
-    setMonthlyQualityOfLife(500);
+    setRentDeposit(2600);
+
+    setMovingCostBuying(3500);
+    setMovingCostRenting(2000);
+
+    setMonthlyRenterInsurance(25);
+    setMonthlyRentUtilities(120);
+    setMonthlyPropertyUtilities(220);
+    setMonthlyQualityOfLife(800);
+
     setHomeAppreciation(4.5);
-    setInvestmentReturn(8);
-    setRentIncrease(3);
-    setSalaryGrowthRate(3);
-    setInflationRate(2.5);
+    setInvestmentReturn(8.5);
+    setRentIncrease(4.5);
+    setSalaryGrowthRate(3.5);
+    setInflationRate(3.0);
     setPropertyTaxAssessmentCap(2);
+
     setXAxisYears(30);
     setMortgageInterestDeductionCap(750000);
   };
