@@ -38,46 +38,46 @@ const HousingCalculator = () => {
   const [showCopied, setShowCopied] = useState(false);
 
   // Core Financial Inputs
-  const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = usePersistedState('housing-annualSalary', 350000);
-  const [effectiveTaxRate, setEffectiveTaxRate] = usePersistedState('housing-taxRate', 40);
-  const [standardDeduction, setStandardDeduction] = usePersistedState('housing-standardDeduction', 21900);
-  const [initialInvestment, setInitialInvestment] = usePersistedState('housing-initialInvestment', 1000000);
-  const [monthlyMiscExpenses, setMonthlyMiscExpenses] = usePersistedState('housing-miscExpenses', 3500);
+  const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = usePersistedState('housing-annualSalary', 120000);
+  const [effectiveTaxRate, setEffectiveTaxRate] = usePersistedState('housing-taxRate', 35);
+  const [standardDeduction, setStandardDeduction] = usePersistedState('housing-standardDeduction', 20550);
+  const [initialInvestment, setInitialInvestment] = usePersistedState('housing-initialInvestment', 250000);
+  const [monthlyMiscExpenses, setMonthlyMiscExpenses] = usePersistedState('housing-miscExpenses', 4500);
 
-  // Property Details - Inputs that affect purchase costs and ongoing expenses
-  const [homePrice, setHomePrice] = usePersistedState('housing-homePrice', 700000);
+  // Property Details
+  const [homePrice, setHomePrice] = usePersistedState('housing-homePrice', 875000);
   const [downPaymentPercent, setDownPaymentPercent] = usePersistedState('housing-downPayment', 20);
-  const [effectiveMortgageRate, setEffectiveMortgageRate] = usePersistedState('housing-mortgageRate', 6.5);
+  const [effectiveMortgageRate, setEffectiveMortgageRate] = usePersistedState('housing-mortgageRate', 6.8);
   const [mortgageYears, setMortgageYears] = usePersistedState('housing-mortgageYears', 30);
-  const [PMIRate, setPMIRate] = usePersistedState('housing-PMIRate', 1);
-  const [propertyTaxRate, setPropertyTaxRate] = usePersistedState('housing-propertyTaxRate', 1.2);
-  const [melloRoosTaxRate, setMelloRoosTaxRate] = usePersistedState('housing-melloRoosTaxRate', 0);
-  const [closingCostPercent, setClosingCostPercent] = usePersistedState('housing-closingCost', 3);
-  const [annualMaintenanceRate, setannualMaintenanceRate] = usePersistedState('housing-maintenanceRate', 2);
-  const [monthlyHOAFee, setMonthlyHOAFee] = usePersistedState('housing-hoaFee', 0);
-  const [monthlyHomeInsurance, setMonthlyHomeInsurance] = usePersistedState('housing-homeInsurance', 100);
+  const [PMIRate, setPMIRate] = usePersistedState('housing-PMIRate', 0.8);
+  const [propertyTaxRate, setPropertyTaxRate] = usePersistedState('housing-propertyTaxRate', 1.15);
+  const [melloRoosTaxRate, setMelloRoosTaxRate] = usePersistedState('housing-melloRoosTaxRate', 0.2);
+  const [closingCostPercent, setClosingCostPercent] = usePersistedState('housing-closingCost', 2.5);
+  const [annualMaintenanceRate, setannualMaintenanceRate] = usePersistedState('housing-maintenanceRate', 1.5);
+  const [monthlyHOAFee, setMonthlyHOAFee] = usePersistedState('housing-hoaFee', 150);
+  const [monthlyHomeInsurance, setMonthlyHomeInsurance] = usePersistedState('housing-homeInsurance', 200);
 
-  // Rental Related - Inputs for rental scenario and potential rental income
-  const [monthlyRent, setMonthlyRent] = usePersistedState('housing-monthlyRent', 2000);
+  // Rental Related
+  const [monthlyRent, setMonthlyRent] = usePersistedState('housing-monthlyRent', 2600);
   const [monthlyRentalIncome, setMonthlyRentalIncome] = usePersistedState('housing-rentalIncome', 0);
-  const [rentDeposit, setRentDeposit] = usePersistedState('housing-rentDeposit', 500);
+  const [rentDeposit, setRentDeposit] = usePersistedState('housing-rentDeposit', 2600);
 
   // One-time Moving Costs
-  const [movingCostBuying, setMovingCostBuying] = usePersistedState('housing-movingCostBuy', 2000);
-  const [movingCostRenting, setMovingCostRenting] = usePersistedState('housing-movingCostRent', 1000);
+  const [movingCostBuying, setMovingCostBuying] = usePersistedState('housing-movingCostBuy', 3500);
+  const [movingCostRenting, setMovingCostRenting] = usePersistedState('housing-movingCostRent', 2000);
 
   // Monthly Recurring Expenses
-  const [monthlyRenterInsurance, setMonthlyRenterInsurance] = usePersistedState('housing-renterInsurance', 10);
-  const [monthlyRentUtilities, setMonthlyRentUtilities] = usePersistedState('housing-rentUtilities', 150);
-  const [monthlyPropertyUtilities, setMonthlyPropertyUtilities] = usePersistedState('housing-propertyUtilities', 200);
-  const [monthlyQualityOfLife, setMonthlyQualityOfLife] = usePersistedState('housing-qualityOfLife', 500);
+  const [monthlyRenterInsurance, setMonthlyRenterInsurance] = usePersistedState('housing-renterInsurance', 25);
+  const [monthlyRentUtilities, setMonthlyRentUtilities] = usePersistedState('housing-rentUtilities', 120);
+  const [monthlyPropertyUtilities, setMonthlyPropertyUtilities] = usePersistedState('housing-propertyUtilities', 220);
+  const [monthlyQualityOfLife, setMonthlyQualityOfLife] = usePersistedState('housing-qualityOfLife', 800);
 
   // Annual Growth/Return Rates
   const [homeAppreciation, setHomeAppreciation] = usePersistedState('housing-appreciation', 4.5);
-  const [investmentReturn, setInvestmentReturn] = usePersistedState('housing-investmentReturn', 8);
-  const [rentIncrease, setRentIncrease] = usePersistedState('housing-rentIncrease', 3);
-  const [salaryGrowthRate, setSalaryGrowthRate] = usePersistedState('housing-salaryGrowth', 3);
-  const [inflationRate, setInflationRate] = usePersistedState('housing-inflationRate', 2.5);
+  const [investmentReturn, setInvestmentReturn] = usePersistedState('housing-investmentReturn', 8.5);
+  const [rentIncrease, setRentIncrease] = usePersistedState('housing-rentIncrease', 4.5);
+  const [salaryGrowthRate, setSalaryGrowthRate] = usePersistedState('housing-salaryGrowth', 3.5);
+  const [inflationRate, setInflationRate] = usePersistedState('housing-inflationRate', 3.0);
   const [propertyTaxAssessmentCap, setPropertyTaxAssessmentCap] = usePersistedState('housing-taxAssessmentCap', 2);
 
   // UI State for visualization
@@ -89,7 +89,7 @@ const HousingCalculator = () => {
   // Read URL parameters on mount
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    
+
     if (urlParams.toString()) {
       // Map URL parameters to state setters
       const stateSetters = {
@@ -140,7 +140,7 @@ const HousingCalculator = () => {
 
   const handleShare = () => {
     const params = new URLSearchParams();
-    
+
     // Add all current values to URL parameters
     params.append('annualSalary', annualSalaryBeforeTax);
     params.append('taxRate', effectiveTaxRate);
@@ -177,7 +177,7 @@ const HousingCalculator = () => {
     params.append('mortgageInterestCap', mortgageInterestDeductionCap);
 
     const shareUrl = `${window.location.origin}/?${params.toString()}`;
-    
+
     // Copy to clipboard
     navigator.clipboard.writeText(shareUrl).then(() => {
       setShowCopied(true);
@@ -529,7 +529,7 @@ const HousingCalculator = () => {
               </svg>
               Reset to Defaults
             </button>
-            
+
             <button
               onClick={handleShare}
               className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200 flex items-center gap-2"
@@ -735,7 +735,7 @@ const HousingCalculator = () => {
               onChange={setMelloRoosTaxRate}
               min={0}
               max={2}
-              step={0.05}
+              step={0.01}
               suffix="%"
             />
             <AnimatedInput
