@@ -1,10 +1,10 @@
 // File: src/HousingCalculator.tsx
 import React, { useState, useMemo, useEffect } from "react";
-import { AffordabilityCheck } from './AffordabilityCheck';
-import { DetailedMathCard } from './DetailedMathCard';
-import SankeyWealthFlow from './SankeyWealthFlow';
-import MortgageAmortizationChart from './MortgageAmortizationChart';
-import InputCards from './InputCards';
+import { AffordabilityCheck } from './components/AffordabilityCheck';
+import { DetailedMathCard } from './components/DetailedMathCard';
+import SankeyWealthFlow from './components/SankeyWealthFlow';
+import MortgageAmortizationChart from './components/MortgageAmortizationChart';
+import InputCards from './components/InputCards';
 import { usePersistedState } from './hooks/usePersistedState';
 import { calculateProjectionData, HousingCalculatorInputs } from './lib/financialCalculations';
 import { WealthSummary } from './components/WealthSummary';
