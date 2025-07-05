@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
-import { Play, Pause } from 'lucide-react';
+import { Play, Pause, Plus, Minus } from 'lucide-react';
 
 export const AnimatedInput = ({
   label,
@@ -74,6 +74,16 @@ export const AnimatedInput = ({
     }
   }, [value, isPlaying]);
 
+  const increment = useCallback(() => {
+    const newValue = Math.min(value + step, max);
+    onChange(newValue);
+  }, [value, step, max, onChange]);
+
+  const decrement = useCallback(() => {
+    const newValue = Math.max(value - step, min);
+    onChange(newValue);
+  }, [value, step, min, onChange]);
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex justify-between items-center">
@@ -82,7 +92,14 @@ export const AnimatedInput = ({
           {value.toLocaleString()}{suffix}
         </span>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={decrement}
+          disabled={value <= min}
+          className="rounded p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all duration-200 ease-in-out disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400"
+        >
+          <Minus className="h-4 w-4" />
+        </button>
         <input
           type="range"
           value={value}
@@ -90,8 +107,15 @@ export const AnimatedInput = ({
           min={min}
           max={max}
           step={step}
-          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
         />
+        <button
+          onClick={increment}
+          disabled={value >= max}
+          className="rounded p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all duration-200 ease-in-out disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
         <button
           onClick={togglePlay}
           className="rounded p-2 text-gray-300 hover:bg-gray-100 hover:text-gray-600 transition-all duration-200 ease-in-out"
