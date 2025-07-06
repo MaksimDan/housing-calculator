@@ -38,11 +38,10 @@ export interface HousingCalculatorInputs {
 }
 
 const calculateMonthlyTakeHome = (annualSalary: number, federalTaxRate: number, stateIncomeTaxRate: number) => {
-    // State taxes are deductible on federal returns, so we can't simply add the rates
-    // Federal tax is calculated on income minus state tax deduction
+    // Calculate federal and state taxes separately
+    // State taxes are not deductible from federal income in this simplified calculation
+    const federalTaxAmount = annualSalary * (federalTaxRate / 100);
     const stateTaxAmount = annualSalary * (stateIncomeTaxRate / 100);
-    const federalTaxableIncome = Math.max(0, annualSalary - stateTaxAmount);
-    const federalTaxAmount = federalTaxableIncome * (federalTaxRate / 100);
     const totalTaxAmount = federalTaxAmount + stateTaxAmount;
     const afterTaxAnnual = annualSalary - totalTaxAmount;
     return afterTaxAnnual / 12;
@@ -158,7 +157,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
     let currentAnnualSalary = annualSalaryBeforeTax;
     let mortgageBalance = homePrice - downPaymentAmount;
     let currentMonthlyRentalIncome = monthlyRentalIncome;
-    let previousBuyingInvestments = buyingNetWorth - (currentHomeValue - mortgageBalance);
+    let previousBuyingInvestments = buyingNetWorth - downPaymentAmount;
 
     let currentMonthlyMiscExpenses = monthlyMiscExpenses;
     let currentMonthlyHOAFee = monthlyHOAFee;
@@ -230,9 +229,9 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         const monthlyMelloRoosTax = yearlyMelloRoosTaxes / 12;
         const monthlyMaintenance = (currentHomeValue * annualMaintenanceRate) / 100 / 12;
 
-        // PMI is removed when equity reaches 20% of current home value, not original purchase price
-        const currentEquityPercent = ((currentHomeValue - mortgageBalance) / currentHomeValue) * 100;
-        const monthlyPMI = currentEquityPercent < 20
+        // PMI is removed when loan-to-value ratio reaches 80% (20% equity) based on original home value
+        const currentLTV = (mortgageBalance / homePrice) * 100;
+        const monthlyPMI = currentLTV > 80
             ? (mortgageBalance * PMIRate) / 100 / 12
             : 0;
 
