@@ -20,7 +20,7 @@ const HousingCalculator = () => {
 
   // Core Financial Inputs
   const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = usePersistedState('housing-annualSalary', 120000);
-  const [effectiveTaxRate, setEffectiveTaxRate] = usePersistedState('housing-taxRate', 35);
+  const [federalTaxRate, setFederalTaxRate] = usePersistedState('housing-taxRate', 18);
   const [standardDeduction, setStandardDeduction] = usePersistedState('housing-standardDeduction', 20550);
   const [initialInvestment, setInitialInvestment] = usePersistedState('housing-initialInvestment', 250000);
   const [monthlyMiscExpenses, setMonthlyMiscExpenses] = usePersistedState('housing-miscExpenses', 1000);
@@ -67,7 +67,7 @@ const HousingCalculator = () => {
 
   const [mortgageInterestDeductionCap, setMortgageInterestDeductionCap] = usePersistedState('housing-mortgageInterestCap', 750000);
   const [saltCap, setSaltCap] = usePersistedState('housing-saltCap', 40000);
-  const [stateIncomeTaxRate, setStateIncomeTaxRate] = usePersistedState('housing-stateIncomeTaxRate', 9.3);
+  const [stateIncomeTaxRate, setStateIncomeTaxRate] = usePersistedState('housing-stateIncomeTaxRate', 6.5);
 
   // Read URL parameters on mount
   useEffect(() => {
@@ -77,7 +77,7 @@ const HousingCalculator = () => {
       // Map URL parameters to state setters
       const stateSetters = {
         annualSalary: setAnnualSalaryBeforeTax,
-        taxRate: setEffectiveTaxRate,
+        taxRate: setFederalTaxRate,
         standardDeduction: setStandardDeduction,
         initialInvestment: setInitialInvestment,
         miscExpenses: setMonthlyMiscExpenses,
@@ -128,7 +128,7 @@ const HousingCalculator = () => {
 
     // Add all current values to URL parameters
     params.append('annualSalary', annualSalaryBeforeTax);
-    params.append('taxRate', effectiveTaxRate);
+    params.append('taxRate', federalTaxRate);
     params.append('standardDeduction', standardDeduction);
     params.append('initialInvestment', initialInvestment);
     params.append('miscExpenses', monthlyMiscExpenses);
@@ -182,7 +182,7 @@ const HousingCalculator = () => {
 
     // Reset state variables to their initial default values
     setAnnualSalaryBeforeTax(120000);
-    setEffectiveTaxRate(35);
+    setFederalTaxRate(18);
     setStandardDeduction(20550);
     setInitialInvestment(250000);
     setMonthlyMiscExpenses(1000);
@@ -221,13 +221,13 @@ const HousingCalculator = () => {
     setXAxisYears(30);
     setMortgageInterestDeductionCap(750000);
     setSaltCap(40000);
-    setStateIncomeTaxRate(9.3);
+    setStateIncomeTaxRate(6.5);
   };
 
   const projectionData = useMemo(() => {
     const inputs: HousingCalculatorInputs = {
       annualSalaryBeforeTax,
-      effectiveTaxRate,
+      federalTaxRate,
       standardDeduction,
       initialInvestment,
       monthlyMiscExpenses,
@@ -268,7 +268,7 @@ const HousingCalculator = () => {
     monthlyRent, homeAppreciation, investmentReturn, rentIncrease,
     closingCostPercent, monthlyRenterInsurance, monthlyRentUtilities,
     monthlyPropertyUtilities, salaryGrowthRate, initialInvestment,
-    annualSalaryBeforeTax, effectiveTaxRate,
+    annualSalaryBeforeTax, federalTaxRate,
     standardDeduction, monthlyRentalIncome, movingCostBuying,
     rentDeposit, PMIRate, annualMaintenanceRate, monthlyQualityOfLife,
     mortgageYears, movingCostRenting, monthlyHOAFee, monthlyHomeInsurance,
@@ -313,7 +313,7 @@ const HousingCalculator = () => {
               <TaxSavingsSummary
                 yearlyTaxSavings={projectionData[0].yearlyTaxSavings}
                 totalItemizedDeductions={projectionData[0].totalItemizedDeductions}
-                effectiveTaxRate={effectiveTaxRate}
+                federalTaxRate={federalTaxRate}
               />
             )}
           </div>
@@ -326,7 +326,7 @@ const HousingCalculator = () => {
         <InputCards
           initialInvestment={initialInvestment} setInitialInvestment={setInitialInvestment}
           annualSalaryBeforeTax={annualSalaryBeforeTax} setAnnualSalaryBeforeTax={setAnnualSalaryBeforeTax}
-          effectiveTaxRate={effectiveTaxRate} setEffectiveTaxRate={setEffectiveTaxRate}
+          federalTaxRate={federalTaxRate} setFederalTaxRate={setFederalTaxRate}
           standardDeduction={standardDeduction} setStandardDeduction={setStandardDeduction}
           monthlyMiscExpenses={monthlyMiscExpenses} setMonthlyMiscExpenses={setMonthlyMiscExpenses}
           mortgageInterestDeductionCap={mortgageInterestDeductionCap} setMortgageInterestDeductionCap={setMortgageInterestDeductionCap}

@@ -1,7 +1,7 @@
 // File: src/lib/financialCalculations.ts
 export interface HousingCalculatorInputs {
     annualSalaryBeforeTax: number;
-    effectiveTaxRate: number;
+    federalTaxRate: number;
     standardDeduction: number;
     initialInvestment: number;
     monthlyMiscExpenses: number;
@@ -37,8 +37,9 @@ export interface HousingCalculatorInputs {
     stateIncomeTaxRate: number;
 }
 
-const calculateMonthlyTakeHome = (annualSalary: number, effectiveTaxRate: number) => {
-    const afterTaxAnnual = annualSalary * (1 - effectiveTaxRate / 100);
+const calculateMonthlyTakeHome = (annualSalary: number, federalTaxRate: number, stateIncomeTaxRate: number) => {
+    const combinedTaxRate = federalTaxRate + stateIncomeTaxRate;
+    const afterTaxAnnual = annualSalary * (1 - combinedTaxRate / 100);
     return afterTaxAnnual / 12;
 };
 
@@ -70,7 +71,7 @@ const calculateTaxSavings = (
     currentStandardDeduction: number,
     mortgageInterestDeductionCap: number,
     homePrice: number,
-    effectiveTaxRate: number,
+    federalTaxRate: number,
     saltCap: number,
     annualSalary: number,
     stateIncomeTaxRate: number
@@ -81,14 +82,14 @@ const calculateTaxSavings = (
     const cappedSaltDeduction = Math.min(totalSaltTaxes, saltCap);
     const totalItemizedDeductions = cappedMortgageInterest + cappedSaltDeduction;
     const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - currentStandardDeduction);
-    const yearlyTaxSavings = extraDeductionBenefit * (effectiveTaxRate / 100);
+    const yearlyTaxSavings = extraDeductionBenefit * (federalTaxRate / 100);
     return { yearlyTaxSavings, totalItemizedDeductions };
 };
 
 export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
     const {
         annualSalaryBeforeTax,
-        effectiveTaxRate,
+        federalTaxRate,
         standardDeduction,
         initialInvestment,
         monthlyMiscExpenses,
@@ -162,7 +163,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, totalMonthlyPayments))) /
         (Math.pow(1 + monthlyInterestRate, totalMonthlyPayments) - 1);
 
-    const initialMonthlyTakeHome = calculateMonthlyTakeHome(annualSalaryBeforeTax, effectiveTaxRate);
+    const initialMonthlyTakeHome = calculateMonthlyTakeHome(annualSalaryBeforeTax, federalTaxRate, stateIncomeTaxRate);
     const initialMonthlyPropertyTax = (currentAssessedValue * (propertyTaxRate / 100)) / 12;
     const initialMonthlyMelloRoosTax = (currentAssessedValue * (melloRoosTaxRate / 100)) / 12;
     const initialMonthlyMaintenance = (currentHomeValue * annualMaintenanceRate / 100) / 12;
@@ -209,7 +210,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
             currentStandardDeduction,
             mortgageInterestDeductionCap,
             homePrice,
-            effectiveTaxRate,
+            federalTaxRate,
             saltCap,
             currentAnnualSalary,
             stateIncomeTaxRate
@@ -241,7 +242,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         const totalMonthlyRenterCosts =
             currentMonthlyRent + monthlyRenterInsurance + currentMonthlyRentUtilities;
 
-        const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary, effectiveTaxRate);
+        const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary, federalTaxRate, stateIncomeTaxRate);
 
         data.push({
             year,

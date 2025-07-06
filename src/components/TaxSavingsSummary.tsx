@@ -3,13 +3,13 @@ import React from 'react';
 interface TaxSavingsSummaryProps {
   yearlyTaxSavings: number;
   totalItemizedDeductions: number;
-  effectiveTaxRate: number;
+  federalTaxRate: number;
 }
 
 export const TaxSavingsSummary: React.FC<TaxSavingsSummaryProps> = ({
   yearlyTaxSavings,
   totalItemizedDeductions,
-  effectiveTaxRate,
+  federalTaxRate,
 }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">

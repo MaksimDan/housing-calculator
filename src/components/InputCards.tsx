@@ -9,8 +9,8 @@ interface InputCardsProps {
     setInitialInvestment: (value: number) => void;
     annualSalaryBeforeTax: number;
     setAnnualSalaryBeforeTax: (value: number) => void;
-    effectiveTaxRate: number;
-    setEffectiveTaxRate: (value: number) => void;
+    federalTaxRate: number;
+    setFederalTaxRate: (value: number) => void;
     standardDeduction: number;
     setStandardDeduction: (value: number) => void;
     monthlyMiscExpenses: number;
@@ -86,7 +86,7 @@ interface InputCardsProps {
 const InputCards: React.FC<InputCardsProps> = ({
     initialInvestment, setInitialInvestment,
     annualSalaryBeforeTax, setAnnualSalaryBeforeTax,
-    effectiveTaxRate, setEffectiveTaxRate,
+    federalTaxRate, setFederalTaxRate,
     standardDeduction, setStandardDeduction,
     monthlyMiscExpenses, setMonthlyMiscExpenses,
     mortgageInterestDeductionCap, setMortgageInterestDeductionCap,
@@ -154,14 +154,27 @@ const InputCards: React.FC<InputCardsProps> = ({
                 <AnimatedInput
                     label={
                         <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your overall tax rate (federal + state + local) as a percentage")} /> Effective Tax Rate (${(annualSalaryBeforeTax * (effectiveTaxRate / 100)).toLocaleString()})
+                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your effective federal tax rate as a percentage - the average percentage of income paid in federal taxes")} /> Effective Federal Tax Rate (${(annualSalaryBeforeTax * (federalTaxRate / 100)).toLocaleString()})
                         </>
                     }
-                    value={effectiveTaxRate}
-                    onChange={setEffectiveTaxRate}
+                    value={federalTaxRate}
+                    onChange={setFederalTaxRate}
                     min={1}
                     max={100}
                     step={1}
+                    suffix="%"
+                />
+                <AnimatedInput
+                    label={
+                        <>
+                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your effective state income tax rate as a percentage - the average percentage of income paid in state taxes")} /> Effective State Income Tax Rate (${(annualSalaryBeforeTax * (stateIncomeTaxRate / 100)).toLocaleString()})
+                        </>
+                    }
+                    value={stateIncomeTaxRate}
+                    onChange={setStateIncomeTaxRate}
+                    min={0}
+                    max={15}
+                    step={0.1}
                     suffix="%"
                 />
                 <AnimatedInput
@@ -203,6 +216,7 @@ const InputCards: React.FC<InputCardsProps> = ({
                     step={25000}
                     suffix="$"
                 />
+
                 <AnimatedInput
                     label={
                         <>
@@ -215,19 +229,6 @@ const InputCards: React.FC<InputCardsProps> = ({
                     max={50000}
                     step={1000}
                     suffix="$"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your state income tax rate as a percentage")} /> State Income Tax Rate
-                        </>
-                    }
-                    value={stateIncomeTaxRate}
-                    onChange={setStateIncomeTaxRate}
-                    min={0}
-                    max={15}
-                    step={0.1}
-                    suffix="%"
                 />
             </div>
 
