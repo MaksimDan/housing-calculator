@@ -38,8 +38,13 @@ export interface HousingCalculatorInputs {
 }
 
 const calculateMonthlyTakeHome = (annualSalary: number, federalTaxRate: number, stateIncomeTaxRate: number) => {
-    const combinedTaxRate = federalTaxRate + stateIncomeTaxRate;
-    const afterTaxAnnual = annualSalary * (1 - combinedTaxRate / 100);
+    // State taxes are deductible on federal returns, so we can't simply add the rates
+    // Federal tax is calculated on income minus state tax deduction
+    const stateTaxAmount = annualSalary * (stateIncomeTaxRate / 100);
+    const federalTaxableIncome = Math.max(0, annualSalary - stateTaxAmount);
+    const federalTaxAmount = federalTaxableIncome * (federalTaxRate / 100);
+    const totalTaxAmount = federalTaxAmount + stateTaxAmount;
+    const afterTaxAnnual = annualSalary - totalTaxAmount;
     return afterTaxAnnual / 12;
 };
 
@@ -70,14 +75,19 @@ const calculateTaxSavings = (
     melloRoosTaxes: number,
     currentStandardDeduction: number,
     mortgageInterestDeductionCap: number,
-    homePrice: number,
+    mortgageBalance: number,
     federalTaxRate: number,
     saltCap: number,
     annualSalary: number,
     stateIncomeTaxRate: number
 ) => {
     const stateIncomeTax = annualSalary * (stateIncomeTaxRate / 100);
-    const cappedMortgageInterest = Math.min(mortgageInterest, (mortgageInterestDeductionCap / homePrice) * mortgageInterest);
+    // The mortgage interest deduction is capped based on the loan amount, not proportional to home price
+    // If the mortgage balance exceeds the cap, only interest on the capped amount is deductible
+    const effectiveDeductibleBalance = Math.min(mortgageBalance, mortgageInterestDeductionCap);
+    const cappedMortgageInterest = mortgageBalance > 0 
+        ? mortgageInterest * (effectiveDeductibleBalance / mortgageBalance)
+        : 0;
     const totalSaltTaxes = propertyTaxes + melloRoosTaxes + stateIncomeTax;
     const cappedSaltDeduction = Math.min(totalSaltTaxes, saltCap);
     const totalItemizedDeductions = cappedMortgageInterest + cappedSaltDeduction;
@@ -209,7 +219,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
             yearlyMelloRoosTaxes,
             currentStandardDeduction,
             mortgageInterestDeductionCap,
-            homePrice,
+            mortgageBalance,
             federalTaxRate,
             saltCap,
             currentAnnualSalary,
@@ -220,8 +230,9 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         const monthlyMelloRoosTax = yearlyMelloRoosTaxes / 12;
         const monthlyMaintenance = (currentHomeValue * annualMaintenanceRate) / 100 / 12;
 
-        const equityPercentOriginal = ((homePrice - mortgageBalance) / homePrice) * 100;
-        const monthlyPMI = equityPercentOriginal < 20
+        // PMI is removed when equity reaches 20% of current home value, not original purchase price
+        const currentEquityPercent = ((currentHomeValue - mortgageBalance) / currentHomeValue) * 100;
+        const monthlyPMI = currentEquityPercent < 20
             ? (mortgageBalance * PMIRate) / 100 / 12
             : 0;
 
@@ -235,9 +246,8 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
             currentMonthlyPropertyUtilities +
             currentMonthlyHOAFee;
 
-        const monthlyTaxBenefit = yearlyTaxSavings / 12;
-        const netMonthlyHomeownerCosts = totalMonthlyHomeownerCosts -
-            currentMonthlyRentalIncome - monthlyTaxBenefit;
+        // Tax savings are received annually as a refund, not monthly
+        const netMonthlyHomeownerCosts = totalMonthlyHomeownerCosts - currentMonthlyRentalIncome;
 
         const totalMonthlyRenterCosts =
             currentMonthlyRent + monthlyRenterInsurance + currentMonthlyRentUtilities;
@@ -298,13 +308,15 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
             let rentingInvestmentBalance = rentingNetWorth;
 
             for (let month = 0; month < 12; month++) {
-                buyingInvestmentBalance += monthlyHomeownerInvestment;
+                // Apply returns first, then add new contributions (correct order for compounding)
                 buyingInvestmentBalance *= (1 + monthlyReturn);
-                rentingInvestmentBalance += monthlyRenterInvestment;
+                buyingInvestmentBalance += monthlyHomeownerInvestment;
                 rentingInvestmentBalance *= (1 + monthlyReturn);
+                rentingInvestmentBalance += monthlyRenterInvestment;
             }
 
-            buyingInvestmentBalance += yearlyQualityOfLifeBenefit;
+            // Add annual tax savings and quality of life benefit at year-end
+            buyingInvestmentBalance += yearlyQualityOfLifeBenefit + yearlyTaxSavings;
             buyingNetWorth = buyingInvestmentBalance + (currentHomeValue - mortgageBalance);
             previousBuyingInvestments = buyingInvestmentBalance;
 
