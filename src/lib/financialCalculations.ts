@@ -197,7 +197,94 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         };
     }
 
-    for (let year = 0; year <= Math.max(mortgageYears, xAxisYears); year++) {
+    // Calculate initial state for year 0
+    const yearlyPropertyTaxes = currentAssessedValue * (propertyTaxRate / 100);
+    const yearlyMelloRoosTaxes = currentAssessedValue * (melloRoosTaxRate / 100);
+    const { yearlyTaxSavings, totalItemizedDeductions } = calculateTaxSavings(
+        0, // No interest paid at year 0
+        yearlyPropertyTaxes,
+        yearlyMelloRoosTaxes,
+        currentStandardDeduction,
+        mortgageInterestDeductionCap,
+        mortgageBalance,
+        effectiveFederalTaxRate,
+        saltCap,
+        currentAnnualSalary,
+        effectiveStateIncomeTaxRate
+    );
+
+    const monthlyPropertyTax = yearlyPropertyTaxes / 12;
+    const monthlyMelloRoosTax = yearlyMelloRoosTaxes / 12;
+    const monthlyMaintenance = (currentHomeValue * annualMaintenanceRate) / 100 / 12;
+
+    // PMI is removed when loan-to-value ratio reaches 80% (20% equity) based on original home value
+    const currentLTV = (mortgageBalance / homePrice) * 100;
+    const originalLoanAmount = homePrice * (1 - downPaymentPercent / 100);
+    const monthlyPMI = currentLTV > 80
+        ? (originalLoanAmount * PMIRate) / 100 / 12
+        : 0;
+
+    const totalMonthlyHomeownerCosts =
+        (mortgageBalance > 0 ? monthlyMortgagePayment : 0) +
+        monthlyPropertyTax +
+        monthlyMelloRoosTax +
+        currentMonthlyHomeInsurance +
+        monthlyMaintenance +
+        monthlyPMI +
+        currentMonthlyPropertyUtilities +
+        currentMonthlyHOAFee;
+
+    // Tax savings are received annually as a refund, not monthly
+    const netMonthlyHomeownerCosts = totalMonthlyHomeownerCosts - currentMonthlyRentalIncome;
+
+    const totalMonthlyRenterCosts =
+        currentMonthlyRent + monthlyRenterInsurance + currentMonthlyRentUtilities;
+
+    const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary, effectiveFederalTaxRate, effectiveStateIncomeTaxRate);
+
+    // Push initial state (year 0)
+    data.push({
+        year: 0,
+        buying: Math.round(buyingNetWorth),
+        renting: Math.round(rentingNetWorth),
+        salary: Math.round(currentAnnualSalary),
+        homeEquity: Math.round(currentHomeValue - mortgageBalance),
+        investmentsBuying: Math.round(buyingNetWorth - (currentHomeValue - mortgageBalance)),
+        investmentsRenting: Math.round(rentingNetWorth),
+        homeValue: Math.round(currentHomeValue),
+        remainingLoan: Math.round(mortgageBalance),
+        yearlyPrincipalPaid: 0, // No payments made at year 0
+        yearlyInterestPaid: 0, // No payments made at year 0
+        monthlyPayment: Math.round(netMonthlyHomeownerCosts),
+        availableMonthlyInvestment: Math.round(monthlyTakeHome - netMonthlyHomeownerCosts - currentMonthlyMiscExpenses),
+        monthlyRent: Math.round(currentMonthlyRent),
+        annualRentCosts: Math.round(totalMonthlyRenterCosts * 12),
+        monthlyRentalIncome: Math.round(currentMonthlyRentalIncome),
+        yearlyTaxSavings: Math.round(yearlyTaxSavings),
+        monthlyMiscExpenses: Math.round(currentMonthlyMiscExpenses),
+        totalItemizedDeductions: Math.round(totalItemizedDeductions),
+    });
+
+    // Loop from year 1 onwards
+    for (let year = 1; year <= Math.max(mortgageYears, xAxisYears); year++) {
+        // Apply updates for the previous year first
+        currentAnnualSalary *= 1 + salaryGrowthRate / 100;
+        currentMonthlyRent *= 1 + rentIncrease / 100;
+        currentMonthlyRentalIncome *= 1 + rentIncrease / 100;
+        currentHomeValue *= 1 + homeAppreciation / 100;
+        // Assessed value increases by lesser of inflation rate or assessment cap (e.g., Prop 13)
+        const assessmentIncrease = Math.min(inflationRate, propertyTaxAssessmentCap);
+        currentAssessedValue *= 1 + assessmentIncrease / 100;
+
+        const inflationMultiplier = 1 + inflationRate / 100;
+        currentMonthlyMiscExpenses *= inflationMultiplier;
+        currentMonthlyHOAFee *= inflationMultiplier;
+        currentMonthlyHomeInsurance *= inflationMultiplier;
+        currentMonthlyPropertyUtilities *= inflationMultiplier;
+        currentMonthlyRentUtilities *= inflationMultiplier;
+        currentStandardDeduction *= inflationMultiplier;
+
+        // Now calculate mortgage breakdown with updated values
         const mortgageBreakdown = mortgageBalance > 0 ? calculateYearlyMortgageBreakdown(
             mortgageBalance,
             monthlyMortgagePayment,
@@ -252,6 +339,35 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
 
         const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary, effectiveFederalTaxRate, effectiveStateIncomeTaxRate);
 
+        // Calculate investments/surplus
+        const monthlyAvailableForBuyerInvestment = monthlyTakeHome - netMonthlyHomeownerCosts - currentMonthlyMiscExpenses;
+        const monthlyAvailableForRenterInvestment = monthlyTakeHome - totalMonthlyRenterCosts - currentMonthlyMiscExpenses;
+
+        const yearlyHomeownerInvestment = Math.max(0, monthlyAvailableForBuyerInvestment) * 12;
+        const yearlyRenterInvestment = Math.max(0, monthlyAvailableForRenterInvestment) * 12;
+
+        mortgageBalance = mortgageBreakdown.endingBalance;
+
+        const monthlyReturn = investmentReturn / 100 / 12;
+        const monthlyHomeownerInvestment = yearlyHomeownerInvestment / 12;
+        const monthlyRenterInvestment = yearlyRenterInvestment / 12;
+        const monthlyTaxSavings = yearlyTaxSavings / 12;
+
+        let buyingInvestmentBalance = previousBuyingInvestments;
+        let rentingInvestmentBalance = rentingNetWorth;
+
+        for (let month = 0; month < 12; month++) {
+            // Apply returns first, then add new contributions (correct order for compounding)
+            buyingInvestmentBalance *= (1 + monthlyReturn);
+            buyingInvestmentBalance += monthlyHomeownerInvestment + monthlyTaxSavings;
+            rentingInvestmentBalance *= (1 + monthlyReturn);
+            rentingInvestmentBalance += monthlyRenterInvestment;
+        }
+        
+        buyingNetWorth = buyingInvestmentBalance + (currentHomeValue - mortgageBalance);
+        previousBuyingInvestments = buyingInvestmentBalance;
+        rentingNetWorth = rentingInvestmentBalance;
+
         data.push({
             year,
             buying: Math.round(buyingNetWorth),
@@ -273,54 +389,6 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
             monthlyMiscExpenses: Math.round(currentMonthlyMiscExpenses),
             totalItemizedDeductions: Math.round(totalItemizedDeductions),
         });
-
-        if (year > 0) {
-            currentAnnualSalary *= 1 + salaryGrowthRate / 100;
-            currentMonthlyRent *= 1 + rentIncrease / 100;
-            currentMonthlyRentalIncome *= 1 + rentIncrease / 100;
-            currentHomeValue *= 1 + homeAppreciation / 100;
-            // Assessed value increases by lesser of inflation rate or assessment cap (e.g., Prop 13)
-            const assessmentIncrease = Math.min(inflationRate, propertyTaxAssessmentCap);
-            currentAssessedValue *= 1 + assessmentIncrease / 100;
-
-            const inflationMultiplier = 1 + inflationRate / 100;
-            currentMonthlyMiscExpenses *= inflationMultiplier;
-            currentMonthlyHOAFee *= inflationMultiplier;
-            currentMonthlyHomeInsurance *= inflationMultiplier;
-            currentMonthlyPropertyUtilities *= inflationMultiplier;
-            currentMonthlyRentUtilities *= inflationMultiplier;
-            currentStandardDeduction *= inflationMultiplier;
-
-            const monthlyAvailableForBuyerInvestment = monthlyTakeHome - netMonthlyHomeownerCosts - currentMonthlyMiscExpenses;
-            const monthlyAvailableForRenterInvestment = monthlyTakeHome - totalMonthlyRenterCosts - currentMonthlyMiscExpenses;
-
-            const yearlyHomeownerInvestment = Math.max(0, monthlyAvailableForBuyerInvestment) * 12;
-            const yearlyRenterInvestment = Math.max(0, monthlyAvailableForRenterInvestment) * 12;
-
-            mortgageBalance = mortgageBreakdown.endingBalance;
-
-            const monthlyReturn = investmentReturn / 100 / 12;
-            const monthlyHomeownerInvestment = yearlyHomeownerInvestment / 12;
-            const monthlyRenterInvestment = yearlyRenterInvestment / 12;
-
-            let buyingInvestmentBalance = previousBuyingInvestments;
-            let rentingInvestmentBalance = rentingNetWorth;
-
-            // Monthly tax savings from W-4 withholding adjustment
-            const monthlyTaxSavings = yearlyTaxSavings / 12;
-
-            for (let month = 0; month < 12; month++) {
-                // Apply returns first, then add new contributions (correct order for compounding)
-                buyingInvestmentBalance *= (1 + monthlyReturn);
-                buyingInvestmentBalance += monthlyHomeownerInvestment + monthlyTaxSavings;
-                rentingInvestmentBalance *= (1 + monthlyReturn);
-                rentingInvestmentBalance += monthlyRenterInvestment;
-            }
-            buyingNetWorth = buyingInvestmentBalance + (currentHomeValue - mortgageBalance);
-            previousBuyingInvestments = buyingInvestmentBalance;
-
-            rentingNetWorth = rentingInvestmentBalance;
-        }
     }
     return data;
 };
