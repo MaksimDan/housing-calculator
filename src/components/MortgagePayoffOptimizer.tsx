@@ -152,24 +152,24 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
   const standardScenario = scenarios.find(s => s.extraMonthlyPayment === 0) || scenarios[0];
 
   const getDecisionRecommendation = () => {
-    const investmentVsMortgageSpread = inputs.investmentReturn - inputs.effectiveMortgageRate;
-    const afterTaxMortgageRate = inputs.effectiveMortgageRate * (1 - (inputs.effectiveFederalTaxRate + inputs.effectiveStateIncomeTaxRate) / 100);
-    const realSpread = inputs.investmentReturn - afterTaxMortgageRate;
+    // Compare optimal scenario vs standard payment scenario
+    const netWorthDifference = optimalScenario.finalNetWorth - standardScenario.finalNetWorth;
+    const percentageImprovement = (netWorthDifference / standardScenario.finalNetWorth) * 100;
     
-    if (realSpread > 2) {
+    if (optimalScenario.extraMonthlyPayment === 0) {
       return {
         recommendation: 'INVEST',
-        reason: `Investment returns (${inputs.investmentReturn}%) significantly exceed after-tax mortgage cost (${afterTaxMortgageRate.toFixed(1)}%). Focus on minimum payments and invest extra cash.`
+        reason: `Standard mortgage payments appear optimal. Consider investing extra cash instead of making additional mortgage payments.`
       };
-    } else if (realSpread < -1) {
+    } else if (percentageImprovement > 5) {
       return {
         recommendation: 'PAY_OFF',
-        reason: `After-tax mortgage cost (${afterTaxMortgageRate.toFixed(1)}%) exceeds expected investment returns (${inputs.investmentReturn}%). Prioritize extra mortgage payments.`
+        reason: `Extra payments of $${optimalScenario.extraMonthlyPayment}/month could improve net worth by ${percentageImprovement.toFixed(1)}% over ${optimizationHorizon} years.`
       };
     } else {
       return {
         recommendation: 'BALANCED',
-        reason: `Investment returns and after-tax mortgage costs are similar. Consider a balanced approach based on risk tolerance.`
+        reason: `The financial difference between strategies is modest. Consider your risk tolerance and liquidity needs.`
       };
     }
   };
@@ -464,11 +464,10 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
           </div>
 
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="text-xs text-blue-800 grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div><strong>Combined Tax Rate:</strong> {(inputs.effectiveFederalTaxRate + inputs.effectiveStateIncomeTaxRate).toFixed(1)}%</div>
+            <div className="text-xs text-blue-800 grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div><strong>Mortgage Rate:</strong> {inputs.effectiveMortgageRate.toFixed(2)}%</div>
               <div><strong>Loan Amount:</strong> ${(inputs.homePrice * (1 - inputs.downPaymentPercent / 100)).toLocaleString()}</div>
               <div><strong>Down Payment:</strong> ${(inputs.homePrice * inputs.downPaymentPercent / 100).toLocaleString()}</div>
-              <div><strong>After-Tax Mortgage Rate:</strong> {(inputs.effectiveMortgageRate * (1 - (inputs.effectiveFederalTaxRate + inputs.effectiveStateIncomeTaxRate) / 100)).toFixed(2)}%</div>
             </div>
           </div>
         </div>
