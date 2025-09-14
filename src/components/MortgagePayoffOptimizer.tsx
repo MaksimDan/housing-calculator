@@ -115,8 +115,10 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
     let additionalInvestments = 0;
     if (yearsAfterPayoff > 0) {
       const monthsOfFreedPayments = yearsAfterPayoff * 12;
+      // Total monthly payment that gets freed up (regular + extra)
+      const totalFreedPayment = regularPayment + monthlyExtraPayment;
       for (let i = 0; i < monthsOfFreedPayments; i++) {
-        additionalInvestments = additionalInvestments * (1 + monthlyInvestmentReturn) + regularPayment;
+        additionalInvestments = additionalInvestments * (1 + monthlyInvestmentReturn) + totalFreedPayment;
       }
     }
     
