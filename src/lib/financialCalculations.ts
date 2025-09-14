@@ -306,16 +306,16 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
             let buyingInvestmentBalance = previousBuyingInvestments;
             let rentingInvestmentBalance = rentingNetWorth;
 
+            // Monthly tax savings from W-4 withholding adjustment
+            const monthlyTaxSavings = yearlyTaxSavings / 12;
+
             for (let month = 0; month < 12; month++) {
                 // Apply returns first, then add new contributions (correct order for compounding)
                 buyingInvestmentBalance *= (1 + monthlyReturn);
-                buyingInvestmentBalance += monthlyHomeownerInvestment;
+                buyingInvestmentBalance += monthlyHomeownerInvestment + monthlyTaxSavings;
                 rentingInvestmentBalance *= (1 + monthlyReturn);
                 rentingInvestmentBalance += monthlyRenterInvestment;
             }
-
-            // Add annual tax savings at year-end
-            buyingInvestmentBalance += yearlyTaxSavings;
             buyingNetWorth = buyingInvestmentBalance + (currentHomeValue - mortgageBalance);
             previousBuyingInvestments = buyingInvestmentBalance;
 
