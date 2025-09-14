@@ -452,8 +452,7 @@ const HousingCalculator = () => {
                 )}
                 {isValidProjectionData(projectionData) && projectionData[0] && (
                   <TaxSavingsSummary
-                    yearlyTaxSavings={projectionData[0].yearlyTaxSavings}
-                    totalItemizedDeductions={projectionData[0].totalItemizedDeductions}
+                    projectionData={projectionData}
                     effectiveFederalTaxRate={effectiveFederalTaxRate}
                   />
                 )}
