@@ -157,7 +157,6 @@ const HousingCalculator = () => {
         renterInsurance: setMonthlyRenterInsurance,
         rentUtilities: setMonthlyRentUtilities,
         propertyUtilities: setMonthlyPropertyUtilities,
-        qualityOfLife: setMonthlyQualityOfLife,
         appreciation: setHomeAppreciation,
         investmentReturn: setInvestmentReturn,
         rentIncrease: setRentIncrease,
@@ -265,7 +264,6 @@ const HousingCalculator = () => {
     setMonthlyRenterInsurance(25);
     setMonthlyRentUtilities(120);
     setMonthlyPropertyUtilities(220);
-    setMonthlyQualityOfLife(800);
 
     setHomeAppreciation(4.5);
     setInvestmentReturn(8.5);
