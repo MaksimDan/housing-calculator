@@ -279,7 +279,9 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
             currentMonthlyRent *= 1 + rentIncrease / 100;
             currentMonthlyRentalIncome *= 1 + rentIncrease / 100;
             currentHomeValue *= 1 + homeAppreciation / 100;
-            currentAssessedValue *= 1 + propertyTaxAssessmentCap / 100;
+            // Assessed value increases by lesser of inflation rate or assessment cap (e.g., Prop 13)
+            const assessmentIncrease = Math.min(inflationRate, propertyTaxAssessmentCap);
+            currentAssessedValue *= 1 + assessmentIncrease / 100;
 
             const inflationMultiplier = 1 + inflationRate / 100;
             currentMonthlyMiscExpenses *= inflationMultiplier;
