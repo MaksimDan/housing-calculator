@@ -122,8 +122,11 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
       }
     }
     
-    // Correct net worth calculation: Assets - Liabilities (not subtracting opportunity cost)
-    const finalNetWorth = homeValueAtHorizon + additionalInvestments - remainingBalance;
+    // Calculate value of tax savings invested over optimization horizon
+    const taxSavingsInvested = yearlyTaxSavings * payoffYears * Math.pow(1 + investmentReturn / 100, optimizationHorizon - payoffYears / 2);
+    
+    // Correct net worth calculation: Assets - Liabilities (including tax savings)
+    const finalNetWorth = homeValueAtHorizon + additionalInvestments + taxSavingsInvested - remainingBalance;
     
     return {
       name: monthlyExtraPayment === 0 ? 'Standard Payment' : `+$${monthlyExtraPayment}/month`,
