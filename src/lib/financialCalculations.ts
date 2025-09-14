@@ -1,7 +1,7 @@
 // File: src/lib/financialCalculations.ts
 export interface HousingCalculatorInputs {
     annualSalaryBeforeTax: number;
-    federalTaxRate: number;
+    effectiveFederalTaxRate: number;
     standardDeduction: number;
     initialInvestment: number;
     monthlyMiscExpenses: number;
@@ -34,14 +34,14 @@ export interface HousingCalculatorInputs {
     xAxisYears: number;
     mortgageInterestDeductionCap: number;
     saltCap: number;
-    stateIncomeTaxRate: number;
+    effectiveStateIncomeTaxRate: number;
 }
 
-const calculateMonthlyTakeHome = (annualSalary: number, federalTaxRate: number, stateIncomeTaxRate: number) => {
+const calculateMonthlyTakeHome = (annualSalary: number, effectiveFederalTaxRate: number, effectiveStateIncomeTaxRate: number) => {
     // Calculate federal and state taxes separately
     // State taxes are not deductible from federal income in this simplified calculation
-    const federalTaxAmount = annualSalary * (federalTaxRate / 100);
-    const stateTaxAmount = annualSalary * (stateIncomeTaxRate / 100);
+    const federalTaxAmount = annualSalary * (effectiveFederalTaxRate / 100);
+    const stateTaxAmount = annualSalary * (effectiveStateIncomeTaxRate / 100);
     const totalTaxAmount = federalTaxAmount + stateTaxAmount;
     const afterTaxAnnual = annualSalary - totalTaxAmount;
     return afterTaxAnnual / 12;
@@ -75,12 +75,12 @@ const calculateTaxSavings = (
     currentStandardDeduction: number,
     mortgageInterestDeductionCap: number,
     mortgageBalance: number,
-    federalTaxRate: number,
+    effectiveFederalTaxRate: number,
     saltCap: number,
     annualSalary: number,
-    stateIncomeTaxRate: number
+    effectiveStateIncomeTaxRate: number
 ) => {
-    const stateIncomeTax = annualSalary * (stateIncomeTaxRate / 100);
+    const stateIncomeTax = annualSalary * (effectiveStateIncomeTaxRate / 100);
     // The mortgage interest deduction is capped based on the loan amount, not proportional to home price
     // If the mortgage balance exceeds the cap, only interest on the capped amount is deductible
     const effectiveDeductibleBalance = Math.min(mortgageBalance, mortgageInterestDeductionCap);
@@ -91,14 +91,14 @@ const calculateTaxSavings = (
     const cappedSaltDeduction = Math.min(totalSaltTaxes, saltCap);
     const totalItemizedDeductions = cappedMortgageInterest + cappedSaltDeduction;
     const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - currentStandardDeduction);
-    const yearlyTaxSavings = extraDeductionBenefit * (federalTaxRate / 100);
+    const yearlyTaxSavings = extraDeductionBenefit * (effectiveFederalTaxRate / 100);
     return { yearlyTaxSavings, totalItemizedDeductions };
 };
 
 export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
     const {
         annualSalaryBeforeTax,
-        federalTaxRate,
+        effectiveFederalTaxRate,
         standardDeduction,
         initialInvestment,
         monthlyMiscExpenses,
@@ -131,7 +131,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         xAxisYears,
         mortgageInterestDeductionCap,
         saltCap,
-        stateIncomeTaxRate,
+        effectiveStateIncomeTaxRate,
     } = inputs;
 
     const data = [];
@@ -172,7 +172,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, totalMonthlyPayments))) /
         (Math.pow(1 + monthlyInterestRate, totalMonthlyPayments) - 1);
 
-    const initialMonthlyTakeHome = calculateMonthlyTakeHome(annualSalaryBeforeTax, federalTaxRate, stateIncomeTaxRate);
+    const initialMonthlyTakeHome = calculateMonthlyTakeHome(annualSalaryBeforeTax, effectiveFederalTaxRate, effectiveStateIncomeTaxRate);
     const initialMonthlyPropertyTax = (currentAssessedValue * (propertyTaxRate / 100)) / 12;
     const initialMonthlyMelloRoosTax = (currentAssessedValue * (melloRoosTaxRate / 100)) / 12;
     const initialMonthlyMaintenance = (currentHomeValue * annualMaintenanceRate / 100) / 12;
@@ -219,10 +219,10 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
             currentStandardDeduction,
             mortgageInterestDeductionCap,
             mortgageBalance,
-            federalTaxRate,
+            effectiveFederalTaxRate,
             saltCap,
             currentAnnualSalary,
-            stateIncomeTaxRate
+            effectiveStateIncomeTaxRate
         );
 
         const monthlyPropertyTax = yearlyPropertyTaxes / 12;
@@ -231,8 +231,9 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
 
         // PMI is removed when loan-to-value ratio reaches 80% (20% equity) based on original home value
         const currentLTV = (mortgageBalance / homePrice) * 100;
+        const originalLoanAmount = homePrice * (1 - downPaymentPercent / 100);
         const monthlyPMI = currentLTV > 80
-            ? (mortgageBalance * PMIRate) / 100 / 12
+            ? (originalLoanAmount * PMIRate) / 100 / 12
             : 0;
 
         const totalMonthlyHomeownerCosts =
@@ -251,7 +252,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         const totalMonthlyRenterCosts =
             currentMonthlyRent + monthlyRenterInsurance + currentMonthlyRentUtilities;
 
-        const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary, federalTaxRate, stateIncomeTaxRate);
+        const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary, effectiveFederalTaxRate, effectiveStateIncomeTaxRate);
 
         data.push({
             year,

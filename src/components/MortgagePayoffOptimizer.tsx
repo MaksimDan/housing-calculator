@@ -24,8 +24,8 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
 
   const calculatePayoffScenario = (monthlyExtraPayment: number): PayoffScenario => {
     const { homePrice, downPaymentPercent, effectiveMortgageRate, mortgageYears, investmentReturn,
-            propertyTaxRate, melloRoosTaxRate, annualSalaryBeforeTax, stateIncomeTaxRate,
-            mortgageInterestDeductionCap, saltCap, standardDeduction, federalTaxRate } = inputs;
+            propertyTaxRate, melloRoosTaxRate, annualSalaryBeforeTax, effectiveStateIncomeTaxRate,
+            mortgageInterestDeductionCap, saltCap, standardDeduction, effectiveFederalTaxRate } = inputs;
     
     const loanAmount = homePrice * (1 - downPaymentPercent / 100);
     const monthlyRate = effectiveMortgageRate / 100 / 12;
@@ -55,7 +55,7 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
     // This properly accounts for how extra payments reduce total interest
     const annualPropertyTax = homePrice * (propertyTaxRate / 100);
     const annualMelloRoosTax = homePrice * (melloRoosTaxRate / 100);
-    const stateIncomeTax = annualSalaryBeforeTax * (stateIncomeTaxRate / 100);
+    const stateIncomeTax = annualSalaryBeforeTax * (effectiveStateIncomeTaxRate / 100);
     
     // Calculate average mortgage interest deduction over the loan life
     const averageAnnualMortgageInterest = totalInterest / payoffYears;
@@ -74,7 +74,7 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
     
     // Calculate tax savings (benefit over standard deduction) - same as main calculator
     const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - standardDeduction);
-    const yearlyTaxSavings = extraDeductionBenefit * (federalTaxRate / 100);
+    const yearlyTaxSavings = extraDeductionBenefit * (effectiveFederalTaxRate / 100);
     
     // Calculate opportunity cost (what the extra payments could have earned if invested)
     const monthlyInvestmentReturn = investmentReturn / 100 / 12;
@@ -132,7 +132,7 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
 
   const getDecisionRecommendation = () => {
     const investmentVsMortgageSpread = inputs.investmentReturn - inputs.effectiveMortgageRate;
-    const afterTaxMortgageRate = inputs.effectiveMortgageRate * (1 - (inputs.federalTaxRate + inputs.stateIncomeTaxRate) / 100);
+    const afterTaxMortgageRate = inputs.effectiveMortgageRate * (1 - (inputs.effectiveFederalTaxRate + inputs.effectiveStateIncomeTaxRate) / 100);
     const realSpread = inputs.investmentReturn - afterTaxMortgageRate;
     
     if (realSpread > 2) {
@@ -226,7 +226,7 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
               <input
                 type="number"
                 step="0.1"
-                value={inputs.federalTaxRate}
+                value={inputs.effectiveFederalTaxRate}
                 onChange={(e) => {
                   const event = new CustomEvent('updateFederalTaxRate', { 
                     detail: { value: parseFloat(e.target.value) || 0 } 
@@ -241,7 +241,7 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
               <input
                 type="number"
                 step="0.1"
-                value={inputs.stateIncomeTaxRate}
+                value={inputs.effectiveStateIncomeTaxRate}
                 onChange={(e) => {
                   const event = new CustomEvent('updateStateTaxRate', { 
                     detail: { value: parseFloat(e.target.value) || 0 } 
@@ -444,10 +444,10 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
 
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="text-xs text-blue-800 grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div><strong>Combined Tax Rate:</strong> {(inputs.federalTaxRate + inputs.stateIncomeTaxRate).toFixed(1)}%</div>
+              <div><strong>Combined Tax Rate:</strong> {(inputs.effectiveFederalTaxRate + inputs.effectiveStateIncomeTaxRate).toFixed(1)}%</div>
               <div><strong>Loan Amount:</strong> ${(inputs.homePrice * (1 - inputs.downPaymentPercent / 100)).toLocaleString()}</div>
               <div><strong>Down Payment:</strong> ${(inputs.homePrice * inputs.downPaymentPercent / 100).toLocaleString()}</div>
-              <div><strong>After-Tax Mortgage Rate:</strong> {(inputs.effectiveMortgageRate * (1 - (inputs.federalTaxRate + inputs.stateIncomeTaxRate) / 100)).toFixed(2)}%</div>
+              <div><strong>After-Tax Mortgage Rate:</strong> {(inputs.effectiveMortgageRate * (1 - (inputs.effectiveFederalTaxRate + inputs.effectiveStateIncomeTaxRate) / 100)).toFixed(2)}%</div>
             </div>
           </div>
         </div>

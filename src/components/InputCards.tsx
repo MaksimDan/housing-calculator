@@ -9,8 +9,8 @@ interface InputCardsProps {
     setInitialInvestment: (value: number) => void;
     annualSalaryBeforeTax: number;
     setAnnualSalaryBeforeTax: (value: number) => void;
-    federalTaxRate: number;
-    setFederalTaxRate: (value: number) => void;
+    effectiveFederalTaxRate: number;
+    setEffectiveFederalTaxRate: (value: number) => void;
     standardDeduction: number;
     setStandardDeduction: (value: number) => void;
     monthlyMiscExpenses: number;
@@ -19,8 +19,8 @@ interface InputCardsProps {
     setMortgageInterestDeductionCap: (value: number) => void;
     saltCap: number;
     setSaltCap: (value: number) => void;
-    stateIncomeTaxRate: number;
-    setStateIncomeTaxRate: (value: number) => void;
+    effectiveStateIncomeTaxRate: number;
+    setEffectiveStateIncomeTaxRate: (value: number) => void;
 
     // Property Details
     homePrice: number;
@@ -86,12 +86,12 @@ interface InputCardsProps {
 const InputCards: React.FC<InputCardsProps> = ({
     initialInvestment, setInitialInvestment,
     annualSalaryBeforeTax, setAnnualSalaryBeforeTax,
-    federalTaxRate, setFederalTaxRate,
+    effectiveFederalTaxRate, setEffectiveFederalTaxRate,
     standardDeduction, setStandardDeduction,
     monthlyMiscExpenses, setMonthlyMiscExpenses,
     mortgageInterestDeductionCap, setMortgageInterestDeductionCap,
     saltCap, setSaltCap,
-    stateIncomeTaxRate, setStateIncomeTaxRate,
+    effectiveStateIncomeTaxRate, setEffectiveStateIncomeTaxRate,
     homePrice, setHomePrice,
     downPaymentPercent, setDownPaymentPercent,
     closingCostPercent, setClosingCostPercent,
@@ -154,11 +154,11 @@ const InputCards: React.FC<InputCardsProps> = ({
                 <AnimatedInput
                     label={
                         <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your effective federal tax rate as a percentage - the average percentage of income paid in federal taxes")} /> Effective Federal Tax Rate (${(annualSalaryBeforeTax * (federalTaxRate / 100)).toLocaleString()})
+                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your effective federal tax rate as a percentage - the average percentage of income paid in federal taxes")} /> Effective Federal Tax Rate (${(annualSalaryBeforeTax * (effectiveFederalTaxRate / 100)).toLocaleString()})
                         </>
                     }
-                    value={federalTaxRate}
-                    onChange={setFederalTaxRate}
+                    value={effectiveFederalTaxRate}
+                    onChange={setEffectiveFederalTaxRate}
                     min={1}
                     max={100}
                     step={1}
@@ -167,11 +167,11 @@ const InputCards: React.FC<InputCardsProps> = ({
                 <AnimatedInput
                     label={
                         <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your effective state income tax rate as a percentage - the average percentage of income paid in state taxes")} /> Effective State Income Tax Rate (${(annualSalaryBeforeTax * (stateIncomeTaxRate / 100)).toLocaleString()})
+                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your effective state income tax rate as a percentage - the average percentage of income paid in state taxes")} /> Effective State Income Tax Rate (${(annualSalaryBeforeTax * (effectiveStateIncomeTaxRate / 100)).toLocaleString()})
                         </>
                     }
-                    value={stateIncomeTaxRate}
-                    onChange={setStateIncomeTaxRate}
+                    value={effectiveStateIncomeTaxRate}
+                    onChange={setEffectiveStateIncomeTaxRate}
                     min={0}
                     max={15}
                     step={0.1}

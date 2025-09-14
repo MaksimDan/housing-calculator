@@ -22,7 +22,7 @@ const HousingCalculator = () => {
 
   // Core Financial Inputs
   const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = usePersistedState('housing-annualSalary', 120000);
-  const [federalTaxRate, setFederalTaxRate] = usePersistedState('housing-taxRate', 18);
+  const [effectiveFederalTaxRate, setEffectiveFederalTaxRate] = usePersistedState('housing-taxRate', 18);
   const [standardDeduction, setStandardDeduction] = usePersistedState('housing-standardDeduction', 20550);
   const [initialInvestment, setInitialInvestment] = usePersistedState('housing-initialInvestment', 250000);
   const [monthlyMiscExpenses, setMonthlyMiscExpenses] = usePersistedState('housing-miscExpenses', 1000);
@@ -69,14 +69,14 @@ const HousingCalculator = () => {
 
   const [mortgageInterestDeductionCap, setMortgageInterestDeductionCap] = usePersistedState('housing-mortgageInterestCap', 750000);
   const [saltCap, setSaltCap] = usePersistedState('housing-saltCap', 40000);
-  const [stateIncomeTaxRate, setStateIncomeTaxRate] = usePersistedState('housing-stateIncomeTaxRate', 6.5);
+  const [effectiveStateIncomeTaxRate, setEffectiveStateIncomeTaxRate] = usePersistedState('housing-effectiveStateIncomeTaxRate', 6.5);
 
   // Handle cross-page parameter updates
   useEffect(() => {
     const handleInvestmentReturn = (e: CustomEvent) => setInvestmentReturn(e.detail.value);
     const handleMortgageRate = (e: CustomEvent) => setEffectiveMortgageRate(e.detail.value);
-    const handleFederalTaxRate = (e: CustomEvent) => setFederalTaxRate(e.detail.value);
-    const handleStateTaxRate = (e: CustomEvent) => setStateIncomeTaxRate(e.detail.value);
+    const handleFederalTaxRate = (e: CustomEvent) => setEffectiveFederalTaxRate(e.detail.value);
+    const handleStateTaxRate = (e: CustomEvent) => setEffectiveStateIncomeTaxRate(e.detail.value);
     const handleInflationRate = (e: CustomEvent) => setInflationRate(e.detail.value);
     const handleHomePrice = (e: CustomEvent) => setHomePrice(e.detail.value);
     const handleDownPayment = (e: CustomEvent) => setDownPaymentPercent(e.detail.value);
@@ -135,7 +135,7 @@ const HousingCalculator = () => {
       // Map URL parameters to state setters
       const stateSetters = {
         annualSalary: setAnnualSalaryBeforeTax,
-        taxRate: setFederalTaxRate,
+        taxRate: setEffectiveFederalTaxRate,
         standardDeduction: setStandardDeduction,
         initialInvestment: setInitialInvestment,
         miscExpenses: setMonthlyMiscExpenses,
@@ -168,7 +168,7 @@ const HousingCalculator = () => {
         xAxisYears: setXAxisYears,
         mortgageInterestCap: setMortgageInterestDeductionCap,
         saltCap: setSaltCap,
-        stateIncomeTaxRate: setStateIncomeTaxRate
+        effectiveStateIncomeTaxRate: setEffectiveStateIncomeTaxRate
       };
 
       // Apply each parameter from URL
@@ -186,7 +186,7 @@ const HousingCalculator = () => {
 
     // Add all current values to URL parameters
     params.append('annualSalary', annualSalaryBeforeTax);
-    params.append('taxRate', federalTaxRate);
+    params.append('taxRate', effectiveFederalTaxRate);
     params.append('standardDeduction', standardDeduction);
     params.append('initialInvestment', initialInvestment);
     params.append('miscExpenses', monthlyMiscExpenses);
@@ -219,7 +219,7 @@ const HousingCalculator = () => {
     params.append('xAxisYears', xAxisYears);
     params.append('mortgageInterestCap', mortgageInterestDeductionCap);
     params.append('saltCap', saltCap);
-    params.append('stateIncomeTaxRate', stateIncomeTaxRate);
+    params.append('effectiveStateIncomeTaxRate', effectiveStateIncomeTaxRate);
 
     const shareUrl = `${window.location.origin}/?${params.toString()}`;
 
@@ -240,7 +240,7 @@ const HousingCalculator = () => {
 
     // Reset state variables to their initial default values
     setAnnualSalaryBeforeTax(120000);
-    setFederalTaxRate(18);
+    setEffectiveFederalTaxRate(18);
     setStandardDeduction(20550);
     setInitialInvestment(250000);
     setMonthlyMiscExpenses(1000);
@@ -279,13 +279,13 @@ const HousingCalculator = () => {
     setXAxisYears(30);
     setMortgageInterestDeductionCap(750000);
     setSaltCap(40000);
-    setStateIncomeTaxRate(6.5);
+    setEffectiveStateIncomeTaxRate(6.5);
   };
 
   const projectionData = useMemo(() => {
     const inputs: HousingCalculatorInputs = {
       annualSalaryBeforeTax,
-      federalTaxRate,
+      effectiveFederalTaxRate,
       standardDeduction,
       initialInvestment,
       monthlyMiscExpenses,
@@ -318,7 +318,7 @@ const HousingCalculator = () => {
       xAxisYears,
       mortgageInterestDeductionCap,
       saltCap,
-      stateIncomeTaxRate,
+      effectiveStateIncomeTaxRate,
     };
     return calculateProjectionData(inputs);
   }, [
@@ -326,19 +326,19 @@ const HousingCalculator = () => {
     monthlyRent, homeAppreciation, investmentReturn, rentIncrease,
     closingCostPercent, monthlyRenterInsurance, monthlyRentUtilities,
     monthlyPropertyUtilities, salaryGrowthRate, initialInvestment,
-    annualSalaryBeforeTax, federalTaxRate,
+    annualSalaryBeforeTax, effectiveFederalTaxRate,
     standardDeduction, monthlyRentalIncome, movingCostBuying,
     rentDeposit, PMIRate, annualMaintenanceRate, monthlyQualityOfLife,
     mortgageYears, movingCostRenting, monthlyHOAFee, monthlyHomeInsurance,
     monthlyMiscExpenses, inflationRate, propertyTaxAssessmentCap, xAxisYears,
-    saltCap, stateIncomeTaxRate
+    saltCap, effectiveStateIncomeTaxRate
   ]);
 
   const isValidProjectionData = (data) => Array.isArray(data) && !data.error;
 
   const inputs: HousingCalculatorInputs = {
     annualSalaryBeforeTax,
-    federalTaxRate,
+    effectiveFederalTaxRate,
     standardDeduction,
     initialInvestment,
     monthlyMiscExpenses,
@@ -371,7 +371,7 @@ const HousingCalculator = () => {
     xAxisYears,
     mortgageInterestDeductionCap,
     saltCap,
-    stateIncomeTaxRate,
+    effectiveStateIncomeTaxRate,
   };
 
   return (
@@ -450,7 +450,7 @@ const HousingCalculator = () => {
                   <TaxSavingsSummary
                     yearlyTaxSavings={projectionData[0].yearlyTaxSavings}
                     totalItemizedDeductions={projectionData[0].totalItemizedDeductions}
-                    federalTaxRate={federalTaxRate}
+                    effectiveFederalTaxRate={effectiveFederalTaxRate}
                   />
                 )}
               </div>
@@ -463,12 +463,12 @@ const HousingCalculator = () => {
         <InputCards
           initialInvestment={initialInvestment} setInitialInvestment={setInitialInvestment}
           annualSalaryBeforeTax={annualSalaryBeforeTax} setAnnualSalaryBeforeTax={setAnnualSalaryBeforeTax}
-          federalTaxRate={federalTaxRate} setFederalTaxRate={setFederalTaxRate}
+          effectiveFederalTaxRate={effectiveFederalTaxRate} setEffectiveFederalTaxRate={setEffectiveFederalTaxRate}
           standardDeduction={standardDeduction} setStandardDeduction={setStandardDeduction}
           monthlyMiscExpenses={monthlyMiscExpenses} setMonthlyMiscExpenses={setMonthlyMiscExpenses}
           mortgageInterestDeductionCap={mortgageInterestDeductionCap} setMortgageInterestDeductionCap={setMortgageInterestDeductionCap}
           saltCap={saltCap} setSaltCap={setSaltCap}
-          stateIncomeTaxRate={stateIncomeTaxRate} setStateIncomeTaxRate={setStateIncomeTaxRate}
+          effectiveStateIncomeTaxRate={effectiveStateIncomeTaxRate} setEffectiveStateIncomeTaxRate={setEffectiveStateIncomeTaxRate}
           homePrice={homePrice} setHomePrice={setHomePrice}
           downPaymentPercent={downPaymentPercent} setDownPaymentPercent={setDownPaymentPercent}
           closingCostPercent={closingCostPercent} setClosingCostPercent={setClosingCostPercent}
