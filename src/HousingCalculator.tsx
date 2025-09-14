@@ -13,10 +13,12 @@ import { ScenarioTabs } from './components/ScenarioTabs';
 import { NetWorthChart } from './components/NetWorthChart';
 import { NetWorthTable } from './components/NetWorthTable';
 import { TaxSavingsSummary } from './components/TaxSavingsSummary';
+import { MortgagePayoffOptimizer } from './components/MortgagePayoffOptimizer';
 
 const HousingCalculator = () => {
   const [activeScenario, setActiveScenario] = useState('buying');
   const [showCopied, setShowCopied] = useState(false);
+  const [currentPage, setCurrentPage] = useState('calculator');
 
   // Core Financial Inputs
   const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = usePersistedState('housing-annualSalary', 120000);
@@ -68,6 +70,62 @@ const HousingCalculator = () => {
   const [mortgageInterestDeductionCap, setMortgageInterestDeductionCap] = usePersistedState('housing-mortgageInterestCap', 750000);
   const [saltCap, setSaltCap] = usePersistedState('housing-saltCap', 40000);
   const [stateIncomeTaxRate, setStateIncomeTaxRate] = usePersistedState('housing-stateIncomeTaxRate', 6.5);
+
+  // Handle cross-page parameter updates
+  useEffect(() => {
+    const handleInvestmentReturn = (e: CustomEvent) => setInvestmentReturn(e.detail.value);
+    const handleMortgageRate = (e: CustomEvent) => setEffectiveMortgageRate(e.detail.value);
+    const handleFederalTaxRate = (e: CustomEvent) => setFederalTaxRate(e.detail.value);
+    const handleStateTaxRate = (e: CustomEvent) => setStateIncomeTaxRate(e.detail.value);
+    const handleInflationRate = (e: CustomEvent) => setInflationRate(e.detail.value);
+    const handleHomePrice = (e: CustomEvent) => setHomePrice(e.detail.value);
+    const handleDownPayment = (e: CustomEvent) => setDownPaymentPercent(e.detail.value);
+    const handleMortgageYears = (e: CustomEvent) => setMortgageYears(e.detail.value);
+    const handleHomeAppreciation = (e: CustomEvent) => setHomeAppreciation(e.detail.value);
+    const handlePropertyTaxRate = (e: CustomEvent) => setPropertyTaxRate(e.detail.value);
+    const handleSalaryGrowth = (e: CustomEvent) => setSalaryGrowthRate(e.detail.value);
+    const handlePMIRate = (e: CustomEvent) => setPMIRate(e.detail.value);
+    const handleAnnualSalary = (e: CustomEvent) => setAnnualSalaryBeforeTax(e.detail.value);
+    const handleStandardDeduction = (e: CustomEvent) => setStandardDeduction(e.detail.value);
+    const handleSaltCap = (e: CustomEvent) => setSaltCap(e.detail.value);
+    const handleMortgageInterestCap = (e: CustomEvent) => setMortgageInterestDeductionCap(e.detail.value);
+
+    window.addEventListener('updateInvestmentReturn', handleInvestmentReturn as EventListener);
+    window.addEventListener('updateMortgageRate', handleMortgageRate as EventListener);
+    window.addEventListener('updateFederalTaxRate', handleFederalTaxRate as EventListener);
+    window.addEventListener('updateStateTaxRate', handleStateTaxRate as EventListener);
+    window.addEventListener('updateInflationRate', handleInflationRate as EventListener);
+    window.addEventListener('updateHomePrice', handleHomePrice as EventListener);
+    window.addEventListener('updateDownPayment', handleDownPayment as EventListener);
+    window.addEventListener('updateMortgageYears', handleMortgageYears as EventListener);
+    window.addEventListener('updateHomeAppreciation', handleHomeAppreciation as EventListener);
+    window.addEventListener('updatePropertyTaxRate', handlePropertyTaxRate as EventListener);
+    window.addEventListener('updateSalaryGrowth', handleSalaryGrowth as EventListener);
+    window.addEventListener('updatePMIRate', handlePMIRate as EventListener);
+    window.addEventListener('updateAnnualSalary', handleAnnualSalary as EventListener);
+    window.addEventListener('updateStandardDeduction', handleStandardDeduction as EventListener);
+    window.addEventListener('updateSaltCap', handleSaltCap as EventListener);
+    window.addEventListener('updateMortgageInterestCap', handleMortgageInterestCap as EventListener);
+
+    return () => {
+      window.removeEventListener('updateInvestmentReturn', handleInvestmentReturn as EventListener);
+      window.removeEventListener('updateMortgageRate', handleMortgageRate as EventListener);
+      window.removeEventListener('updateFederalTaxRate', handleFederalTaxRate as EventListener);
+      window.removeEventListener('updateStateTaxRate', handleStateTaxRate as EventListener);
+      window.removeEventListener('updateInflationRate', handleInflationRate as EventListener);
+      window.removeEventListener('updateHomePrice', handleHomePrice as EventListener);
+      window.removeEventListener('updateDownPayment', handleDownPayment as EventListener);
+      window.removeEventListener('updateMortgageYears', handleMortgageYears as EventListener);
+      window.removeEventListener('updateHomeAppreciation', handleHomeAppreciation as EventListener);
+      window.removeEventListener('updatePropertyTaxRate', handlePropertyTaxRate as EventListener);
+      window.removeEventListener('updateSalaryGrowth', handleSalaryGrowth as EventListener);
+      window.removeEventListener('updatePMIRate', handlePMIRate as EventListener);
+      window.removeEventListener('updateAnnualSalary', handleAnnualSalary as EventListener);
+      window.removeEventListener('updateStandardDeduction', handleStandardDeduction as EventListener);
+      window.removeEventListener('updateSaltCap', handleSaltCap as EventListener);
+      window.removeEventListener('updateMortgageInterestCap', handleMortgageInterestCap as EventListener);
+    };
+  }, []);
 
   // Read URL parameters on mount
   useEffect(() => {
@@ -278,50 +336,129 @@ const HousingCalculator = () => {
 
   const isValidProjectionData = (data) => Array.isArray(data) && !data.error;
 
+  const inputs: HousingCalculatorInputs = {
+    annualSalaryBeforeTax,
+    federalTaxRate,
+    standardDeduction,
+    initialInvestment,
+    monthlyMiscExpenses,
+    homePrice,
+    downPaymentPercent,
+    effectiveMortgageRate,
+    mortgageYears,
+    PMIRate,
+    propertyTaxRate,
+    melloRoosTaxRate,
+    closingCostPercent,
+    annualMaintenanceRate,
+    monthlyHOAFee,
+    monthlyHomeInsurance,
+    monthlyRent,
+    monthlyRentalIncome,
+    rentDeposit,
+    movingCostBuying,
+    movingCostRenting,
+    monthlyRenterInsurance,
+    monthlyRentUtilities,
+    monthlyPropertyUtilities,
+    monthlyQualityOfLife,
+    homeAppreciation,
+    investmentReturn,
+    rentIncrease,
+    salaryGrowthRate,
+    inflationRate,
+    propertyTaxAssessmentCap,
+    xAxisYears,
+    mortgageInterestDeductionCap,
+    saltCap,
+    stateIncomeTaxRate,
+  };
+
   return (
     <div className="min-h-screen bg-white p-6">
       <div className="mx-auto" style={{ maxWidth: '1843px' }}>
         <div className="mb-8">
-          <h1 className="text-2xl font-light text-gray-800 mb-4">
-            Build Wealth: Buy vs. Rent Calculator
-          </h1>
-          <p className="text-sm text-gray-600 mb-2">
-            Compare long-term wealth building strategies through property ownership versus renting:
-          </p>
-          <ul className="text-sm text-gray-600 list-disc pl-5">
-            <li className="mb-2">
-              <span className="text-blue-500 font-medium">Property Owner Strategy</span>:
-              Combines home equity growth through mortgage payments and appreciation, plus investment returns from remaining income after housing costs. Accounts for tax benefits, maintenance costs, and potential rental income.
-            </li>
-            <li className="mb-2">
-              <span className="text-green-500 font-medium">Renter Strategy</span>:
-              Focuses on building wealth through investment returns from income saved after rental expenses, without the responsibilities of property ownership.
-            </li>
-          </ul>
-        </div>
-        <AffordabilityCheck projectionData={projectionData} />
-
-        <div className="mb-6 flex justify-between items-center">
-          <div className="flex gap-6">
-            {isValidProjectionData(projectionData) && (
-              <WealthSummary
-                xAxisYears={xAxisYears}
-                projectionData={projectionData}
-              />
-            )}
-            {isValidProjectionData(projectionData) && projectionData[0] && (
-              <TaxSavingsSummary
-                yearlyTaxSavings={projectionData[0].yearlyTaxSavings}
-                totalItemizedDeductions={projectionData[0].totalItemizedDeductions}
-                federalTaxRate={federalTaxRate}
-              />
-            )}
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-light text-gray-800">
+              Build Wealth: Buy vs. Rent Calculator
+            </h1>
+            
+            <nav className="flex space-x-1 bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setCurrentPage('calculator')}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  currentPage === 'calculator'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Buy vs Rent
+              </button>
+              <button
+                onClick={() => setCurrentPage('payoff')}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  currentPage === 'payoff'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Payoff Strategy
+              </button>
+            </nav>
           </div>
-          <ActionButtons
-            resetToDefaults={resetToDefaults}
-            handleShare={handleShare}
-          />
+          
+          {currentPage === 'calculator' && (
+            <>
+              <p className="text-sm text-gray-600 mb-2">
+                Compare long-term wealth building strategies through property ownership versus renting:
+              </p>
+              <ul className="text-sm text-gray-600 list-disc pl-5">
+                <li className="mb-2">
+                  <span className="text-blue-500 font-medium">Property Owner Strategy</span>:
+                  Combines home equity growth through mortgage payments and appreciation, plus investment returns from remaining income after housing costs. Accounts for tax benefits, maintenance costs, and potential rental income.
+                </li>
+                <li className="mb-2">
+                  <span className="text-green-500 font-medium">Renter Strategy</span>:
+                  Focuses on building wealth through investment returns from income saved after rental expenses, without the responsibilities of property ownership.
+                </li>
+              </ul>
+            </>
+          )}
+          
+          {currentPage === 'payoff' && (
+            <p className="text-sm text-gray-600">
+              Optimize your mortgage payoff strategy to maximize net worth by analyzing the trade-off between paying down debt versus investing extra cash.
+            </p>
+          )}
         </div>
+        
+        {currentPage === 'payoff' ? (
+          <MortgagePayoffOptimizer inputs={inputs} />
+        ) : (
+          <>
+            <AffordabilityCheck projectionData={projectionData} />
+
+            <div className="mb-6 flex justify-between items-center">
+              <div className="flex gap-6">
+                {isValidProjectionData(projectionData) && (
+                  <WealthSummary
+                    xAxisYears={xAxisYears}
+                    projectionData={projectionData}
+                  />
+                )}
+                {isValidProjectionData(projectionData) && projectionData[0] && (
+                  <TaxSavingsSummary
+                    yearlyTaxSavings={projectionData[0].yearlyTaxSavings}
+                    totalItemizedDeductions={projectionData[0].totalItemizedDeductions}
+                    federalTaxRate={federalTaxRate}
+                  />
+                )}
+              </div>
+              <ActionButtons
+                resetToDefaults={resetToDefaults}
+                handleShare={handleShare}
+              />
+            </div>
 
         <InputCards
           initialInvestment={initialInvestment} setInitialInvestment={setInitialInvestment}
@@ -417,12 +554,14 @@ const HousingCalculator = () => {
             </div>
           </div>) : null}
 
-        {isValidProjectionData(projectionData) ? (
-          <NetWorthTable
-            projectionData={projectionData}
-            xAxisYears={xAxisYears}
-          />
-        ) : null}
+            {isValidProjectionData(projectionData) ? (
+              <NetWorthTable
+                projectionData={projectionData}
+                xAxisYears={xAxisYears}
+              />
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   );
