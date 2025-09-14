@@ -96,6 +96,21 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
     const yearsAfterPayoff = Math.max(0, optimizationHorizon - payoffYears);
     const homeValueAtHorizon = homePrice * Math.pow(1 + inputs.homeAppreciation / 100, optimizationHorizon);
     
+    // Calculate remaining loan balance at optimization horizon
+    let remainingBalance = balance; // This is 0 if paid off, or remaining balance if not
+    if (optimizationHorizon < payoffYears) {
+      // Loan not paid off by horizon - calculate remaining balance
+      let tempBalance = loanAmount;
+      const horizonMonths = optimizationHorizon * 12;
+      for (let i = 0; i < horizonMonths; i++) {
+        const interestPayment = tempBalance * monthlyRate;
+        const principalPayment = Math.min(totalMonthlyPayment - interestPayment, tempBalance);
+        tempBalance -= principalPayment;
+        if (tempBalance <= 0) break;
+      }
+      remainingBalance = Math.max(0, tempBalance);
+    }
+    
     // Freed up mortgage payments can be invested after payoff
     let additionalInvestments = 0;
     if (yearsAfterPayoff > 0) {
@@ -105,7 +120,8 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
       }
     }
     
-    const finalNetWorth = homeValueAtHorizon + additionalInvestments - opportunityCost;
+    // Correct net worth calculation: Assets - Liabilities (not subtracting opportunity cost)
+    const finalNetWorth = homeValueAtHorizon + additionalInvestments - remainingBalance;
     
     return {
       name: monthlyExtraPayment === 0 ? 'Standard Payment' : `+$${monthlyExtraPayment}/month`,
