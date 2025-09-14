@@ -24,7 +24,6 @@ export interface HousingCalculatorInputs {
     monthlyRenterInsurance: number;
     monthlyRentUtilities: number;
     monthlyPropertyUtilities: number;
-    monthlyQualityOfLife: number;
     homeAppreciation: number;
     investmentReturn: number;
     rentIncrease: number;
@@ -121,7 +120,6 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         monthlyRenterInsurance,
         monthlyRentUtilities,
         monthlyPropertyUtilities,
-        monthlyQualityOfLife,
         homeAppreciation,
         investmentReturn,
         rentIncrease,
@@ -299,7 +297,6 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
 
             mortgageBalance = mortgageBreakdown.endingBalance;
 
-            const yearlyQualityOfLifeBenefit = monthlyQualityOfLife * 12;
             const monthlyReturn = investmentReturn / 100 / 12;
             const monthlyHomeownerInvestment = yearlyHomeownerInvestment / 12;
             const monthlyRenterInvestment = yearlyRenterInvestment / 12;
@@ -315,8 +312,8 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
                 rentingInvestmentBalance += monthlyRenterInvestment;
             }
 
-            // Add annual tax savings and quality of life benefit at year-end
-            buyingInvestmentBalance += yearlyQualityOfLifeBenefit + yearlyTaxSavings;
+            // Add annual tax savings at year-end
+            buyingInvestmentBalance += yearlyTaxSavings;
             buyingNetWorth = buyingInvestmentBalance + (currentHomeValue - mortgageBalance);
             previousBuyingInvestments = buyingInvestmentBalance;
 

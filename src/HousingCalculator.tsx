@@ -53,7 +53,6 @@ const HousingCalculator = () => {
   const [monthlyRenterInsurance, setMonthlyRenterInsurance] = usePersistedState('housing-renterInsurance', 25);
   const [monthlyRentUtilities, setMonthlyRentUtilities] = usePersistedState('housing-rentUtilities', 120);
   const [monthlyPropertyUtilities, setMonthlyPropertyUtilities] = usePersistedState('housing-propertyUtilities', 220);
-  const [monthlyQualityOfLife, setMonthlyQualityOfLife] = usePersistedState('housing-qualityOfLife', 800);
 
   // Annual Growth/Return Rates
   const [homeAppreciation, setHomeAppreciation] = usePersistedState('housing-appreciation', 4.5);
@@ -209,7 +208,6 @@ const HousingCalculator = () => {
     params.append('renterInsurance', monthlyRenterInsurance);
     params.append('rentUtilities', monthlyRentUtilities);
     params.append('propertyUtilities', monthlyPropertyUtilities);
-    params.append('qualityOfLife', monthlyQualityOfLife);
     params.append('appreciation', homeAppreciation);
     params.append('investmentReturn', investmentReturn);
     params.append('rentIncrease', rentIncrease);
@@ -308,7 +306,6 @@ const HousingCalculator = () => {
       monthlyRenterInsurance,
       monthlyRentUtilities,
       monthlyPropertyUtilities,
-      monthlyQualityOfLife,
       homeAppreciation,
       investmentReturn,
       rentIncrease,
@@ -328,7 +325,7 @@ const HousingCalculator = () => {
     monthlyPropertyUtilities, salaryGrowthRate, initialInvestment,
     annualSalaryBeforeTax, effectiveFederalTaxRate,
     standardDeduction, monthlyRentalIncome, movingCostBuying,
-    rentDeposit, PMIRate, annualMaintenanceRate, monthlyQualityOfLife,
+    rentDeposit, PMIRate, annualMaintenanceRate,
     mortgageYears, movingCostRenting, monthlyHOAFee, monthlyHomeInsurance,
     monthlyMiscExpenses, inflationRate, propertyTaxAssessmentCap, xAxisYears,
     saltCap, effectiveStateIncomeTaxRate
@@ -361,7 +358,6 @@ const HousingCalculator = () => {
     monthlyRenterInsurance,
     monthlyRentUtilities,
     monthlyPropertyUtilities,
-    monthlyQualityOfLife,
     homeAppreciation,
     investmentReturn,
     rentIncrease,
@@ -493,7 +489,6 @@ const HousingCalculator = () => {
           monthlyRentalIncome={monthlyRentalIncome} setMonthlyRentalIncome={setMonthlyRentalIncome}
           movingCostBuying={movingCostBuying} setMovingCostBuying={setMovingCostBuying}
           mortgageYears={mortgageYears} setMortgageYears={setMortgageYears}
-          monthlyQualityOfLife={monthlyQualityOfLife} setMonthlyQualityOfLife={setMonthlyQualityOfLife}
           monthlyRent={monthlyRent} setMonthlyRent={setMonthlyRent}
           rentDeposit={rentDeposit} setRentDeposit={setRentDeposit}
           monthlyRentUtilities={monthlyRentUtilities} setMonthlyRentUtilities={setMonthlyRentUtilities}
@@ -517,7 +512,6 @@ const HousingCalculator = () => {
             <SankeyWealthFlow
               projectionData={projectionData}
               scenario={activeScenario}
-              monthlyQualityOfLife={monthlyQualityOfLife}
               xAxisYears={xAxisYears}
             />
           </div>

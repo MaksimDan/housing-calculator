@@ -51,8 +51,6 @@ interface InputCardsProps {
     setMovingCostBuying: (value: number) => void;
     mortgageYears: number;
     setMortgageYears: (value: number) => void;
-    monthlyQualityOfLife: number;
-    setMonthlyQualityOfLife: (value: number) => void;
 
     // Renting Details
     monthlyRent: number;
@@ -106,7 +104,6 @@ const InputCards: React.FC<InputCardsProps> = ({
     monthlyRentalIncome, setMonthlyRentalIncome,
     movingCostBuying, setMovingCostBuying,
     mortgageYears, setMortgageYears,
-    monthlyQualityOfLife, setMonthlyQualityOfLife,
     monthlyRent, setMonthlyRent,
     rentDeposit, setRentDeposit,
     monthlyRentUtilities, setMonthlyRentUtilities,
@@ -426,19 +423,6 @@ const InputCards: React.FC<InputCardsProps> = ({
                     max={30}
                     step={1}
                     suffix=" years"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly value you place on homeownership benefits (control, permanence, no landlord)")} /> Monthly Quality of Life Benefit
-                        </>
-                    }
-                    value={monthlyQualityOfLife}
-                    onChange={setMonthlyQualityOfLife}
-                    min={0}
-                    max={10000}
-                    step={100}
-                    suffix="$"
                 />
             </div>
 

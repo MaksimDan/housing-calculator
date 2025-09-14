@@ -16,14 +16,12 @@ interface SankeyWealthFlowProps {
   scenario?: 'buying' | 'renting';
 
   // For quality of life and other display values
-  monthlyQualityOfLife: number;
   xAxisYears: number;
 }
 
 const SankeyWealthFlow: React.FC<SankeyWealthFlowProps> = ({
   projectionData,
   scenario = 'buying',
-  monthlyQualityOfLife,
   xAxisYears
 }) => {
   const chartRef = useRef<HTMLDivElement>(null);
@@ -195,13 +193,9 @@ const SankeyWealthFlow: React.FC<SankeyWealthFlowProps> = ({
       }
     }
 
-    // Quality of life value (monthly benefit, not accumulated)
-    if (monthlyQualityOfLife > 0 && scenario === 'buying') {
-      rows.push(['Quality of Life Value', 'Monthly Benefit', Math.round(monthlyQualityOfLife)]);
-    }
 
     return rows;
-  }, [monthlyData, currentMonth, scenario, monthlyQualityOfLife]);
+  }, [monthlyData, currentMonth, scenario]);
 
   // Draw the chart
   useEffect(() => {
