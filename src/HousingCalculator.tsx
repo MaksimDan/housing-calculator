@@ -379,9 +379,19 @@ const HousingCalculator = () => {
       <div className="mx-auto" style={{ maxWidth: '1843px' }}>
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-light text-gray-800">
-              Build Wealth: Buy vs. Rent Calculator
-            </h1>
+            <div>
+              <h1 className="text-2xl font-light text-gray-800">
+                Build Wealth: Buy vs. Rent Calculator
+              </h1>
+              <div className="mt-2 p-3 bg-yellow-50 border-l-4 border-yellow-400 text-sm text-gray-700">
+                <p className="font-medium mb-1">Important Assumptions:</p>
+                <ul className="space-y-1 text-xs">
+                  <li>• Home equity assumes no selling costs (realtor fees, closing costs typically 6-10%)</li>
+                  <li>• Investment returns are pre-tax (ignores capital gains and dividend taxes)</li>
+                  <li>• Tax rates should be "effective" rates including all taxes (federal, state, FICA, deductions)</li>
+                </ul>
+              </div>
+            </div>
             
             <nav className="flex space-x-1 bg-gray-100 rounded-lg p-1">
               <button
