@@ -46,24 +46,27 @@ const calculateMonthlyTakeHome = (annualSalary: number, effectiveFederalTaxRate:
     return afterTaxAnnual / 12;
 };
 
-const calculateYearlyMortgageBreakdown = (loanBalance: number, monthlyPayment: number, monthlyRate: number) => {
+const calculateYearlyMortgageBreakdown = (loanBalance: number, monthlyPayment: number, monthlyRate: number, extraPrincipalPayment: number = 0) => {
     let yearlyInterestPaid = 0;
     let yearlyPrincipalPaid = 0;
     let currentBalance = loanBalance;
 
     for (let month = 0; month < 12; month++) {
+        if (currentBalance <= 0) break;
+        
         const monthlyInterestPaid = currentBalance * monthlyRate;
-        const monthlyPrincipalPaid = monthlyPayment - monthlyInterestPaid;
+        const regularPrincipalPayment = monthlyPayment - monthlyInterestPaid;
+        const totalPrincipalPayment = Math.min(regularPrincipalPayment + extraPrincipalPayment, currentBalance);
 
         yearlyInterestPaid += monthlyInterestPaid;
-        yearlyPrincipalPaid += monthlyPrincipalPaid;
-        currentBalance -= monthlyPrincipalPaid;
+        yearlyPrincipalPaid += totalPrincipalPayment;
+        currentBalance -= totalPrincipalPayment;
     }
 
     return {
         yearlyInterestPaid,
         yearlyPrincipalPaid,
-        endingBalance: currentBalance,
+        endingBalance: Math.max(0, currentBalance),
     };
 };
 
@@ -92,6 +95,170 @@ const calculateTaxSavings = (
     const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - currentStandardDeduction);
     const yearlyTaxSavings = extraDeductionBenefit * (effectiveFederalTaxRate / 100);
     return { yearlyTaxSavings, totalItemizedDeductions };
+};
+
+export const calculateMortgageScenario = (
+    inputs: HousingCalculatorInputs,
+    extraMonthlyPayment: number = 0,
+    horizonYears: number = 30
+) => {
+    const { homePrice, downPaymentPercent, effectiveMortgageRate, mortgageYears, investmentReturn,
+            propertyTaxRate, melloRoosTaxRate, annualSalaryBeforeTax, effectiveStateIncomeTaxRate,
+            mortgageInterestDeductionCap, saltCap, standardDeduction, effectiveFederalTaxRate, 
+            homeAppreciation, inflationRate, propertyTaxAssessmentCap, salaryGrowthRate,
+            initialInvestment, closingCostPercent, movingCostBuying, monthlyMiscExpenses,
+            PMIRate, annualMaintenanceRate, monthlyHOAFee, monthlyHomeInsurance,
+            monthlyPropertyUtilities, monthlyRentalIncome } = inputs;
+
+    const downPaymentAmount = homePrice * (downPaymentPercent / 100);
+    const closingCostsAmount = homePrice * (closingCostPercent / 100);
+    const loanAmount = homePrice - downPaymentAmount;
+    const monthlyRate = effectiveMortgageRate / 100 / 12;
+    const totalPayments = mortgageYears * 12;
+    const monthlyInvestmentReturn = investmentReturn / 100 / 12;
+    const horizonMonths = horizonYears * 12;
+
+    const regularPayment = (loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, totalPayments))) /
+                          (Math.pow(1 + monthlyRate, totalPayments) - 1);
+
+    let balance = loanAmount;
+    let investmentBalance = initialInvestment - downPaymentAmount - closingCostsAmount - movingCostBuying;
+    let totalInterestPaid = 0;
+    let totalPrincipalPaid = 0;
+    let payoffMonth = -1;
+
+    let annualInterestForTax = 0;
+    let totalTaxSavings = 0;
+    const itemizedDeductionsByYear: number[] = [];
+    
+    let currentAssessedValue = homePrice;
+    let currentStandardDeduction = standardDeduction;
+    let currentAnnualSalary = annualSalaryBeforeTax;
+    let currentMonthlyMiscExpenses = monthlyMiscExpenses;
+    let currentMonthlyHOAFee = monthlyHOAFee;
+    let currentMonthlyHomeInsurance = monthlyHomeInsurance;
+    let currentMonthlyPropertyUtilities = monthlyPropertyUtilities;
+    let currentMonthlyRentalIncome = monthlyRentalIncome;
+    
+    let beginningYearBalance = loanAmount;
+
+    for (let month = 1; month <= horizonMonths; month++) {
+        if ((month - 1) % 12 === 0 && month > 1) {
+            const yearsPassed = Math.floor((month - 1) / 12);
+            currentAnnualSalary = annualSalaryBeforeTax * Math.pow(1 + salaryGrowthRate / 100, yearsPassed);
+            currentStandardDeduction = standardDeduction * Math.pow(1 + inflationRate / 100, yearsPassed);
+            const assessmentIncrease = Math.min(inflationRate, propertyTaxAssessmentCap) / 100;
+            currentAssessedValue = homePrice * Math.pow(1 + assessmentIncrease, yearsPassed);
+            
+            const inflationMultiplier = Math.pow(1 + inflationRate / 100, yearsPassed);
+            currentMonthlyMiscExpenses = monthlyMiscExpenses * inflationMultiplier;
+            currentMonthlyHOAFee = monthlyHOAFee * inflationMultiplier;
+            currentMonthlyHomeInsurance = monthlyHomeInsurance * inflationMultiplier;
+            currentMonthlyPropertyUtilities = monthlyPropertyUtilities * inflationMultiplier;
+            
+            currentMonthlyRentalIncome = monthlyRentalIncome * Math.pow(1 + inputs.rentIncrease / 100, yearsPassed);
+            
+            beginningYearBalance = balance;
+        }
+        
+        investmentBalance *= (1 + monthlyInvestmentReturn);
+
+        if (balance > 0) {
+            const interestPayment = balance * monthlyRate;
+            const principalPayment = Math.min(regularPayment + extraMonthlyPayment - interestPayment, balance);
+            
+            totalInterestPaid += interestPayment;
+            annualInterestForTax += interestPayment;
+            totalPrincipalPaid += principalPayment;
+            balance -= principalPayment;
+
+            if (balance <= 0 && payoffMonth === -1) {
+                payoffMonth = month;
+            }
+        }
+
+        const currentHomeValue = homePrice * Math.pow(1 + homeAppreciation / 100, Math.floor((month - 1) / 12));
+        const monthlyPropertyTax = (currentAssessedValue * (propertyTaxRate / 100)) / 12;
+        const monthlyMelloRoosTax = (currentAssessedValue * (melloRoosTaxRate / 100)) / 12;
+        const monthlyMaintenance = (currentHomeValue * annualMaintenanceRate / 100) / 12;
+        
+        const currentLTV = (balance / homePrice) * 100;
+        const originalLoanAmount = homePrice * (1 - downPaymentPercent / 100);
+        const monthlyPMI = currentLTV > 80 ? (originalLoanAmount * PMIRate) / 100 / 12 : 0;
+        
+        const totalMonthlyHomeownerCosts = 
+            regularPayment +
+            monthlyPropertyTax +
+            monthlyMelloRoosTax +
+            currentMonthlyHomeInsurance +
+            monthlyMaintenance +
+            monthlyPMI +
+            currentMonthlyPropertyUtilities +
+            currentMonthlyHOAFee;
+            
+        const netMonthlyHomeownerCosts = totalMonthlyHomeownerCosts - currentMonthlyRentalIncome;
+        
+        const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary, effectiveFederalTaxRate, effectiveStateIncomeTaxRate);
+        
+        const monthlyAvailableBeforeExtra = monthlyTakeHome - netMonthlyHomeownerCosts - currentMonthlyMiscExpenses;
+        
+        let monthlyInvestment = Math.max(0, monthlyAvailableBeforeExtra - extraMonthlyPayment);
+        
+        if (payoffMonth !== -1 && month > payoffMonth) {
+            const totalMonthlyHomeownerCostsNoPrincipal = 
+                monthlyPropertyTax +
+                monthlyMelloRoosTax +
+                currentMonthlyHomeInsurance +
+                monthlyMaintenance +
+                currentMonthlyPropertyUtilities +
+                currentMonthlyHOAFee;
+            
+            const netMonthlyHomeownerCostsNoPrincipal = totalMonthlyHomeownerCostsNoPrincipal - currentMonthlyRentalIncome;
+            monthlyInvestment = monthlyTakeHome - netMonthlyHomeownerCostsNoPrincipal - currentMonthlyMiscExpenses;
+        }
+        
+        investmentBalance += monthlyInvestment;
+
+        if (month % 12 === 0) {
+            const annualPropertyTax = currentAssessedValue * (propertyTaxRate / 100);
+            const annualMelloRoosTax = currentAssessedValue * (melloRoosTaxRate / 100);
+            const stateIncomeTax = currentAnnualSalary * (effectiveStateIncomeTaxRate / 100);
+
+            const effectiveDeductibleBalance = Math.min(beginningYearBalance, mortgageInterestDeductionCap);
+            const cappedMortgageInterest = beginningYearBalance > 0 
+                ? annualInterestForTax * (effectiveDeductibleBalance / beginningYearBalance)
+                : 0;
+
+            const totalSaltTaxes = annualPropertyTax + annualMelloRoosTax + stateIncomeTax;
+            const cappedSaltDeduction = Math.min(totalSaltTaxes, saltCap);
+            const totalItemizedDeductions = cappedMortgageInterest + cappedSaltDeduction;
+            itemizedDeductionsByYear.push(totalItemizedDeductions);
+            
+            const extraDeductionBenefit = Math.max(0, totalItemizedDeductions - currentStandardDeduction);
+            const yearlyTaxSavings = extraDeductionBenefit * (effectiveFederalTaxRate / 100);
+            
+            investmentBalance += yearlyTaxSavings;
+            totalTaxSavings += yearlyTaxSavings;
+            
+            annualInterestForTax = 0;
+        }
+    }
+
+    const homeValueAtHorizon = homePrice * Math.pow(1 + homeAppreciation / 100, horizonYears);
+    const finalNetWorth = homeValueAtHorizon + investmentBalance - balance;
+    
+    const payoffYears = payoffMonth !== -1 ? payoffMonth / 12 : mortgageYears;
+
+    return {
+        finalNetWorth,
+        payoffYear: Math.round(payoffYears * 10) / 10,
+        totalInterestPaid,
+        taxSavings: totalTaxSavings,
+        itemizedDeductionsByYear,
+        remainingBalance: balance,
+        investmentBalance,
+        homeValueAtHorizon
+    };
 };
 
 export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
