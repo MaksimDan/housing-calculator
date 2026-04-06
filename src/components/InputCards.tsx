@@ -1,7 +1,8 @@
-// File: src/InputCards.tsx
 import React from 'react';
 import { HelpCircle } from 'lucide-react';
 import { AnimatedInput } from './AnimatedInput';
+import { Toggle } from './Toggle';
+import { CollapsibleCard } from './CollapsibleCard';
 
 interface InputCardsProps {
     // Financial Parameters
@@ -79,6 +80,20 @@ interface InputCardsProps {
     setInflationRate: (value: number) => void;
     propertyTaxAssessmentCap: number;
     setPropertyTaxAssessmentCap: (value: number) => void;
+
+    // Model Settings
+    marginalFederalTaxRate: number;
+    setMarginalFederalTaxRate: (value: number) => void;
+    useMarginalTaxRate: boolean;
+    setUseMarginalTaxRate: (value: boolean) => void;
+    melloRoosGrowsWithAssessment: boolean;
+    setMelloRoosGrowsWithAssessment: (value: boolean) => void;
+    includeSellingCosts: boolean;
+    setIncludeSellingCosts: (value: boolean) => void;
+    sellingCostPercent: number;
+    setSellingCostPercent: (value: number) => void;
+    annualInvestmentTaxDrag: number;
+    setAnnualInvestmentTaxDrag: (value: number) => void;
 }
 
 const InputCards: React.FC<InputCardsProps> = ({
@@ -115,483 +130,256 @@ const InputCards: React.FC<InputCardsProps> = ({
     rentIncrease, setRentIncrease,
     salaryGrowthRate, setSalaryGrowthRate,
     inflationRate, setInflationRate,
-    propertyTaxAssessmentCap, setPropertyTaxAssessmentCap
+    propertyTaxAssessmentCap, setPropertyTaxAssessmentCap,
+    marginalFederalTaxRate, setMarginalFederalTaxRate,
+    useMarginalTaxRate, setUseMarginalTaxRate,
+    melloRoosGrowsWithAssessment, setMelloRoosGrowsWithAssessment,
+    includeSellingCosts, setIncludeSellingCosts,
+    sellingCostPercent, setSellingCostPercent,
+    annualInvestmentTaxDrag, setAnnualInvestmentTaxDrag,
 }) => {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            {/* Financial Parameters Card */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-lg font-medium mb-4">Financial Parameters</h2>
+            <CollapsibleCard title="Financial Parameters">
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Total cash available for down payment, closing costs, and initial investments")} /> Initial Investment Portfolio
-                        </>
-                    }
-                    value={initialInvestment}
-                    onChange={setInitialInvestment}
-                    min={0}
-                    max={5000000}
-                    step={10000}
-                    suffix="$"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Total cash available for down payment, closing costs, and initial investments")} /> Initial Investment Portfolio</>}
+                    value={initialInvestment} onChange={setInitialInvestment}
+                    min={0} max={5000000} step={10000} suffix="$"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your gross annual salary before taxes and deductions")} /> Annual Salary (before tax)
-                        </>
-                    }
-                    value={annualSalaryBeforeTax}
-                    onChange={setAnnualSalaryBeforeTax}
-                    min={50000}
-                    max={2000000}
-                    step={10000}
-                    suffix="$"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your gross annual salary before taxes and deductions")} /> Annual Salary (before tax)</>}
+                    value={annualSalaryBeforeTax} onChange={setAnnualSalaryBeforeTax}
+                    min={50000} max={2000000} step={10000} suffix="$"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your effective federal tax rate as a percentage - the average percentage of income paid in federal taxes")} /> Effective Federal Tax Rate (${(annualSalaryBeforeTax * (effectiveFederalTaxRate / 100)).toLocaleString()})
-                        </>
-                    }
-                    value={effectiveFederalTaxRate}
-                    onChange={setEffectiveFederalTaxRate}
-                    min={1}
-                    max={100}
-                    step={1}
-                    suffix="%"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your effective federal tax rate as a percentage - the average percentage of income paid in federal taxes")} /> Effective Federal Tax Rate (${(annualSalaryBeforeTax * (effectiveFederalTaxRate / 100)).toLocaleString()})</>}
+                    value={effectiveFederalTaxRate} onChange={setEffectiveFederalTaxRate}
+                    min={1} max={100} step={1} suffix="%"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your effective state income tax rate as a percentage - the average percentage of income paid in state taxes")} /> Effective State Income Tax Rate (${(annualSalaryBeforeTax * (effectiveStateIncomeTaxRate / 100)).toLocaleString()})
-                        </>
-                    }
-                    value={effectiveStateIncomeTaxRate}
-                    onChange={setEffectiveStateIncomeTaxRate}
-                    min={0}
-                    max={15}
-                    step={0.1}
-                    suffix="%"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your effective state income tax rate as a percentage - the average percentage of income paid in state taxes")} /> Effective State Income Tax Rate (${(annualSalaryBeforeTax * (effectiveStateIncomeTaxRate / 100)).toLocaleString()})</>}
+                    value={effectiveStateIncomeTaxRate} onChange={setEffectiveStateIncomeTaxRate}
+                    min={0} max={15} step={0.1} suffix="%"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual standard tax deduction amount for calculating mortgage interest tax savings (adjusted for inflation)")} /> Standard Deduction
-                        </>
-                    }
-                    value={standardDeduction}
-                    onChange={setStandardDeduction}
-                    min={10000}
-                    max={40000}
-                    step={100}
-                    suffix="$"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual standard tax deduction amount for calculating mortgage interest tax savings (adjusted for inflation)")} /> Standard Deduction</>}
+                    value={standardDeduction} onChange={setStandardDeduction}
+                    min={10000} max={40000} step={100} suffix="$"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly spending on food, clothing, entertainment, dining out, and personal care (adjusted for inflation)")} /> Monthly Living Expenses
-                        </>
-                    }
-                    value={monthlyMiscExpenses}
-                    onChange={setMonthlyMiscExpenses}
-                    min={1000}
-                    max={10000}
-                    step={100}
-                    suffix="$"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly spending on food, clothing, entertainment, dining out, and personal care (adjusted for inflation)")} /> Monthly Living Expenses</>}
+                    value={monthlyMiscExpenses} onChange={setMonthlyMiscExpenses}
+                    min={1000} max={10000} step={100} suffix="$"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Maximum mortgage debt eligible for interest deduction (federal limit is $750k for new loans)")} /> Mortgage Interest Deduction Cap
-                        </>
-                    }
-                    value={mortgageInterestDeductionCap}
-                    onChange={setMortgageInterestDeductionCap}
-                    min={0}
-                    max={1500000}
-                    step={25000}
-                    suffix="$"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Maximum mortgage debt eligible for interest deduction (federal limit is $750k for new loans)")} /> Mortgage Interest Deduction Cap</>}
+                    value={mortgageInterestDeductionCap} onChange={setMortgageInterestDeductionCap}
+                    min={0} max={1500000} step={25000} suffix="$"
+                />
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Maximum state and local tax (SALT) deduction — $40,000 for 2025+ (OBBBA), was $10,000 for 2018-2024")} /> SALT Cap</>}
+                    value={saltCap} onChange={setSaltCap}
+                    min={0} max={50000} step={1000} suffix="$"
                 />
 
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Maximum state and local tax (SALT) deduction, typically capped at $10,000")} /> SALT Cap
-                        </>
-                    }
-                    value={saltCap}
-                    onChange={setSaltCap}
-                    min={0}
-                    max={50000}
-                    step={1000}
-                    suffix="$"
-                />
-            </div>
+                <div className="pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-2">
+                        <Toggle
+                            checked={useMarginalTaxRate}
+                            onChange={setUseMarginalTaxRate}
+                            label="Use marginal rate for deduction savings"
+                        />
+                        <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-pointer flex-shrink-0" onClick={() => alert("Deductions reduce tax at your marginal (bracket) rate, not your average effective rate. Enable for more accurate tax savings calculation.")} />
+                    </div>
+                    {useMarginalTaxRate && (
+                        <div className="mt-3">
+                            <AnimatedInput
+                                label="Marginal Federal Tax Rate"
+                                value={marginalFederalTaxRate} onChange={setMarginalFederalTaxRate}
+                                min={10} max={37} step={1} suffix="%"
+                            />
+                        </div>
+                    )}
+                </div>
+            </CollapsibleCard>
 
-            {/* Property Details Card */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-lg font-medium mb-4">Property Details</h2>
+            <CollapsibleCard title="Property Details">
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Total purchase price of the property")} /> Home Price</>}
+                    value={homePrice} onChange={setHomePrice}
+                    min={100000} max={2000000} step={10000} suffix="$"
+                />
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Percentage of home price paid upfront (20%+ avoids PMI)")} /> Down Payment (${(homePrice * (downPaymentPercent / 100)).toLocaleString()})</>}
+                    value={downPaymentPercent} onChange={setDownPaymentPercent}
+                    min={5} max={100} step={.1} suffix="%"
+                />
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("One-time fees for loan processing, inspections, and legal costs (% of home price)")} /> Closing Costs (${(homePrice * (closingCostPercent / 100)).toLocaleString()})</>}
+                    value={closingCostPercent} onChange={setClosingCostPercent}
+                    min={0} max={6} step={0.1} suffix="%"
+                />
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual interest rate on your mortgage loan")} /> Mortgage Rate (${(() => {
+                        const loanAmount = homePrice - homePrice * downPaymentPercent / 100;
+                        const monthlyRate = effectiveMortgageRate / 100 / 12;
+                        const numPayments = mortgageYears * 12;
+                        if (loanAmount <= 0 || monthlyRate <= 0) return "0";
+                        const monthlyPayment = (loanAmount * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1);
+                        return Math.round(monthlyPayment * numPayments - loanAmount).toLocaleString();
+                    })()} lifetime interest)</>}
+                    value={effectiveMortgageRate} onChange={setEffectiveMortgageRate}
+                    min={.1} max={15} step={0.1} suffix="%"
+                />
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual private mortgage insurance rate (required if down payment < 20%)")} /> PMI Rate {downPaymentPercent < 20 ? `(${Math.round((homePrice - homePrice * downPaymentPercent / 100) * PMIRate / 100 / 12).toLocaleString()}/mo)` : '(not required)'}</>}
+                    value={PMIRate} onChange={setPMIRate}
+                    min={0} max={30} step={.5} suffix="%"
+                />
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual property tax as percentage of home value (varies by location)")} /> Property Tax Rate (${(homePrice * (propertyTaxRate / 100)).toLocaleString()} year 1)</>}
+                    value={propertyTaxRate} onChange={setPropertyTaxRate}
+                    min={0.5} max={3} step={0.1} suffix="%"
+                />
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual special assessment tax in some California communities (% of home value). Not SALT-deductible per IRS rules (IRC 164).")} /> Mello-Roos Tax Rate (${(homePrice * (melloRoosTaxRate / 100)).toLocaleString()} year 1)</>}
+                    value={melloRoosTaxRate} onChange={setMelloRoosTaxRate}
+                    min={0} max={2} step={0.01} suffix="%"
+                />
+                {melloRoosTaxRate > 0 && (
+                    <Toggle
+                        checked={melloRoosGrowsWithAssessment}
+                        onChange={setMelloRoosGrowsWithAssessment}
+                        label="Mello-Roos grows with assessed value"
+                    />
+                )}
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual maintenance and repairs as percentage of home value (typically 1-3%)")} /> Annual Maintenance Rate (${(homePrice * (annualMaintenanceRate / 100)).toLocaleString()} year 1)</>}
+                    value={annualMaintenanceRate} onChange={setannualMaintenanceRate}
+                    min={0} max={30} step={.1} suffix="%"
+                />
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly homeowners association fees for shared amenities and maintenance (adjusted for inflation)")} /> Monthly HOA Fee</>}
+                    value={monthlyHOAFee} onChange={setMonthlyHOAFee}
+                    min={0} max={3000} step={1} suffix="$"
+                />
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly homeowners insurance premium (adjusted for inflation)")} /> Monthly Home Insurance</>}
+                    value={monthlyHomeInsurance} onChange={setMonthlyHomeInsurance}
+                    min={50} max={1000} step={10} suffix="$"
+                />
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly utilities cost for the owned property (gas, electric, water, trash) - adjusted for inflation")} /> Monthly Property Utilities</>}
+                    value={monthlyPropertyUtilities} onChange={setMonthlyPropertyUtilities}
+                    min={0} max={500} step={10} suffix="$"
+                />
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly after-tax income from renting out part of your property (e.g., ADU, room)")} /> Monthly Rental Income</>}
+                    value={monthlyRentalIncome} onChange={setMonthlyRentalIncome}
+                    min={0} max={10000} step={100} suffix="$"
+                />
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("One-time cost for moving when buying (movers, truck rental, time off work)")} /> Moving Costs</>}
+                    value={movingCostBuying} onChange={setMovingCostBuying}
+                    min={0} max={10000} step={100} suffix="$"
+                />
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Length of mortgage loan in years (15 or 30 years are most common)")} /> Mortgage Term</>}
+                    value={mortgageYears} onChange={setMortgageYears}
+                    min={5} max={30} step={1} suffix=" years"
+                />
 
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Total purchase price of the property")} /> Home Price
-                        </>
-                    }
-                    value={homePrice}
-                    onChange={setHomePrice}
-                    min={100000}
-                    max={2000000}
-                    step={10000}
-                    suffix="$"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Percentage of home price paid upfront (20%+ avoids PMI)")} /> Down Payment (${(homePrice * (downPaymentPercent / 100)).toLocaleString()})
-                        </>
-                    }
-                    value={downPaymentPercent}
-                    onChange={setDownPaymentPercent}
-                    min={5}
-                    max={100}
-                    step={.1}
-                    suffix="%"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("One-time fees for loan processing, inspections, and legal costs (% of home price)")} /> Closing Costs (${(homePrice * (closingCostPercent / 100)).toLocaleString()})
-                        </>
-                    }
-                    value={closingCostPercent}
-                    onChange={setClosingCostPercent}
-                    min={0}
-                    max={6}
-                    step={0.1}
-                    suffix="%"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual interest rate on your mortgage loan")} /> Mortgage Rate (${(() => {
-                                const loanAmount = homePrice - homePrice * downPaymentPercent / 100;
-                                const monthlyRate = effectiveMortgageRate / 100 / 12;
-                                const numPayments = mortgageYears * 12;
-                                if (loanAmount <= 0 || monthlyRate <= 0) return "0";
-                                const monthlyPayment = (loanAmount * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1);
-                                const totalPayments = monthlyPayment * numPayments;
-                                const totalInterest = totalPayments - loanAmount;
-                                return Math.round(totalInterest).toLocaleString();
-                            })()} lifetime interest)
-                        </>
-                    }
-                    value={effectiveMortgageRate}
-                    onChange={setEffectiveMortgageRate}
-                    min={.1}
-                    max={15}
-                    step={0.1}
-                    suffix="%"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual private mortgage insurance rate (required if down payment < 20%)")} /> PMI Rate {downPaymentPercent < 20 ? `(${Math.round((homePrice - homePrice * downPaymentPercent / 100) * PMIRate / 100 / 12).toLocaleString()}/mo)` : '(not required)'}
-                        </>
-                    }
-                    value={PMIRate}
-                    onChange={setPMIRate}
-                    min={0}
-                    max={30}
-                    step={.5}
-                    suffix="%"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual property tax as percentage of home value (varies by location)")} /> Property Tax Rate (${(homePrice * (propertyTaxRate / 100)).toLocaleString()} year 1)
-                        </>
-                    }
-                    value={propertyTaxRate}
-                    onChange={setPropertyTaxRate}
-                    min={0.5}
-                    max={3}
-                    step={0.1}
-                    suffix="%"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual special assessment tax in some California communities (% of home value)")} /> Mello-Roos Tax Rate (${(homePrice * (melloRoosTaxRate / 100)).toLocaleString()} year 1)
-                        </>
-                    }
-                    value={melloRoosTaxRate}
-                    onChange={setMelloRoosTaxRate}
-                    min={0}
-                    max={2}
-                    step={0.01}
-                    suffix="%"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual maintenance and repairs as percentage of home value (typically 1-3%)")} /> Annual Maintenance Rate (${(homePrice * (annualMaintenanceRate / 100)).toLocaleString()} year 1)
-                        </>
-                    }
-                    value={annualMaintenanceRate}
-                    onChange={setannualMaintenanceRate}
-                    min={0}
-                    max={30}
-                    step={.1}
-                    suffix="%"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly homeowners association fees for shared amenities and maintenance (adjusted for inflation)")} /> Monthly HOA Fee
-                        </>
-                    }
-                    value={monthlyHOAFee}
-                    onChange={setMonthlyHOAFee}
-                    min={0}
-                    max={3000}
-                    step={1}
-                    suffix="$"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly homeowners insurance premium (adjusted for inflation)")} /> Monthly Home Insurance
-                        </>
-                    }
-                    value={monthlyHomeInsurance}
-                    onChange={setMonthlyHomeInsurance}
-                    min={50}
-                    max={1000}
-                    step={10}
-                    suffix="$"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly utilities cost for the owned property (gas, electric, water, trash) - adjusted for inflation")} /> Monthly Property Utilities
-                        </>
-                    }
-                    value={monthlyPropertyUtilities}
-                    onChange={setMonthlyPropertyUtilities}
-                    min={0}
-                    max={500}
-                    step={10}
-                    suffix="$"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly after-tax income from renting out part of your property (e.g., ADU, room)")} /> Monthly Rental Income
-                        </>
-                    }
-                    value={monthlyRentalIncome}
-                    onChange={setMonthlyRentalIncome}
-                    min={0}
-                    max={10000}
-                    step={100}
-                    suffix="$"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("One-time cost for moving when buying (movers, truck rental, time off work)")} /> Moving Costs
-                        </>
-                    }
-                    value={movingCostBuying}
-                    onChange={setMovingCostBuying}
-                    min={0}
-                    max={10000}
-                    step={100}
-                    suffix="$"
-                />
-                <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Length of mortgage loan in years (15 or 30 years are most common)")} /> Mortgage Term
-                        </>
-                    }
-                    value={mortgageYears}
-                    onChange={setMortgageYears}
-                    min={5}
-                    max={30}
-                    step={1}
-                    suffix=" years"
-                />
-            </div>
+                <div className="pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-2">
+                        <Toggle
+                            checked={includeSellingCosts}
+                            onChange={setIncludeSellingCosts}
+                            label="Include selling costs in net worth"
+                        />
+                        <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-pointer flex-shrink-0" onClick={() => alert("Subtract estimated realtor fees and closing costs from home equity when calculating net worth. Typically 6-10% of home value.")} />
+                    </div>
+                    {includeSellingCosts && (
+                        <div className="mt-3">
+                            <AnimatedInput
+                                label={`Selling Cost Rate (${(homePrice * (sellingCostPercent / 100)).toLocaleString()} at current price)`}
+                                value={sellingCostPercent} onChange={setSellingCostPercent}
+                                min={0} max={12} step={0.5} suffix="%"
+                            />
+                        </div>
+                    )}
+                </div>
+            </CollapsibleCard>
 
-            {/* Renting Details Card */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-lg font-medium mb-4">Renting Details</h2>
+            <CollapsibleCard title="Renting Details">
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly rental payment for comparable housing")} /> Monthly Rent
-                        </>
-                    }
-                    value={monthlyRent}
-                    onChange={setMonthlyRent}
-                    min={1000}
-                    max={10000}
-                    step={100}
-                    suffix="$"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly rental payment for comparable housing")} /> Monthly Rent</>}
+                    value={monthlyRent} onChange={setMonthlyRent}
+                    min={1000} max={10000} step={100} suffix="$"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("One-time refundable deposit paid when starting rental lease")} /> Security Deposit
-                        </>
-                    }
-                    value={rentDeposit}
-                    onChange={setRentDeposit}
-                    min={0}
-                    max={5000}
-                    step={100}
-                    suffix="$"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("One-time refundable deposit paid when starting rental lease")} /> Security Deposit</>}
+                    value={rentDeposit} onChange={setRentDeposit}
+                    min={0} max={5000} step={100} suffix="$"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly utilities cost for rental property (gas, electric, internet) - adjusted for inflation")} /> Monthly Rent Utilities
-                        </>
-                    }
-                    value={monthlyRentUtilities}
-                    onChange={setMonthlyRentUtilities}
-                    min={0}
-                    max={500}
-                    step={10}
-                    suffix="$"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly utilities cost for rental property (gas, electric, internet) - adjusted for inflation")} /> Monthly Rent Utilities</>}
+                    value={monthlyRentUtilities} onChange={setMonthlyRentUtilities}
+                    min={0} max={500} step={10} suffix="$"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly renters insurance premium for personal property coverage")} /> Monthly Renter's Insurance
-                        </>
-                    }
-                    value={monthlyRenterInsurance}
-                    onChange={setMonthlyRenterInsurance}
-                    min={5}
-                    max={50}
-                    step={1}
-                    suffix="$"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly renters insurance premium for personal property coverage")} /> Monthly Renter's Insurance</>}
+                    value={monthlyRenterInsurance} onChange={setMonthlyRenterInsurance}
+                    min={5} max={50} step={1} suffix="$"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("One-time cost for moving when renting (movers, truck rental, time off work)")} /> Moving Costs
-                        </>
-                    }
-                    value={movingCostRenting}
-                    onChange={setMovingCostRenting}
-                    min={0}
-                    max={5000}
-                    step={100}
-                    suffix="$"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("One-time cost for moving when renting (movers, truck rental, time off work)")} /> Moving Costs</>}
+                    value={movingCostRenting} onChange={setMovingCostRenting}
+                    min={0} max={5000} step={100} suffix="$"
                 />
-            </div>
+            </CollapsibleCard>
 
-            {/* Growth Assumptions Card */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-lg font-medium mb-4">Growth Assumptions</h2>
-
+            <CollapsibleCard title="Growth Assumptions">
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Number of years to display in the projection chart")} /> Graph Timeline
-                        </>
-                    }
-                    value={xAxisYears}
-                    onChange={setXAxisYears}
-                    min={5}
-                    max={30}
-                    step={1}
-                    suffix=" years"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Number of years to display in the projection chart")} /> Graph Timeline</>}
+                    value={xAxisYears} onChange={setXAxisYears}
+                    min={5} max={30} step={1} suffix=" years"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual rate of home value appreciation (historical average ~3-5%)")} /> Home Appreciation (${(homePrice * (homeAppreciation / 100)).toLocaleString()} year 1)
-                        </>
-                    }
-                    value={homeAppreciation}
-                    onChange={setHomeAppreciation}
-                    min={0}
-                    max={20}
-                    step={0.1}
-                    suffix="%"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual rate of home value appreciation (historical average ~3-5%)")} /> Home Appreciation (${(homePrice * (homeAppreciation / 100)).toLocaleString()} year 1)</>}
+                    value={homeAppreciation} onChange={setHomeAppreciation}
+                    min={0} max={20} step={0.1} suffix="%"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual return on invested funds (stock market historical average ~7-10%)")} /> Investment Return
-                        </>
-                    }
-                    value={investmentReturn}
-                    onChange={setInvestmentReturn}
-                    min={1}
-                    max={50}
-                    step={0.5}
-                    suffix="%"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual return on invested funds (stock market historical average ~7-10%)")} /> Investment Return</>}
+                    value={investmentReturn} onChange={setInvestmentReturn}
+                    min={1} max={50} step={0.5} suffix="%"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual percentage increase in rental costs (typically 2-5%)")} /> Annual Rent Increase (${Math.round(monthlyRent * (rentIncrease / 100)).toLocaleString()}/mo year 1)
-                        </>
-                    }
-                    value={rentIncrease}
-                    onChange={setRentIncrease}
-                    min={0}
-                    max={15}
-                    step={0.1}
-                    suffix="%"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual reduction in returns due to taxes on dividends and capital gains in a taxable account. 0% for tax-advantaged accounts (401k/IRA). Typically 0.5-2% for taxable brokerage accounts.")} /> Investment Tax Drag (net: {(investmentReturn - annualInvestmentTaxDrag).toFixed(1)}%)</>}
+                    value={annualInvestmentTaxDrag} onChange={setAnnualInvestmentTaxDrag}
+                    min={0} max={5} step={0.1} suffix="%"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual percentage increase in your salary (promotions, raises, inflation)")} /> Annual Salary Growth (${(annualSalaryBeforeTax * (salaryGrowthRate / 100)).toLocaleString()} year 1)
-                        </>
-                    }
-                    value={salaryGrowthRate}
-                    onChange={setSalaryGrowthRate}
-                    min={0}
-                    max={20}
-                    step={0.1}
-                    suffix="%"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual percentage increase in rental costs (typically 2-5%)")} /> Annual Rent Increase (${Math.round(monthlyRent * (rentIncrease / 100)).toLocaleString()}/mo year 1)</>}
+                    value={rentIncrease} onChange={setRentIncrease}
+                    min={0} max={15} step={0.1} suffix="%"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual inflation rate affecting living expenses, utilities, insurance, HOA fees, and tax deductions (historical average ~2-3%)")} /> Annual Inflation Rate
-                        </>
-                    }
-                    value={inflationRate}
-                    onChange={setInflationRate}
-                    min={0}
-                    max={10}
-                    step={0.1}
-                    suffix="%"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual percentage increase in your salary (promotions, raises, inflation)")} /> Annual Salary Growth (${(annualSalaryBeforeTax * (salaryGrowthRate / 100)).toLocaleString()} year 1)</>}
+                    value={salaryGrowthRate} onChange={setSalaryGrowthRate}
+                    min={0} max={20} step={0.1} suffix="%"
                 />
                 <AnimatedInput
-                    label={
-                        <>
-                            <HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual cap on property tax assessment increases (e.g. California Prop 13 = ~2%). Property taxes grow by this rate.")} /> Property Tax Assessment Cap
-                        </>
-                    }
-                    value={propertyTaxAssessmentCap}
-                    onChange={setPropertyTaxAssessmentCap}
-                    min={0}
-                    max={10}
-                    step={0.1}
-                    suffix="%"
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual inflation rate affecting living expenses, utilities, insurance, HOA fees, and tax deductions (historical average ~2-3%)")} /> Annual Inflation Rate</>}
+                    value={inflationRate} onChange={setInflationRate}
+                    min={0} max={10} step={0.1} suffix="%"
                 />
-            </div>
+                <AnimatedInput
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual cap on property tax assessment increases (e.g. California Prop 13 = ~2%). Property taxes grow by this rate.")} /> Property Tax Assessment Cap</>}
+                    value={propertyTaxAssessmentCap} onChange={setPropertyTaxAssessmentCap}
+                    min={0} max={10} step={0.1} suffix="%"
+                />
+            </CollapsibleCard>
         </div>
     );
 };

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { HousingCalculatorInputs, calculateMortgageScenario } from '../lib/financialCalculations';
 import { usePersistedState } from '../hooks/usePersistedState';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface PayoffScenario {
   name: string;
@@ -436,118 +436,47 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
             </table>
           </div>
           
-          <div className="space-y-6">
-            <div>
-              <h4 className="font-medium text-gray-800 mb-3">Final Net Worth Comparison</h4>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={scenarios} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    angle={-45}
-                    textAnchor="end"
-                    height={70}
-                    fontSize={9}
-                    interval={0}
-                  />
-                  <YAxis 
-                    tickFormatter={(value) => `$${(value / 1000000).toFixed(1)}M`}
-                    fontSize={10}
-                  />
-                  <Tooltip 
-                    formatter={(value: number) => [`$${value.toLocaleString()}`, 'Net Worth']}
-                  />
-                  <Bar 
-                    dataKey="finalNetWorth" 
-                    fill="#3B82F6"
-                    stroke="#1E40AF"
-                    strokeWidth={1}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            
-            <div>
-              <h4 className="font-medium text-gray-800 mb-3">Payoff Time vs Interest Paid</h4>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={scenarios} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    angle={-45}
-                    textAnchor="end"
-                    height={70}
-                    fontSize={9}
-                    interval={0}
-                  />
-                  <YAxis 
-                    yAxisId="left"
-                    orientation="left"
-                    tickFormatter={(value) => `${value}y`}
-                    fontSize={10}
-                  />
-                  <YAxis 
-                    yAxisId="right"
-                    orientation="right"
-                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
-                    fontSize={10}
-                  />
-                  <Tooltip 
-                    formatter={(value: number, name: string) => {
-                      if (name === 'payoffYear') return [`${value} years`, 'Payoff Time'];
-                      return [`$${value.toLocaleString()}`, 'Total Interest'];
-                    }}
-                  />
-                  <Legend />
-                  <Line 
-                    yAxisId="left"
-                    type="monotone" 
-                    dataKey="payoffYear" 
-                    stroke="#EF4444" 
-                    strokeWidth={2}
-                    name="Payoff Time (years)"
-                  />
-                  <Line 
-                    yAxisId="right"
-                    type="monotone" 
-                    dataKey="totalInterestPaid" 
-                    stroke="#F59E0B" 
-                    strokeWidth={2}
-                    name="Total Interest Paid"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            
-            <div>
-              <h4 className="font-medium text-gray-800 mb-3">Opportunity Cost Analysis</h4>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={scenarios} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    angle={-45}
-                    textAnchor="end"
-                    height={70}
-                    fontSize={9}
-                    interval={0}
-                  />
-                  <YAxis 
-                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
-                    fontSize={10}
-                  />
-                  <Tooltip 
-                    formatter={(value: number) => [`$${value.toLocaleString()}`, 'Opportunity Cost']}
-                  />
-                  <Bar 
-                    dataKey="opportunityCost" 
-                    fill="#DC2626"
-                    stroke="#B91C1C"
-                    strokeWidth={1}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <div>
+            <ResponsiveContainer width="100%" height={350}>
+              <ComposedChart data={scenarios} margin={{ top: 20, right: 80, left: 20, bottom: 70 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="name"
+                  angle={-45}
+                  textAnchor="end"
+                  height={70}
+                  fontSize={10}
+                  interval={0}
+                />
+                <YAxis
+                  yAxisId="interest"
+                  orientation="left"
+                  tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
+                  fontSize={10}
+                />
+                <YAxis
+                  yAxisId="networth"
+                  orientation="right"
+                  tickFormatter={(value) => `$${(value / 1000000).toFixed(1)}M`}
+                  fontSize={10}
+                />
+                <YAxis
+                  yAxisId="years"
+                  orientation="right"
+                  hide
+                />
+                <Tooltip
+                  formatter={(value: number, name: string) => {
+                    if (name === 'Payoff Time') return [`${value} years`, name];
+                    return [`$${Math.round(value).toLocaleString()}`, name];
+                  }}
+                />
+                <Legend verticalAlign="top" height={36} />
+                <Bar yAxisId="interest" dataKey="totalInterestPaid" fill="#F59E0B" name="Total Interest" opacity={0.85} />
+                <Line yAxisId="networth" type="monotone" dataKey="finalNetWorth" stroke="#3B82F6" strokeWidth={2} dot={{ r: 3 }} name="Net Worth" />
+                <Line yAxisId="years" type="monotone" dataKey="payoffYear" stroke="#EF4444" strokeWidth={2} dot={{ r: 3 }} name="Payoff Time" />
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
         </div>
         
@@ -563,57 +492,6 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
         )}
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">
-          Market Timing Considerations
-        </h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <h4 className="font-semibold text-gray-800">Favor Extra Payments When:</h4>
-            <ul className="text-sm text-gray-700 space-y-2">
-              <li className="flex items-start">
-                <span className="text-blue-500 mr-2">•</span>
-                Investment returns are volatile or below mortgage rate
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-500 mr-2">•</span>
-                Approaching retirement and want guaranteed savings
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-500 mr-2">•</span>
-                High tax rates reduce mortgage interest deduction value
-              </li>
-              <li className="flex items-start">
-                <span className="text-blue-500 mr-2">•</span>
-                Interest rates are rising (locks in current low rate)
-              </li>
-            </ul>
-          </div>
-          
-          <div className="space-y-4">
-            <h4 className="font-semibold text-gray-800">Favor Investing When:</h4>
-            <ul className="text-sm text-gray-700 space-y-2">
-              <li className="flex items-start">
-                <span className="text-green-500 mr-2">•</span>
-                Investment returns consistently exceed mortgage rate
-              </li>
-              <li className="flex items-start">
-                <span className="text-green-500 mr-2">•</span>
-                Long investment horizon (15+ years)
-              </li>
-              <li className="flex items-start">
-                <span className="text-green-500 mr-2">•</span>
-                Taking advantage of tax-advantaged accounts
-              </li>
-              <li className="flex items-start">
-                <span className="text-green-500 mr-2">•</span>
-                High inflation erodes fixed mortgage payments
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
