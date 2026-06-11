@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   toMonthlyRate,
   calculateMonthlyTakeHome,
+  calculateMonthlyMortgagePayment,
   calculateYearlyMortgageBreakdown,
   calculateTaxSavings,
+  calculateRenterTaxSavings,
   calculateMortgageScenario,
   calculateProjectionData,
+  saltCapForYear,
   HousingCalculatorInputs,
 } from './financialCalculations';
 
@@ -16,7 +19,7 @@ import {
 const baseInputs: HousingCalculatorInputs = {
   annualSalaryBeforeTax: 420000,
   effectiveFederalTaxRate: 19.1,
-  standardDeduction: 30000,
+  standardDeduction: 32200,
   initialInvestment: 1500000,
   monthlyMiscExpenses: 1000,
   homePrice: 750000,
@@ -46,7 +49,7 @@ const baseInputs: HousingCalculatorInputs = {
   propertyTaxAssessmentCap: 2,
   xAxisYears: 30,
   mortgageInterestDeductionCap: 750000,
-  saltCap: 40000,
+  saltCap: 40400,
   effectiveStateIncomeTaxRate: 7.5,
   marginalFederalTaxRate: 32,
   useMarginalTaxRate: true,
@@ -54,6 +57,7 @@ const baseInputs: HousingCalculatorInputs = {
   includeSellingCosts: false,
   sellingCostPercent: 6,
   annualInvestmentTaxDrag: 0.2,
+  assumeSaltCapExtension: false,
 };
 
 function inputs(overrides: Partial<HousingCalculatorInputs> = {}): HousingCalculatorInputs {
@@ -124,6 +128,27 @@ describe('calculateMonthlyTakeHome', () => {
 });
 
 // ---------------------------------------------------------------------------
+// calculateMonthlyMortgagePayment
+// ---------------------------------------------------------------------------
+
+describe('calculateMonthlyMortgagePayment', () => {
+  it('matches the standard annuity formula', () => {
+    const payment = calculateMonthlyMortgagePayment(400000, 6.5 / 100 / 12, 360);
+    expect(payment).toBeCloseTo(2528.27, 1);
+  });
+
+  it('falls back to straight-line for a 0% loan instead of NaN', () => {
+    const payment = calculateMonthlyMortgagePayment(360000, 0, 360);
+    expect(payment).toBe(1000);
+  });
+
+  it('returns 0 for a zero loan (100% down payment)', () => {
+    expect(calculateMonthlyMortgagePayment(0, 0.05 / 12, 360)).toBe(0);
+    expect(calculateMonthlyMortgagePayment(0, 0, 360)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // calculateYearlyMortgageBreakdown
 // ---------------------------------------------------------------------------
 
@@ -189,6 +214,25 @@ describe('calculateYearlyMortgageBreakdown', () => {
     }
     expect(balance).toBeCloseTo(0, 0);
   });
+
+  it('counts PMI months from the pre-payment balance against the threshold', () => {
+    // Threshold just below the starting balance: only the months before the
+    // balance amortizes past it should count
+    const result = calculateYearlyMortgageBreakdown(loan, payment, rate, 0, loan - 2000);
+    // Year-1 principal is ~6.2k, so the balance crosses (loan - 2000) during the year
+    expect(result.pmiMonths).toBeGreaterThan(0);
+    expect(result.pmiMonths).toBeLessThan(12);
+  });
+
+  it('counts 12 PMI months when the balance stays above the threshold', () => {
+    const result = calculateYearlyMortgageBreakdown(loan, payment, rate, 0, 100000);
+    expect(result.pmiMonths).toBe(12);
+  });
+
+  it('counts 0 PMI months when the balance starts below the threshold', () => {
+    const result = calculateYearlyMortgageBreakdown(loan, payment, rate, 0, loan + 1);
+    expect(result.pmiMonths).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -217,8 +261,8 @@ describe('calculateTaxSavings', () => {
     expect(result.totalItemizedDeductions).toBeCloseTo(15500, 0);
   });
 
-  it('prorates mortgage interest when balance exceeds cap', () => {
-    // Balance 1000000, cap 750000 → only 75% of interest deductible
+  it('prorates mortgage interest when the average balance exceeds the cap', () => {
+    // Average balance 1000000, cap 750000 → only 75% of interest deductible
     const fullInterest = 50000;
     const result = calculateTaxSavings(fullInterest, 0, 0, 750000, 1000000, 32, 100000, 420000, 7.5);
     // Capped interest = 50000 * (750000/1000000) = 37500
@@ -227,7 +271,7 @@ describe('calculateTaxSavings', () => {
     expect(result.totalItemizedDeductions).toBeCloseTo(69000, 0);
   });
 
-  it('does not prorate when balance is under cap', () => {
+  it('does not prorate when the average balance is under the cap', () => {
     const interest = 20000;
     const result = calculateTaxSavings(interest, 0, 0, 750000, 400000, 32, 100000, 0, 0);
     // Balance 400k < cap 750k → full interest deductible
@@ -255,7 +299,7 @@ describe('calculateTaxSavings', () => {
     expect(at32.yearlyTaxSavings / at24.yearlyTaxSavings).toBeCloseTo(32 / 24, 5);
   });
 
-  it('returns 0 for zero mortgage interest at year 0', () => {
+  it('computes SALT-only savings when mortgage interest is zero', () => {
     const result = calculateTaxSavings(0, 8550, 30000, 750000, 450000, 32, 40000, 420000, 7.5);
     // SALT only: min(8550 + 31500, 40000) = 40000
     // Itemized = 40000
@@ -267,6 +311,58 @@ describe('calculateTaxSavings', () => {
   it('handles zero mortgage balance gracefully', () => {
     const result = calculateTaxSavings(0, 8550, 30000, 750000, 0, 32, 40000, 420000, 7.5);
     expect(result.totalItemizedDeductions).toBeGreaterThan(0); // SALT still applies
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calculateRenterTaxSavings
+// ---------------------------------------------------------------------------
+
+describe('calculateRenterTaxSavings', () => {
+  it('credits the renter when state income tax exceeds the standard deduction', () => {
+    // State tax = 420000 * 7.5% = 31500; itemized = min(31500, 40000) = 31500
+    // Benefit = 31500 - 30000 = 1500 → savings = 1500 * 32% = 480
+    expect(calculateRenterTaxSavings(420000, 7.5, 40000, 30000, 32)).toBeCloseTo(480, 5);
+  });
+
+  it('returns 0 when the standard deduction wins', () => {
+    expect(calculateRenterTaxSavings(100000, 5, 40000, 30000, 32)).toBe(0);
+  });
+
+  it('caps the renter SALT deduction', () => {
+    // State tax = 600000 * 9.3% = 55800 → capped at 10000 < 15000 standard → 0
+    expect(calculateRenterTaxSavings(600000, 9.3, 10000, 15000, 35)).toBe(0);
+    // With a 40k cap: min(55800, 40000) - 15000 = 25000 → * 35% = 8750
+    expect(calculateRenterTaxSavings(600000, 9.3, 40000, 15000, 35)).toBeCloseTo(8750, 5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// saltCapForYear (OBBBA schedule)
+// ---------------------------------------------------------------------------
+
+describe('saltCapForYear', () => {
+  it('uses the entered cap for the base tax year (2026)', () => {
+    expect(saltCapForYear(40400, 0, false)).toBe(40400);
+  });
+
+  it('indexes the cap 1%/yr through 2029', () => {
+    expect(saltCapForYear(40400, 1, false)).toBeCloseTo(40400 * 1.01, 5);
+    expect(saltCapForYear(40400, 3, false)).toBeCloseTo(40400 * Math.pow(1.01, 3), 5);
+  });
+
+  it('reverts to $10,000 in 2030 and beyond under current law', () => {
+    expect(saltCapForYear(40400, 4, false)).toBe(10000);
+    expect(saltCapForYear(40400, 25, false)).toBe(10000);
+  });
+
+  it('never raises a user cap already below $10,000 after reversion', () => {
+    expect(saltCapForYear(8000, 10, false)).toBe(8000);
+  });
+
+  it('holds the cap constant when extension is assumed', () => {
+    expect(saltCapForYear(40400, 0, true)).toBe(40400);
+    expect(saltCapForYear(40400, 10, true)).toBe(40400);
   });
 });
 
@@ -289,11 +385,19 @@ describe('calculateProjectionData', () => {
     expect(data[0].buying).toBe(1481250);
   });
 
-  it('year 0 has correct renting net worth', () => {
+  it('year 0 renting net worth includes the refundable deposit', () => {
     const data = calculateProjectionData(inputs()) as any[];
-    // renting NW = investment - deposit - movingCostRent
-    // = 1500000 - 1000 - 0 = 1499000
-    expect(data[0].renting).toBe(1499000);
+    // renting NW = (investment - deposit - movingCostRent) + deposit = 1500000
+    expect(data[0].renting).toBe(1500000);
+    // The deposit itself is not investable
+    expect(data[0].investmentsRenting).toBe(1499000);
+  });
+
+  it('renting net worth carries the deposit as a non-compounding asset every year', () => {
+    const data = calculateProjectionData(inputs({ rentDeposit: 4000 })) as any[];
+    for (const row of data) {
+      expect(Math.abs(row.renting - row.investmentsRenting - 4000)).toBeLessThanOrEqual(2);
+    }
   });
 
   it('year 0 home equity = down payment', () => {
@@ -308,6 +412,13 @@ describe('calculateProjectionData', () => {
     // investments = initial - downPayment - closingCosts - movingCosts
     // = 1500000 - 300000 - 18750 - 0 = 1181250
     expect(data[0].investmentsBuying).toBe(1181250);
+  });
+
+  it('year 0 reports no tax savings (no time has elapsed)', () => {
+    const data = calculateProjectionData(inputs()) as any[];
+    expect(data[0].yearlyTaxSavings).toBe(0);
+    expect(data[0].totalItemizedDeductions).toBe(0);
+    expect(data[0].renterYearlyTaxSavings).toBe(0);
   });
 
   it('buying net worth = investments + homeEquity - sellingCosts (within rounding)', () => {
@@ -338,44 +449,71 @@ describe('calculateProjectionData', () => {
     expect((data as any).error).toContain('exceed');
   });
 
+  it('does not error when rental income covers the cost gap (net-cost guard)', () => {
+    // Take-home = 50000 * 0.85 / 12 ≈ 3542. Gross housing+misc ≈ 4779 would fail
+    // a gross-cost guard, but net of $4,000/mo rental income it is ~779.
+    const data = calculateProjectionData(inputs({
+      annualSalaryBeforeTax: 50000,
+      effectiveFederalTaxRate: 10,
+      effectiveStateIncomeTaxRate: 5,
+      monthlyRentalIncome: 4000,
+    }));
+    expect(Array.isArray(data)).toBe(true);
+  });
+
   // ---------------------------------------------------------------------------
-  // Growth and inflation
+  // Growth and inflation: flows during year N use start-of-year levels
+  // (year 1 uses the entered values), stocks are reported at end of year
   // ---------------------------------------------------------------------------
 
-  it('home value appreciates correctly', () => {
+  it('home value appreciates correctly (end-of-year stock)', () => {
     const data = calculateProjectionData(inputs()) as any[];
     const year5 = data[5];
     const expected = Math.round(750000 * Math.pow(1.045, 5));
     expect(year5.homeValue).toBe(expected);
   });
 
-  it('salary grows correctly', () => {
+  it('year 1 charges the entered rent and salary (no pre-applied growth)', () => {
+    const data = calculateProjectionData(inputs()) as any[];
+    expect(data[1].monthlyRent).toBe(3000);
+    expect(data[1].salary).toBe(420000);
+    expect(data[1].monthlyMiscExpenses).toBe(1000);
+  });
+
+  it('salary used during year N has N-1 years of growth', () => {
     const data = calculateProjectionData(inputs()) as any[];
     const year3 = data[3];
-    const expected = Math.round(420000 * Math.pow(1.024, 3));
+    const expected = Math.round(420000 * Math.pow(1.024, 2));
     expect(year3.salary).toBe(expected);
   });
 
-  it('rent increases correctly', () => {
+  it('rent paid during year N has N-1 years of increases', () => {
     const data = calculateProjectionData(inputs()) as any[];
     const year2 = data[2];
-    const expected = Math.round(3000 * Math.pow(1.045, 2));
+    const expected = Math.round(3000 * 1.045);
     expect(year2.monthlyRent).toBe(expected);
   });
 
-  it('renter insurance is inflation-adjusted', () => {
+  it('renter insurance and utilities inflate from year 2 onward', () => {
     const inp = inputs({ monthlyRenterInsurance: 25, inflationRate: 3 });
     const data = calculateProjectionData(inp) as any[];
-    // Year 1 annual rent costs should include inflated renter insurance
-    // Rent: 3000*1.045=3135, utilities: 300*1.03=309, insurance: 25*1.03=25.75
-    // Annual = (3135 + 309 + 25.75) * 12 = 41637
-    expect(data[1].annualRentCosts).toBe(Math.round((3000 * 1.045 + 300 * 1.03 + 25 * 1.03) * 12));
+    // Year 1: entered values. Annual = (3000 + 300 + 25) * 12 = 39900
+    expect(data[1].annualRentCosts).toBe((3000 + 300 + 25) * 12);
+    // Year 2: rent +4.5%, insurance/utilities +3%
+    expect(data[2].annualRentCosts).toBe(Math.round((3000 * 1.045 + 300 * 1.03 + 25 * 1.03) * 12));
   });
 
-  it('misc expenses inflate', () => {
+  it('misc expenses inflate from year 2 onward', () => {
     const data = calculateProjectionData(inputs()) as any[];
-    const year1 = data[1];
-    expect(year1.monthlyMiscExpenses).toBe(Math.round(1000 * 1.03));
+    expect(data[1].monthlyMiscExpenses).toBe(1000);
+    expect(data[2].monthlyMiscExpenses).toBe(Math.round(1000 * 1.03));
+  });
+
+  it('year 1 property tax is levied on the purchase price (no pre-applied assessment growth)', () => {
+    const data = calculateProjectionData(inputs()) as any[];
+    expect(data[1].monthlyPropertyTax).toBeCloseTo(750000 * 0.0114 / 12, -1);
+    // Year 2 assessed value grows by min(inflation, cap) = 2%
+    expect(data[2].monthlyPropertyTax).toBeCloseTo(750000 * 1.02 * 0.0114 / 12, -1);
   });
 
   // ---------------------------------------------------------------------------
@@ -409,16 +547,21 @@ describe('calculateProjectionData', () => {
 
   it('no PMI with 20%+ down payment', () => {
     const data = calculateProjectionData(inputs({ downPaymentPercent: 20 })) as any[];
-    // With 20% down, LTV = 80%, PMI should not apply (LTV > 80 check is strict >)
-    // The monthly payment should be the same with and without PMI at exactly 80%
     expect(data[0].remainingLoan).toBe(600000);
+    expect(data[0].monthlyPMI).toBe(0);
+    expect(data[1].monthlyPMI).toBe(0);
   });
 
-  it('PMI applies with less than 20% down', () => {
-    const withPMI = calculateProjectionData(inputs({ downPaymentPercent: 10 })) as any[];
-    const noPMI = calculateProjectionData(inputs({ downPaymentPercent: 20 })) as any[];
-    // With PMI, monthly costs should be higher
-    expect(withPMI[0].monthlyPayment).toBeGreaterThan(noPMI[0].monthlyPayment);
+  it('PMI applies with less than 20% down and drops when LTV reaches 80%', () => {
+    const data = calculateProjectionData(inputs({ downPaymentPercent: 10 })) as any[];
+    expect(data[1].monthlyPMI).toBeGreaterThan(0);
+    // 0.8% on a 675k loan = $450/mo while owed
+    expect(data[1].monthlyPMI).toBe(450);
+    // By year 30 the loan is long past 80% LTV
+    expect(data[30].monthlyPMI).toBe(0);
+    // The crossing year charges a partial-year average, not a binary 0/450
+    const crossingYear = data.find(row => row.monthlyPMI > 0 && row.monthlyPMI < 450);
+    expect(crossingYear).toBeDefined();
   });
 
   // ---------------------------------------------------------------------------
@@ -428,10 +571,6 @@ describe('calculateProjectionData', () => {
   it('mello-roos stays fixed when growth toggle is off', () => {
     const inp = inputs({ melloRoosTaxRate: 0.5, melloRoosGrowsWithAssessment: false });
     const data = calculateProjectionData(inp) as any[];
-    // Mello-roos portion of costs should be same at year 0 and later
-    // Since it's fixed at homePrice * rate, it doesn't change
-    // We can't directly observe mello-roos in the output, but costs should differ
-    // from the growing case
     const growing = calculateProjectionData(inputs({
       melloRoosTaxRate: 0.5, melloRoosGrowsWithAssessment: true
     })) as any[];
@@ -484,8 +623,22 @@ describe('calculateProjectionData', () => {
     }
   });
 
+  it('charges only the actual mortgage spend in a partial payoff year', () => {
+    // 15.5-year term: the loan pays off halfway through year 16
+    const inp = inputs({ mortgageYears: 15.5, xAxisYears: 20 });
+    const data = calculateProjectionData(inp) as any[];
+    const payment = mortgagePayment(450000, 5.24, 15.5);
+    expect(data[16].remainingLoan).toBe(0);
+    const actualSpend = data[16].yearlyPrincipalPaid + data[16].yearlyInterestPaid;
+    // Roughly 6 payments, not 12
+    expect(actualSpend).toBeLessThan(payment * 12 * 0.6);
+    // The cost model (monthlyPayment is net homeowner cost) must reflect the
+    // partial spend: it should be far below the prior (full-payment) year
+    expect(data[16].monthlyPayment).toBeLessThan(data[15].monthlyPayment - payment * 0.3);
+  });
+
   // ---------------------------------------------------------------------------
-  // Tax savings use marginal rate
+  // Tax savings
   // ---------------------------------------------------------------------------
 
   it('tax savings are higher with marginal rate than effective rate', () => {
@@ -495,28 +648,80 @@ describe('calculateProjectionData', () => {
     expect(marginal[1].yearlyTaxSavings).toBeGreaterThan(effective[1].yearlyTaxSavings);
   });
 
+  it('credits the renter with itemization savings when state tax exceeds the standard deduction', () => {
+    // Force a clearly itemizing renter: high state tax, low standard deduction
+    const inp = inputs({ effectiveStateIncomeTaxRate: 9.3, standardDeduction: 16100 });
+    const data = calculateProjectionData(inp) as any[];
+    // Renter itemized = min(420000 * 9.3% = 39060, 40400) = 39060
+    // Benefit = 39060 - 16100 = 22960 → * 32% = 7347
+    expect(data[1].renterYearlyTaxSavings).toBe(Math.round((39060 - 16100) * 0.32));
+    // The renting BALANCE must actually receive the credit. Control: a standard
+    // deduction high enough to zero the renter credit, with identical renter
+    // cash flows (the standard deduction only enters via the tax credits).
+    const control = calculateProjectionData(inputs({
+      effectiveStateIncomeTaxRate: 9.3, standardDeduction: 45000,
+    })) as any[];
+    const delta = data[1].investmentsRenting - control[1].investmentsRenting;
+    expect(delta).toBeGreaterThanOrEqual(7345);
+    expect(delta).toBeLessThanOrEqual(7349);
+  });
+
+  it('prorates the interest deduction by average balance when the loan exceeds the cap', () => {
+    // $1.5M home, 20% down → $1.2M loan, above the $750k cap
+    const inp = inputs({ homePrice: 1500000, downPaymentPercent: 20, initialInvestment: 3000000 });
+    const data = calculateProjectionData(inp) as any[];
+    const payment = mortgagePayment(1200000, 5.24, 30);
+    const breakdown = calculateYearlyMortgageBreakdown(1200000, payment, 5.24 / 100 / 12);
+    const avgBalance = (1200000 + breakdown.endingBalance) / 2;
+    const cappedInterest = breakdown.yearlyInterestPaid * (750000 / avgBalance);
+    // SALT year 1: property tax 1.5M*1.14% = 17100 + state 31500 = 48600 → capped 40400
+    const expectedItemized = cappedInterest + 40400;
+    expect(data[1].totalItemizedDeductions).toBeCloseTo(expectedItemized, -1);
+  });
+
+  it('SALT cap reverts in 2030 under current law, reducing later-year savings', () => {
+    const currentLaw = calculateProjectionData(inputs({ assumeSaltCapExtension: false })) as any[];
+    const extended = calculateProjectionData(inputs({ assumeSaltCapExtension: true })) as any[];
+    // Year 1 (base tax year 2026): identical cap
+    expect(currentLaw[1].yearlyTaxSavings).toBe(extended[1].yearlyTaxSavings);
+    // Years 2-4 (2027-2029): current law indexes the cap +1%/yr, so savings
+    // are at least as large as under a constant cap
+    for (let y = 2; y <= 4; y++) {
+      expect(currentLaw[y].yearlyTaxSavings).toBeGreaterThanOrEqual(extended[y].yearlyTaxSavings);
+    }
+    // Year 5+ (2030+): the $10k cap must produce less savings
+    expect(currentLaw[5].yearlyTaxSavings).toBeLessThan(extended[5].yearlyTaxSavings);
+    expect(currentLaw[30].buying).toBeLessThan(extended[30].buying);
+  });
+
   // ---------------------------------------------------------------------------
   // Investment compounding
   // ---------------------------------------------------------------------------
 
-  it('investment return compounds correctly with tax drag', () => {
-    // Simple case: no housing costs, just investment growth
-    const inp = inputs({
-      initialInvestment: 1500000,
-      homePrice: 100000,
-      downPaymentPercent: 5,
-      monthlyRent: 100,
-      monthlyMiscExpenses: 100,
-      investmentReturn: 10,
-      annualInvestmentTaxDrag: 0,
-      includeSellingCosts: false,
-      xAxisYears: 1,
-    });
+  it('investment return compounds correctly with tax drag (closed form)', () => {
+    const inp = inputs({ investmentReturn: 10, annualInvestmentTaxDrag: 1 });
     const data = calculateProjectionData(inp) as any[];
-    // Renting: starts with 1500000 - 1000 (deposit) = 1499000
-    // Grows + monthly contributions for 1 year
-    // At minimum, should grow by ~10% on the initial balance
-    expect(data[1].renting).toBeGreaterThan(1499000 * 1.05);
+    // Renter year 1: balance = P(1+m)^12 + c((1+m)^12 - 1)/m + renter tax credit,
+    // with m the monthly equivalent of the net 9% annual return and c the
+    // monthly contribution (end-of-month). Renter credit is 0 at these inputs.
+    const m = toMonthlyRate(9);
+    const P = 1499000; // 1500000 - 1000 deposit
+    const takeHome = calculateMonthlyTakeHome(420000, 19.1, 7.5);
+    const c = takeHome - (3000 + 25 + 300) - 1000;
+    const expected = P * Math.pow(1 + m, 12) + c * (Math.pow(1 + m, 12) - 1) / m;
+    expect(data[1].investmentsRenting).toBeCloseTo(expected, -1);
+  });
+
+  it('handles a 0% mortgage rate without NaN', () => {
+    const data = calculateProjectionData(inputs({ effectiveMortgageRate: 0 })) as any[];
+    expect(Array.isArray(data)).toBe(true);
+    for (const row of data) {
+      expect(Number.isFinite(row.buying)).toBe(true);
+      expect(Number.isFinite(row.renting)).toBe(true);
+    }
+    // Straight-line: 450000 / 360 = 1250/mo principal
+    expect(data[1].yearlyPrincipalPaid).toBe(15000);
+    expect(data[1].yearlyInterestPaid).toBe(0);
   });
 });
 
@@ -604,7 +809,7 @@ describe('calculateMortgageScenario', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Payoff month cash flow fix
+  // Payoff month cash flow
   // ---------------------------------------------------------------------------
 
   it('payoff month correctly handles partial payment', () => {
@@ -617,22 +822,26 @@ describe('calculateMortgageScenario', () => {
     expect(result.payoffYear).toBeLessThan(10);
     expect(result.remainingBalance).toBeCloseTo(0, 0);
 
-    // Compare with a scenario where we manually verify:
-    // After payoff, all income minus non-mortgage costs goes to investments.
-    // The investment balance should be substantial.
     expect(result.investmentBalance).toBeGreaterThan(0);
     expect(result.finalNetWorth).toBeGreaterThan(result.homeValueAtHorizon);
   });
 
   it('post-payoff months invest full surplus (no mortgage deduction)', () => {
-    // After payoff, monthly investment should be: takeHome - nonMortgageCosts - misc
-    // This should be MORE than during mortgage (since no mortgage payment)
-    // We verify indirectly: extra payment scenario should still have large investments
     const result = calculateMortgageScenario(inputs(), 10000, 30);
-    // Monthly take-home ~25690, non-mortgage costs ~(-205) [rental > costs], misc ~1000
-    // After payoff: ~24895/mo goes to investments for remaining ~25 years
-    // This should accumulate significantly
     expect(result.investmentBalance).toBeGreaterThan(10000000);
+  });
+
+  it('conserves cash at 0% return: balance gap equals interest saved net of tax-savings gap', () => {
+    // With 0% investment return the balance is a pure sum of cash flows, so
+    // (extra - standard) balance = interest saved - tax savings forgone.
+    // This fails if post-payoff months stop investing the freed-up payment.
+    const inp = inputs({ investmentReturn: 0, annualInvestmentTaxDrag: 0 });
+    const standard = calculateMortgageScenario(inp, 0, 30);
+    const extra = calculateMortgageScenario(inp, 2000, 30);
+    const balanceGap = extra.investmentBalance - standard.investmentBalance;
+    const interestSaved = standard.totalInterestPaid - extra.totalInterestPaid;
+    const taxSavingsForgone = standard.taxSavings - extra.taxSavings;
+    expect(balanceGap).toBeCloseTo(interestSaved - taxSavingsForgone, 4);
   });
 
   // ---------------------------------------------------------------------------
@@ -652,5 +861,101 @@ describe('calculateMortgageScenario', () => {
     const result = calculateMortgageScenario(inputs({ includeSellingCosts: false }), 0, 15);
     const expected = result.homeValueAtHorizon + result.investmentBalance - result.remainingBalance;
     expect(result.finalNetWorth).toBeCloseTo(expected, 0);
+  });
+
+  it('reports the true payoff date even when it falls beyond the horizon', () => {
+    // Standard payment with a 15-year horizon: payoff is still year 30
+    const standard = calculateMortgageScenario(inputs(), 0, 15);
+    expect(standard.payoffYear).toBe(30);
+    // +$1,000/mo pays off in ~15.9 years — must NOT be reported as 30
+    const extra1k = calculateMortgageScenario(inputs(), 1000, 15);
+    expect(extra1k.payoffYear).toBeCloseTo(15.9, 1);
+    // +$500/mo pays off well beyond the horizon (~20.6 years analytically)
+    const extra500 = calculateMortgageScenario(inputs(), 500, 15);
+    expect(extra500.payoffYear).toBeCloseTo(20.6, 1);
+    // And must match what the same strategy reports with a long horizon
+    const extra1kLong = calculateMortgageScenario(inputs(), 1000, 30);
+    expect(extra1k.payoffYear).toBeCloseTo(extra1kLong.payoffYear, 1);
+  });
+
+  it('reports payoff year 0 for a cash purchase (100% down)', () => {
+    const result = calculateMortgageScenario(inputs({ downPaymentPercent: 100 }), 0, 30);
+    expect(result.payoffYear).toBe(0);
+    expect(Number.isFinite(result.finalNetWorth)).toBe(true);
+  });
+
+  it('handles a 0% mortgage rate without NaN', () => {
+    const result = calculateMortgageScenario(inputs({ effectiveMortgageRate: 0 }), 0, 30);
+    expect(Number.isFinite(result.finalNetWorth)).toBe(true);
+    expect(result.totalInterestPaid).toBe(0);
+    expect(result.remainingBalance).toBeCloseTo(0, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cross-engine consistency: the main projection and the payoff optimizer must
+// agree on identical inputs (no extra payments)
+// ---------------------------------------------------------------------------
+
+describe('engine consistency', () => {
+  // Horizon 3 matters: tax savings are nonzero in the final simulated year
+  // there, so a scenario engine that drops the last year's credit fails
+  const horizons = [3, 10, 20, 30];
+
+  it.each(horizons)('projection buying net worth matches scenario finalNetWorth at year %i (defaults)', (years) => {
+    const inp = inputs();
+    const data = calculateProjectionData(inp) as any[];
+    const scenario = calculateMortgageScenario(inp, 0, years);
+    // Projection rounds each field; allow a few dollars
+    expect(Math.abs(data[years].buying - scenario.finalNetWorth)).toBeLessThanOrEqual(5);
+  });
+
+  it('engines agree with selling costs enabled', () => {
+    const inp = inputs({ includeSellingCosts: true, sellingCostPercent: 6 });
+    const data = calculateProjectionData(inp) as any[];
+    const scenario = calculateMortgageScenario(inp, 0, 30);
+    expect(Math.abs(data[30].buying - scenario.finalNetWorth)).toBeLessThanOrEqual(5);
+  });
+
+  it('engines agree under current-law SALT reversion and with extension assumed', () => {
+    for (const assumeExt of [false, true]) {
+      const inp = inputs({ assumeSaltCapExtension: assumeExt });
+      const data = calculateProjectionData(inp) as any[];
+      const scenario = calculateMortgageScenario(inp, 0, 30);
+      expect(Math.abs(data[30].buying - scenario.finalNetWorth)).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it('engines agree exactly with PMI in play (10% down)', () => {
+    const inp = inputs({ downPaymentPercent: 10 });
+    const data = calculateProjectionData(inp) as any[];
+    const scenario = calculateMortgageScenario(inp, 0, 30);
+    // PMI is charged in its exact months in both engines — a single-month
+    // PMI mismatch compounds to ~$5.5k by year 30 and must fail
+    expect(Math.abs(data[30].buying - scenario.finalNetWorth)).toBeLessThanOrEqual(5);
+  });
+
+  it('engines agree exactly on a mid-year payoff (15.5-year term)', () => {
+    const inp = inputs({ mortgageYears: 15.5, xAxisYears: 20 });
+    const data = calculateProjectionData(inp) as any[];
+    const scenario = calculateMortgageScenario(inp, 0, 20);
+    // Payoff-year payments are charged in their exact months in both engines
+    expect(Math.abs(data[20].buying - scenario.finalNetWorth)).toBeLessThanOrEqual(5);
+  });
+
+  it('engines agree when the mortgage-interest deduction cap binds ($1.2M loan)', () => {
+    const inp = inputs({ homePrice: 1500000, downPaymentPercent: 20, initialInvestment: 3000000 });
+    const data = calculateProjectionData(inp) as any[];
+    const scenario = calculateMortgageScenario(inp, 0, 30);
+    expect(Math.abs(data[30].buying - scenario.finalNetWorth)).toBeLessThanOrEqual(5);
+  });
+
+  it('engines agree with growth rates zeroed (timing isolation)', () => {
+    const inp = inputs({
+      salaryGrowthRate: 0, rentIncrease: 0, homeAppreciation: 0, inflationRate: 0,
+    });
+    const data = calculateProjectionData(inp) as any[];
+    const scenario = calculateMortgageScenario(inp, 0, 30);
+    expect(Math.abs(data[30].buying - scenario.finalNetWorth)).toBeLessThanOrEqual(5);
   });
 });

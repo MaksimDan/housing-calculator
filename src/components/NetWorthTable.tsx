@@ -42,10 +42,10 @@ export const NetWorthTable: React.FC<NetWorthTableProps> = ({ projectionData, xA
                                         {row.year}
                                     </td>
                                     <td className="px-4 py-2 text-right font-medium text-blue-600">
-                                        ${Math.abs(row.buying).toLocaleString()}
+                                        {row.buying < 0 ? "-" : ""}${Math.abs(row.buying).toLocaleString()}
                                     </td>
                                     <td className="px-4 py-2 text-right font-medium text-green-600">
-                                        ${Math.abs(row.renting).toLocaleString()}
+                                        {row.renting < 0 ? "-" : ""}${Math.abs(row.renting).toLocaleString()}
                                     </td>
                                     <td
                                         className={`px-4 py-2 text-right font-medium ${difference >= 0 ? "text-blue-600" : "text-green-600"

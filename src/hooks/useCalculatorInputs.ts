@@ -5,7 +5,7 @@ import { calculateProjectionData, HousingCalculatorInputs } from '../lib/financi
 const DEFAULTS = {
   annualSalaryBeforeTax: 420000,
   effectiveFederalTaxRate: 19.1,
-  standardDeduction: 30000,
+  standardDeduction: 32200, // TY2026 MFJ (IRS Rev. Proc. 2025-32)
   initialInvestment: 1500000,
   monthlyMiscExpenses: 1000,
   homePrice: 750000,
@@ -35,10 +35,11 @@ const DEFAULTS = {
   propertyTaxAssessmentCap: 2,
   xAxisYears: 30,
   mortgageInterestDeductionCap: 750000,
-  saltCap: 40000,
+  saltCap: 40400, // TY2026 (OBBBA: $40k for 2025, indexed +1%/yr through 2029)
   effectiveStateIncomeTaxRate: 7.5,
   marginalFederalTaxRate: 32,
   useMarginalTaxRate: true,
+  assumeSaltCapExtension: false, // current law: cap reverts to $10k in 2030
   melloRoosGrowsWithAssessment: false,
   includeSellingCosts: false,
   sellingCostPercent: 6,
@@ -83,6 +84,7 @@ const URL_PARAM_MAP: Record<string, string> = {
   effectiveStateIncomeTaxRate: 'effectiveStateIncomeTaxRate',
   marginalTaxRate: 'marginalFederalTaxRate',
   useMarginalTaxRate: 'useMarginalTaxRate',
+  assumeSaltCapExtension: 'assumeSaltCapExtension',
   melloRoosGrows: 'melloRoosGrowsWithAssessment',
   includeSellingCosts: 'includeSellingCosts',
   sellingCostPercent: 'sellingCostPercent',
@@ -95,7 +97,7 @@ const STATE_TO_URL_PARAM = Object.fromEntries(
 );
 
 // Boolean URL params need special parsing (not parseFloat)
-const BOOLEAN_URL_PARAMS = new Set(['useMarginalTaxRate', 'melloRoosGrows', 'includeSellingCosts']);
+const BOOLEAN_URL_PARAMS = new Set(['useMarginalTaxRate', 'assumeSaltCapExtension', 'melloRoosGrows', 'includeSellingCosts']);
 
 // CustomEvent name -> state property name
 const EVENT_MAP: Record<string, string> = {
@@ -169,6 +171,7 @@ export const useCalculatorInputs = () => {
   // Model settings
   const [marginalFederalTaxRate, setMarginalFederalTaxRate] = usePersistedState('housing-marginalTaxRate', DEFAULTS.marginalFederalTaxRate);
   const [useMarginalTaxRate, setUseMarginalTaxRate] = usePersistedState('housing-useMarginalTaxRate', DEFAULTS.useMarginalTaxRate);
+  const [assumeSaltCapExtension, setAssumeSaltCapExtension] = usePersistedState('housing-assumeSaltCapExtension', DEFAULTS.assumeSaltCapExtension);
   const [melloRoosGrowsWithAssessment, setMelloRoosGrowsWithAssessment] = usePersistedState('housing-melloRoosGrows', DEFAULTS.melloRoosGrowsWithAssessment);
   const [includeSellingCosts, setIncludeSellingCosts] = usePersistedState('housing-includeSellingCosts', DEFAULTS.includeSellingCosts);
   const [sellingCostPercent, setSellingCostPercent] = usePersistedState('housing-sellingCostPercent', DEFAULTS.sellingCostPercent);
@@ -212,6 +215,7 @@ export const useCalculatorInputs = () => {
     effectiveStateIncomeTaxRate: setEffectiveStateIncomeTaxRate,
     marginalFederalTaxRate: setMarginalFederalTaxRate,
     useMarginalTaxRate: setUseMarginalTaxRate,
+    assumeSaltCapExtension: setAssumeSaltCapExtension,
     melloRoosGrowsWithAssessment: setMelloRoosGrowsWithAssessment,
     includeSellingCosts: setIncludeSellingCosts,
     sellingCostPercent: setSellingCostPercent,
@@ -260,7 +264,8 @@ export const useCalculatorInputs = () => {
     investmentReturn, rentIncrease, salaryGrowthRate, inflationRate,
     propertyTaxAssessmentCap, xAxisYears, mortgageInterestDeductionCap,
     saltCap, effectiveStateIncomeTaxRate,
-    marginalFederalTaxRate, useMarginalTaxRate, melloRoosGrowsWithAssessment,
+    marginalFederalTaxRate, useMarginalTaxRate, assumeSaltCapExtension,
+    melloRoosGrowsWithAssessment,
     includeSellingCosts, sellingCostPercent, annualInvestmentTaxDrag,
   }), [
     annualSalaryBeforeTax, effectiveFederalTaxRate, standardDeduction,
@@ -273,7 +278,8 @@ export const useCalculatorInputs = () => {
     investmentReturn, rentIncrease, salaryGrowthRate, inflationRate,
     propertyTaxAssessmentCap, xAxisYears, mortgageInterestDeductionCap,
     saltCap, effectiveStateIncomeTaxRate,
-    marginalFederalTaxRate, useMarginalTaxRate, melloRoosGrowsWithAssessment,
+    marginalFederalTaxRate, useMarginalTaxRate, assumeSaltCapExtension,
+    melloRoosGrowsWithAssessment,
     includeSellingCosts, sellingCostPercent, annualInvestmentTaxDrag,
   ]);
 
@@ -337,6 +343,7 @@ export const useCalculatorInputs = () => {
       propertyTaxAssessmentCap, setPropertyTaxAssessmentCap,
       marginalFederalTaxRate, setMarginalFederalTaxRate,
       useMarginalTaxRate, setUseMarginalTaxRate,
+      assumeSaltCapExtension, setAssumeSaltCapExtension,
       melloRoosGrowsWithAssessment, setMelloRoosGrowsWithAssessment,
       includeSellingCosts, setIncludeSellingCosts,
       sellingCostPercent, setSellingCostPercent,

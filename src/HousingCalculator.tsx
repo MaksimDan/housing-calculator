@@ -21,6 +21,12 @@ const HousingCalculator = () => {
 
   const { inputs, projectionData, resetToDefaults, handleShare, inputCardProps } = useCalculatorInputs();
 
+  // Year 0 (and an unmatched point) has no previous year to compare against
+  const activeIndex = activePoint && isValidProjectionData(projectionData)
+    ? projectionData.findIndex((d: any) => d === activePoint)
+    : -1;
+  const previousYearData = activeIndex > 0 ? projectionData[activeIndex - 1] : null;
+
   return (
     <div className="min-h-screen bg-white p-6">
       <div className="mx-auto" style={{ maxWidth: '1843px' }}>
@@ -124,10 +130,7 @@ const HousingCalculator = () => {
                 <div className="space-y-4">
                   <DetailedMathCard
                     data={activePoint || projectionData[0]}
-                    previousYearData={activePoint ?
-                      projectionData[Math.max(0, projectionData.findIndex(d => d === activePoint) - 1)]
-                      : null
-                    }
+                    previousYearData={previousYearData}
                     showBuying={true}
                   />
                 </div>
@@ -139,10 +142,7 @@ const HousingCalculator = () => {
                 <div className="space-y-4">
                   <DetailedMathCard
                     data={activePoint || projectionData[0]}
-                    previousYearData={activePoint ?
-                      projectionData[Math.max(0, projectionData.findIndex(d => d === activePoint) - 1)]
-                      : null
-                    }
+                    previousYearData={previousYearData}
                     showBuying={false}
                   />
                 </div>

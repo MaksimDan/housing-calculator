@@ -60,24 +60,39 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
   const getDecisionRecommendation = () => {
     // Compare optimal scenario vs standard payment scenario
     const netWorthDifference = optimalScenario.finalNetWorth - standardScenario.finalNetWorth;
-    const percentageImprovement = (netWorthDifference / standardScenario.finalNetWorth) * 100;
-    
+
     if (optimalScenario.extraMonthlyPayment === 0) {
       return {
         recommendation: 'INVEST',
         reason: `Standard mortgage payments appear optimal. Consider investing extra cash instead of making additional mortgage payments.`
       };
-    } else if (percentageImprovement > 5) {
-      return {
-        recommendation: 'PAY_OFF',
-        reason: `Extra payments of $${optimalScenario.extraMonthlyPayment}/month could improve net worth by ${percentageImprovement.toFixed(1)}% over ${optimizationHorizon} years.`
-      };
-    } else {
+    }
+
+    // A percentage of a zero/negative base is meaningless — classify on dollars there
+    if (standardScenario.finalNetWorth <= 0) {
+      if (netWorthDifference > 25000) {
+        return {
+          recommendation: 'PAY_OFF',
+          reason: `Extra payments of $${optimalScenario.extraMonthlyPayment}/month could improve net worth by $${Math.round(netWorthDifference).toLocaleString()} over ${optimizationHorizon} years.`
+        };
+      }
       return {
         recommendation: 'BALANCED',
         reason: `The financial difference between strategies is modest. Consider your risk tolerance and liquidity needs.`
       };
     }
+
+    const percentageImprovement = (netWorthDifference / standardScenario.finalNetWorth) * 100;
+    if (percentageImprovement > 5) {
+      return {
+        recommendation: 'PAY_OFF',
+        reason: `Extra payments of $${optimalScenario.extraMonthlyPayment}/month could improve net worth by ${percentageImprovement.toFixed(1)}% over ${optimizationHorizon} years.`
+      };
+    }
+    return {
+      recommendation: 'BALANCED',
+      reason: `The financial difference between strategies is modest. Consider your risk tolerance and liquidity needs.`
+    };
   };
 
   const decision = getDecisionRecommendation();

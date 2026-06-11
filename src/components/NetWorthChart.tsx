@@ -19,7 +19,9 @@ interface NetWorthChartProps {
 
 export const NetWorthChart: React.FC<NetWorthChartProps> = ({ projectionData, xAxisYears, setActivePoint }) => {
     const findBreakEvenYear = () => {
-        for (let i = 0; i < projectionData.length; i++) {
+        // Only consider years inside the displayed window
+        const lastYear = Math.min(xAxisYears, projectionData.length - 1);
+        for (let i = 0; i <= lastYear; i++) {
             if (projectionData[i].buying > projectionData[i].renting) {
                 return i;
             }
@@ -79,7 +81,7 @@ export const NetWorthChart: React.FC<NetWorthChartProps> = ({ projectionData, xA
                         />
                         <YAxis
                             stroke="#666"
-                            tickFormatter={(value) => `${Math.abs(value / 1000)}k`}
+                            tickFormatter={(value) => `${value / 1000}k`}
                             label={{
                                 value: "Net Worth",
                                 angle: -90,
@@ -90,12 +92,12 @@ export const NetWorthChart: React.FC<NetWorthChartProps> = ({ projectionData, xA
                         <Tooltip
                             formatter={(value, name) => {
                                 if (name === "difference") {
-                                    return [`$${Math.abs(value).toLocaleString()}`, "Difference (Buy vs Rent)"];
+                                    return [
+                                        `$${Math.abs(value).toLocaleString()}`,
+                                        value < 0 ? "Renting ahead by" : "Buying ahead by",
+                                    ];
                                 }
-                                return [
-                                    `$${Math.abs(value).toLocaleString()}`,
-                                    value < 0 ? "Initial Investment/Costs" : "Net Worth",
-                                ];
+                                return [`${value < 0 ? '-' : ''}$${Math.abs(value).toLocaleString()}`, "Net Worth"];
                             }}
                             labelFormatter={(value) => `Year ${value}`}
                         />

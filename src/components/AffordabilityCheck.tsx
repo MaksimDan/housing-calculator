@@ -16,21 +16,33 @@ export const AffordabilityCheck = ({ projectionData }) => {
       // Extract numerical details from error message
       let details = null;
   
-      if (projectionData.error.includes("Monthly housing costs exceed")) {
+      if (projectionData.error.includes("exceed monthly take-home pay")) {
+        const housing = projectionData.monthlyHousingCosts || 0;
+        const misc = projectionData.monthlyMiscExpenses || 0;
+        const rentalIncome = projectionData.monthlyRentalIncome || 0;
+        const takeHome = projectionData.monthlyTakeHome || 0;
         details = {
           title: "Monthly Costs Exceed Income",
           items: [
             {
               label: "Monthly Take-Home Pay",
-              value: formatCurrency(projectionData.monthlyTakeHome || 0)
+              value: formatCurrency(takeHome)
             },
             {
               label: "Monthly Housing Costs",
-              value: formatCurrency(projectionData.monthlyHousingCosts || 0)
+              value: formatCurrency(housing)
             },
             {
+              label: "Monthly Living Expenses",
+              value: formatCurrency(misc)
+            },
+            ...(rentalIncome > 0 ? [{
+              label: "Monthly Rental Income",
+              value: formatCurrency(-rentalIncome)
+            }] : []),
+            {
               label: "Monthly Shortfall",
-              value: formatCurrency((projectionData.monthlyHousingCosts || 0) - (projectionData.monthlyTakeHome || 0))
+              value: formatCurrency(housing + misc - rentalIncome - takeHome)
             }
           ]
         };

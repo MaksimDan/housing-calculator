@@ -6,7 +6,7 @@ export const DetailedMathCard = ({ data, showBuying, previousYearData }) => {
 
   const formatCurrency = (num) => {
     if (num === undefined || num === null) return '$0';
-    return `${Math.abs(num).toLocaleString()}`;
+    return `${num < 0 ? '-' : ''}$${Math.abs(Math.round(num)).toLocaleString()}`;
   };
 
   const formatPercent = (num) => {
@@ -34,7 +34,7 @@ export const DetailedMathCard = ({ data, showBuying, previousYearData }) => {
   } : null;
 
   const renderChangeIndicator = (change) => {
-    if (change === null) return null;
+    if (change === null || change === undefined) return null;
     return (
       <div className="text-xs text-gray-500 flex items-center gap-1">
         {change > 0 ? (
@@ -96,7 +96,6 @@ export const DetailedMathCard = ({ data, showBuying, previousYearData }) => {
                   <span className="text-sm text-gray-600">Investment Portfolio</span>
                   <span className="font-medium">{formatCurrency(data.investmentsBuying)}</span>
                 </div>
-                <div className="text-xs text-gray-500">Return Rate: {data.investmentReturn}%</div>
                 {renderChangeIndicator(yearlyChanges?.investmentsBuying)}
               </div>
               <div>
@@ -129,7 +128,6 @@ export const DetailedMathCard = ({ data, showBuying, previousYearData }) => {
                   <span className="text-sm text-gray-600">Investment Portfolio</span>
                   <span className="font-medium">{formatCurrency(data.investmentsRenting)}</span>
                 </div>
-                <div className="text-xs text-gray-500">Return Rate: {data.investmentReturn}%</div>
                 {renderChangeIndicator(yearlyChanges?.investmentsRenting)}
               </div>
               <div>

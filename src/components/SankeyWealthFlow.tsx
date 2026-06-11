@@ -53,63 +53,67 @@ const SankeyWealthFlow: React.FC<SankeyWealthFlowProps> = ({
     };
   }, []);
 
-  // Use the existing projection data and interpolate monthly values
+  // Use the existing projection data: snapshot fields (balances) come from the
+  // start-of-year row, flow fields from the row describing the year in progress
+  // (row N holds the flows that occur DURING year N, so months 0-11 use row 1).
   const monthlyData = useMemo(() => {
     if (!projectionData || projectionData.length === 0) return [];
 
     const data = [];
     const totalMonths = xAxisYears * 12;
 
-    // For each month, interpolate values from the annual projection data
     for (let month = 0; month <= totalMonths; month++) {
       const year = Math.floor(month / 12);
       const monthInYear = month % 12;
 
-      // Get data for current year and next year for interpolation
-      const currentYearData = projectionData[year] || projectionData[projectionData.length - 1];
-      const nextYearData = projectionData[year + 1] || currentYearData;
+      const snapshotRow = projectionData[Math.min(year, projectionData.length - 1)];
+      const flowRow = projectionData[Math.min(year + 1, projectionData.length - 1)];
 
-      // Interpolate values within the year (simple approach - use current year values)
-      // The main calculations are done annually, so we'll use those exact values
-      const monthlyFactor = 1 / 12;
-
-      // Extract monthly values - these should match the main calculator exactly
       data.push({
         month,
         year,
         monthInYear,
 
-        // Use the exact same calculated values from the main projection
-        buying: currentYearData.buying,
-        renting: currentYearData.renting,
-        homeEquity: currentYearData.homeEquity,
-        investmentsBuying: currentYearData.investmentsBuying,
-        investmentsRenting: currentYearData.investmentsRenting,
+        // Snapshot values (start of the current year) from the main projection
+        buying: snapshotRow.buying,
+        renting: snapshotRow.renting,
+        homeEquity: snapshotRow.homeEquity,
+        investmentsBuying: snapshotRow.investmentsBuying,
+        investmentsRenting: snapshotRow.investmentsRenting,
 
-        // Monthly breakdown estimates based on annual data
-        monthlyTakeHome: (currentYearData.salary * (1 - 0.4)) / 12, // Using the same tax logic
-        monthlyPayment: currentYearData.monthlyPayment,
-        availableMonthlyInvestment: currentYearData.availableMonthlyInvestment,
-        monthlyRent: currentYearData.monthlyRent,
-        monthlyMiscExpenses: currentYearData.monthlyMiscExpenses,
-        monthlyRentalIncome: currentYearData.monthlyRentalIncome,
+        // Monthly flows of the ownership year in progress — exact engine values
+        monthlyTakeHome: flowRow.monthlyTakeHome || 0,
+        monthlyPayment: flowRow.monthlyPayment,
+        availableMonthlyInvestment: flowRow.availableMonthlyInvestment,
+        availableMonthlyRenterInvestment: flowRow.availableMonthlyRenterInvestment || 0,
+        monthlyRent: flowRow.monthlyRent,
+        monthlyMiscExpenses: flowRow.monthlyMiscExpenses,
+        monthlyRentalIncome: flowRow.monthlyRentalIncome,
+        monthlyPropertyTax: flowRow.monthlyPropertyTax || 0,
+        monthlyMelloRoosTax: flowRow.monthlyMelloRoosTax || 0,
+        monthlyHomeInsurance: flowRow.monthlyHomeInsurance || 0,
+        monthlyMaintenance: flowRow.monthlyMaintenance || 0,
+        monthlyPMI: flowRow.monthlyPMI || 0,
+        monthlyPropertyUtilities: flowRow.monthlyPropertyUtilities || 0,
+        monthlyHOAFee: flowRow.monthlyHOAFee || 0,
+        monthlyRentUtilities: flowRow.monthlyRentUtilities || 0,
+        monthlyRenterInsurance: flowRow.monthlyRenterInsurance || 0,
 
-        // For detailed monthly breakdown, we'll estimate based on the annual calculations
-        yearlyPrincipalPaid: currentYearData.yearlyPrincipalPaid,
-        yearlyInterestPaid: currentYearData.yearlyInterestPaid,
-        yearlyTaxSavings: currentYearData.yearlyTaxSavings,
+        yearlyPrincipalPaid: flowRow.yearlyPrincipalPaid,
+        yearlyInterestPaid: flowRow.yearlyInterestPaid,
+        yearlyTaxSavings: flowRow.yearlyTaxSavings,
 
-        // Calculate monthly equivalents
-        monthlyPrincipalPaid: (currentYearData.yearlyPrincipalPaid || 0) / 12,
-        monthlyInterestPaid: (currentYearData.yearlyInterestPaid || 0) / 12,
-        monthlyTaxSavings: (currentYearData.yearlyTaxSavings || 0) / 12,
+        monthlyPrincipalPaid: (flowRow.yearlyPrincipalPaid || 0) / 12,
+        monthlyInterestPaid: (flowRow.yearlyInterestPaid || 0) / 12,
+        monthlyTaxSavings: (flowRow.yearlyTaxSavings || 0) / 12,
+        monthlyRenterTaxSavings: (flowRow.renterYearlyTaxSavings || 0) / 12,
 
         // Net worth calculations - use exact values from main calculator
-        netWorth: scenario === 'buying' ? currentYearData.buying : currentYearData.renting,
-        investmentBalance: scenario === 'buying' ? currentYearData.investmentsBuying : currentYearData.investmentsRenting,
-        homeValue: currentYearData.homeValue || 0,
-        remainingLoan: currentYearData.remainingLoan || 0,
-        homeEquityValue: currentYearData.homeEquity || 0
+        netWorth: scenario === 'buying' ? snapshotRow.buying : snapshotRow.renting,
+        investmentBalance: scenario === 'buying' ? snapshotRow.investmentsBuying : snapshotRow.investmentsRenting,
+        homeValue: snapshotRow.homeValue || 0,
+        remainingLoan: snapshotRow.remainingLoan || 0,
+        homeEquityValue: snapshotRow.homeEquity || 0
       });
     }
 
@@ -123,9 +127,10 @@ const SankeyWealthFlow: React.FC<SankeyWealthFlowProps> = ({
     const data = monthlyData[currentMonth];
     const rows = [];
 
-    // Create connections based on scenario using the exact calculator values
+    // Create connections based on scenario using the exact calculator values.
+    // Flows conserve: take-home + rental income + tax savings inflows equal
+    // expense outflows + investment contribution.
     if (scenario === 'buying') {
-      // Income to expenses - use the monthly breakdown from projectionData
       rows.push(['Take-Home Salary', 'Living Expenses', Math.round(data.monthlyMiscExpenses)]);
 
       if (data.monthlyInterestPaid > 0) {
@@ -135,19 +140,44 @@ const SankeyWealthFlow: React.FC<SankeyWealthFlowProps> = ({
         rows.push(['Take-Home Salary', 'Mortgage Principal', Math.round(data.monthlyPrincipalPaid)]);
       }
 
-      // Add other monthly expenses based on the calculator's logic
-      const estimatedPropertyTax = data.monthlyPayment * 0.15; // Rough estimate
-      const estimatedMaintenance = data.monthlyPayment * 0.1; // Rough estimate
-
-      if (estimatedPropertyTax > 0) {
-        rows.push(['Take-Home Salary', 'Property Tax', Math.round(estimatedPropertyTax)]);
+      // Actual engine cost components (no estimates)
+      if (data.monthlyPropertyTax > 0) {
+        rows.push(['Take-Home Salary', 'Property Tax', Math.round(data.monthlyPropertyTax)]);
       }
-      if (estimatedMaintenance > 0) {
-        rows.push(['Take-Home Salary', 'Maintenance', Math.round(estimatedMaintenance)]);
+      if (data.monthlyMelloRoosTax > 0) {
+        rows.push(['Take-Home Salary', 'Mello-Roos Tax', Math.round(data.monthlyMelloRoosTax)]);
+      }
+      if (data.monthlyMaintenance > 0) {
+        rows.push(['Take-Home Salary', 'Maintenance', Math.round(data.monthlyMaintenance)]);
+      }
+      if (data.monthlyHomeInsurance > 0) {
+        rows.push(['Take-Home Salary', 'Home Insurance', Math.round(data.monthlyHomeInsurance)]);
+      }
+      if (data.monthlyPMI > 0) {
+        rows.push(['Take-Home Salary', 'PMI', Math.round(data.monthlyPMI)]);
+      }
+      if (data.monthlyPropertyUtilities > 0) {
+        rows.push(['Take-Home Salary', 'Utilities', Math.round(data.monthlyPropertyUtilities)]);
+      }
+      if (data.monthlyHOAFee > 0) {
+        rows.push(['Take-Home Salary', 'HOA', Math.round(data.monthlyHOAFee)]);
       }
 
-      if (data.availableMonthlyInvestment > 0) {
-        rows.push(['Take-Home Salary', 'Investment Contribution', Math.round(data.availableMonthlyInvestment)]);
+      // availableMonthlyInvestment already nets rental income into it, so the
+      // salary's own share is available minus the rental income shown separately.
+      // Clamp both legs so node inflows always equal outflows even when the
+      // surplus is smaller than the rental income (the rest offsets housing costs).
+      const investableSurplus = Math.max(data.availableMonthlyInvestment, 0);
+      const rentalToInvestment = Math.min(data.monthlyRentalIncome, investableSurplus);
+      const salaryToInvestment = investableSurplus - rentalToInvestment;
+      if (salaryToInvestment > 0) {
+        rows.push(['Take-Home Salary', 'Investment Contribution', Math.round(salaryToInvestment)]);
+      }
+      if (rentalToInvestment > 0) {
+        rows.push(['Rental Income', 'Investment Contribution', Math.round(rentalToInvestment)]);
+      }
+      if (data.monthlyTaxSavings > 0) {
+        rows.push(['Tax Savings', 'Investment Contribution', Math.round(data.monthlyTaxSavings)]);
       }
 
       // Principal to equity
@@ -155,41 +185,34 @@ const SankeyWealthFlow: React.FC<SankeyWealthFlowProps> = ({
         rows.push(['Mortgage Principal', 'Home Equity', Math.round(data.monthlyPrincipalPaid)]);
       }
 
-      // Investment to balance
-      if (data.availableMonthlyInvestment > 0) {
-        rows.push(['Investment Contribution', 'Investment Balance', Math.round(data.availableMonthlyInvestment)]);
-      }
-
-      // Additional income flows
-      if (data.monthlyRentalIncome > 0) {
-        rows.push(['Rental Income', 'Investment Contribution', Math.round(data.monthlyRentalIncome)]);
-      }
-      if (data.monthlyTaxSavings > 0) {
-        rows.push(['Tax Savings', 'Investment Contribution', Math.round(data.monthlyTaxSavings)]);
+      // Investment node out — matches the engine: surplus + tax savings
+      const totalContribution = investableSurplus + data.monthlyTaxSavings;
+      if (totalContribution > 0) {
+        rows.push(['Investment Contribution', 'Investment Balance', Math.round(totalContribution)]);
       }
 
     } else { // Renting scenario
       rows.push(['Take-Home Salary', 'Living Expenses', Math.round(data.monthlyMiscExpenses)]);
       rows.push(['Take-Home Salary', 'Rent', Math.round(data.monthlyRent)]);
 
-      // Estimate utilities and insurance for renting
-      const estimatedRentUtilities = 150;
-      const estimatedRenterInsurance = 10;
-
-      if (estimatedRentUtilities > 0) {
-        rows.push(['Take-Home Salary', 'Rent Utilities', estimatedRentUtilities]);
+      if (data.monthlyRentUtilities > 0) {
+        rows.push(['Take-Home Salary', 'Rent Utilities', Math.round(data.monthlyRentUtilities)]);
       }
-      if (estimatedRenterInsurance > 0) {
-        rows.push(['Take-Home Salary', 'Renter Insurance', estimatedRenterInsurance]);
+      if (data.monthlyRenterInsurance > 0) {
+        rows.push(['Take-Home Salary', 'Renter Insurance', Math.round(data.monthlyRenterInsurance)]);
       }
 
-      if (data.availableMonthlyInvestment > 0) {
-        rows.push(['Take-Home Salary', 'Investment Contribution', Math.round(data.availableMonthlyInvestment)]);
+      // The renter's own surplus, not the buyer's
+      if (data.availableMonthlyRenterInvestment > 0) {
+        rows.push(['Take-Home Salary', 'Investment Contribution', Math.round(data.availableMonthlyRenterInvestment)]);
       }
-
-      // Investment to balance
-      if (data.availableMonthlyInvestment > 0) {
-        rows.push(['Investment Contribution', 'Investment Balance', Math.round(data.availableMonthlyInvestment)]);
+      // The renter's own itemization credit (engine invests it in the renting leg)
+      if (data.monthlyRenterTaxSavings > 0) {
+        rows.push(['Tax Savings', 'Investment Contribution', Math.round(data.monthlyRenterTaxSavings)]);
+      }
+      const renterContribution = Math.max(data.availableMonthlyRenterInvestment, 0) + data.monthlyRenterTaxSavings;
+      if (renterContribution > 0) {
+        rows.push(['Investment Contribution', 'Investment Balance', Math.round(renterContribution)]);
       }
     }
 
@@ -445,7 +468,9 @@ const SankeyWealthFlow: React.FC<SankeyWealthFlowProps> = ({
                 <div className="flex justify-between">
                   <span>Available for investing:</span>
                   <span className="font-medium text-green-600">
-                    ${Math.round(currentData.availableMonthlyInvestment || 0).toLocaleString()}
+                    ${Math.round((scenario === 'buying'
+                      ? currentData.availableMonthlyInvestment
+                      : currentData.availableMonthlyRenterInvestment) || 0).toLocaleString()}
                   </span>
                 </div>
                 {scenario === 'buying' && (

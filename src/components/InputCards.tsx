@@ -86,6 +86,8 @@ interface InputCardsProps {
     setMarginalFederalTaxRate: (value: number) => void;
     useMarginalTaxRate: boolean;
     setUseMarginalTaxRate: (value: boolean) => void;
+    assumeSaltCapExtension: boolean;
+    setAssumeSaltCapExtension: (value: boolean) => void;
     melloRoosGrowsWithAssessment: boolean;
     setMelloRoosGrowsWithAssessment: (value: boolean) => void;
     includeSellingCosts: boolean;
@@ -133,6 +135,7 @@ const InputCards: React.FC<InputCardsProps> = ({
     propertyTaxAssessmentCap, setPropertyTaxAssessmentCap,
     marginalFederalTaxRate, setMarginalFederalTaxRate,
     useMarginalTaxRate, setUseMarginalTaxRate,
+    assumeSaltCapExtension, setAssumeSaltCapExtension,
     melloRoosGrowsWithAssessment, setMelloRoosGrowsWithAssessment,
     includeSellingCosts, setIncludeSellingCosts,
     sellingCostPercent, setSellingCostPercent,
@@ -177,10 +180,18 @@ const InputCards: React.FC<InputCardsProps> = ({
                     min={0} max={1500000} step={25000} suffix="$"
                 />
                 <AnimatedInput
-                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Maximum state and local tax (SALT) deduction — $40,000 for 2025+ (OBBBA), was $10,000 for 2018-2024")} /> SALT Cap</>}
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Maximum state and local tax (SALT) deduction for the first projected year ($40,400 for tax year 2026 under OBBBA). Current law indexes the cap +1%/yr through 2029, then reverts it to $10,000 in 2030 — modeled automatically unless you assume an extension below.")} /> SALT Cap</>}
                     value={saltCap} onChange={setSaltCap}
                     min={0} max={50000} step={1000} suffix="$"
                 />
+                <div className="flex items-center gap-2">
+                    <Toggle
+                        checked={assumeSaltCapExtension}
+                        onChange={setAssumeSaltCapExtension}
+                        label="Assume SALT cap extended past 2029"
+                    />
+                    <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-pointer flex-shrink-0" onClick={() => alert("Off (current law): the elevated cap rises 1%/yr through 2029, then reverts to a flat $10,000 from 2030 on. On: the cap you entered applies to every year, as if Congress extends it.")} />
+                </div>
 
                 <div className="pt-3 border-t border-gray-100">
                     <div className="flex items-center gap-2">
@@ -375,7 +386,7 @@ const InputCards: React.FC<InputCardsProps> = ({
                     min={0} max={10} step={0.1} suffix="%"
                 />
                 <AnimatedInput
-                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual cap on property tax assessment increases (e.g. California Prop 13 = ~2%). Property taxes grow by this rate.")} /> Property Tax Assessment Cap</>}
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual cap on property tax assessment increases (California Prop 13 = 2%). Assessed value grows at the LESSER of inflation and this cap, so values above the inflation rate have no effect.")} /> Property Tax Assessment Cap</>}
                     value={propertyTaxAssessmentCap} onChange={setPropertyTaxAssessmentCap}
                     min={0} max={10} step={0.1} suffix="%"
                 />
