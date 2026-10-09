@@ -136,27 +136,13 @@ const INPUT_KEYS: Record<InputKey, [string, string]> = {
 
 const INPUT_NAMES = Object.keys(INPUT_KEYS) as InputKey[];
 
-// CustomEvent name -> state property name (from MortgagePayoffOptimizer)
-const EVENT_MAP: Record<string, InputKey> = {
-  updateInvestmentReturn: 'investmentReturn',
-  updateMortgageRate: 'effectiveMortgageRate',
-  updateFederalTaxRate: 'effectiveFederalTaxRate',
-  updateStateTaxRate: 'effectiveStateIncomeTaxRate',
-  updateInflationRate: 'inflationRate',
-  updateHomePrice: 'homePrice',
-  updateDownPayment: 'downPaymentPercent',
-  updateMortgageYears: 'mortgageYears',
-  updateHomeAppreciation: 'homeAppreciation',
-  updatePropertyTaxRate: 'propertyTaxRate',
-  updateSalaryGrowth: 'salaryGrowthRate',
-  updatePMIRate: 'PMIRate',
-  updateAnnualSalary: 'annualSalaryBeforeTax',
-  updateStandardDeduction: 'standardDeduction',
-  updateSaltCap: 'saltCap',
-  updateMortgageInterestCap: 'mortgageInterestDeductionCap',
-};
+export interface TaxOverridePrompt {
+  key: 'standardDeduction' | 'saltCap' | 'mortgageInterestDeductionCap';
+  current: number;
+  next: number;
+}
 
-const setterName = (key: string) => `set${key[0].toUpperCase()}${key.slice(1)}`;
+const TAX_AMOUNT_KEYS = ['standardDeduction', 'saltCap', 'mortgageInterestDeductionCap'] as const;
 
 export const useCalculatorInputs = () => {
   // One persisted, sanitized state per input. INPUT_NAMES is a constant, so
@@ -173,21 +159,6 @@ export const useCalculatorInputs = () => {
     state[name] = value;
     setterMap[name] = setValue;
   }
-
-  // Cross-page parameter updates via CustomEvents (from MortgagePayoffOptimizer).
-  // Values are sanitized by the setters; invalid ones are ignored.
-  useEffect(() => {
-    const handlers = Object.entries(EVENT_MAP).map(([eventName, stateKey]) => {
-      const handler = (e: CustomEvent) => setterMap[stateKey](e.detail.value);
-      window.addEventListener(eventName, handler as EventListener);
-      return [eventName, handler] as const;
-    });
-    return () => {
-      handlers.forEach(([eventName, handler]) => {
-        window.removeEventListener(eventName, handler as EventListener);
-      });
-    };
-  }, []);
 
   // Load URL parameters on mount, then drop them from the address bar so a
   // reload doesn't re-apply the link over later edits.
@@ -217,49 +188,78 @@ export const useCalculatorInputs = () => {
 
   const projectionData = useMemo(() => calculateProjectionData(inputs), [inputs]);
 
-  const resetToDefaults = () => {
+  const changedKeys = useMemo(
+    () => INPUT_NAMES.filter(name => !Object.is(inputs[name], DEFAULTS[name])),
+    [inputs]
+  );
+
+  const setInput = (key: InputKey, value: unknown) => setterMap[key](value);
+  const setMany = (values: Partial<HousingCalculatorInputs>) => {
+    for (const [key, value] of Object.entries(values)) setterMap[key as InputKey](value);
+  };
+  const resetField = (key: InputKey) => setterMap[key](DEFAULTS[key]);
+
+  // Resets every input; returns the previous inputs so the caller can undo.
+  const resetAll = (): HousingCalculatorInputs => {
+    const previous = { ...inputs };
     const storage = getBrowserStorage();
     clearSavedSettings(storage);
     writePersisted(storage, SETTINGS_VERSION_KEY, SETTINGS_VERSION);
     for (const name of INPUT_NAMES) setterMap[name](DEFAULTS[name]);
+    return previous;
   };
 
-  const handleShare = () => {
+  // Copies a link that reproduces these inputs (and the current section).
+  const share = async (): Promise<{ ok: boolean; url: string }> => {
     const params = new URLSearchParams();
     for (const name of INPUT_NAMES) {
       params.append(INPUT_KEYS[name][1], String(inputs[name]));
     }
-    const shareUrl = `${window.location.origin}/?${params.toString()}`;
-    navigator.clipboard.writeText(shareUrl);
+    const url = `${window.location.origin}${window.location.pathname}?${params.toString()}${window.location.hash}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      return { ok: true, url };
+    } catch {
+      return { ok: false, url };
+    }
   };
 
-  const inputCardProps: Record<string, any> = {};
-  for (const name of INPUT_NAMES) {
-    inputCardProps[name] = state[name];
-    inputCardProps[setterName(name)] = setterMap[name];
-  }
-  // The tax-year and filing-status dropdowns fill in that year's statutory
-  // amounts from the table in lib/taxLaw.ts (still editable afterwards)
-  const applyTaxAmounts = (year: number, status: FilingStatus) => {
-    const amounts = statutoryInputsFor(year, status, state.inflationRate);
-    setterMap.standardDeduction(amounts.standardDeduction);
-    setterMap.saltCap(amounts.saltCap);
-    setterMap.mortgageInterestDeductionCap(amounts.mortgageInterestDeductionCap);
+  // Tax year and filing status fill in that year's statutory amounts from the
+  // table in lib/taxLaw.ts. Fields still at the statutory amount for the
+  // previous year/status update automatically; customized ones are returned
+  // so the UI can ask before overwriting them.
+  const applyTaxAmounts = (fromYear: number, fromStatus: FilingStatus, toYear: number, toStatus: FilingStatus): TaxOverridePrompt[] => {
+    const before = statutoryInputsFor(fromYear, fromStatus, state.inflationRate);
+    const after = statutoryInputsFor(toYear, toStatus, state.inflationRate);
+    const prompts: TaxOverridePrompt[] = [];
+    for (const key of TAX_AMOUNT_KEYS) {
+      if (Math.abs(state[key] - before[key]) < 0.5) {
+        setterMap[key](after[key]);
+      } else if (Math.abs(state[key] - after[key]) >= 0.5) {
+        prompts.push({ key, current: state[key], next: after[key] });
+      }
+    }
+    return prompts;
   };
-  inputCardProps.setFilingStatus = (status: FilingStatus) => {
-    setterMap.filingStatus(status);
-    applyTaxAmounts(state.firstTaxYear, status);
-  };
-  inputCardProps.setFirstTaxYear = (year: number) => {
+  const changeTaxYear = (year: number) => {
     setterMap.firstTaxYear(year);
-    applyTaxAmounts(year, state.filingStatus);
+    return applyTaxAmounts(state.firstTaxYear, state.filingStatus, year, state.filingStatus);
+  };
+  const changeFilingStatus = (status: FilingStatus) => {
+    setterMap.filingStatus(status);
+    return applyTaxAmounts(state.firstTaxYear, state.filingStatus, state.firstTaxYear, status);
   };
 
   return {
     inputs,
     projectionData,
-    resetToDefaults,
-    handleShare,
-    inputCardProps,
+    changedKeys,
+    setInput,
+    setMany,
+    resetField,
+    resetAll,
+    share,
+    changeTaxYear,
+    changeFilingStatus,
   };
 };

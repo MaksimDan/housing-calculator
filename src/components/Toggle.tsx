@@ -4,16 +4,21 @@ interface ToggleProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   label: React.ReactNode;
+  id?: string;
+  describedBy?: string;
 }
 
-export const Toggle: React.FC<ToggleProps> = ({ checked, onChange, label }) => (
+export const Toggle: React.FC<ToggleProps> = ({ checked, onChange, label, id, describedBy }) => (
   <label className="flex items-center gap-2 cursor-pointer">
     <button
+      id={id}
+      type="button"
       role="switch"
       aria-checked={checked}
+      aria-describedby={describedBy}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
-        checked ? 'bg-blue-500' : 'bg-gray-300'
+      className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+        checked ? 'bg-blue-600' : 'bg-gray-400'
       }`}
     >
       <span
@@ -22,6 +27,6 @@ export const Toggle: React.FC<ToggleProps> = ({ checked, onChange, label }) => (
         }`}
       />
     </button>
-    <span className="text-sm text-gray-700 select-none">{label}</span>
+    <span className="text-sm text-gray-800 select-none">{label}</span>
   </label>
 );
