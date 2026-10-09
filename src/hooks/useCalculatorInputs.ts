@@ -1,10 +1,26 @@
 import { useEffect, useMemo } from 'react';
 import { usePersistedState } from './usePersistedState';
 import { calculateProjectionData, HousingCalculatorInputs } from '../lib/financialCalculations';
+import {
+  sanitizeInputValue,
+  parseUrlValue,
+  getBrowserStorage,
+  clearSavedSettings,
+  writePersisted,
+  SETTINGS_VERSION_KEY,
+  SETTINGS_VERSION,
+} from '../lib/inputValidation';
 
-const DEFAULTS = {
+// General defaults (married filing jointly, tax year 2026). Only values that
+// differ from these are saved, so changing a default here reaches every
+// visitor who hasn't edited that field. If a stored value could be mistaken
+// for a user's edit, add the old default to HISTORICAL_DEFAULTS and bump
+// SETTINGS_VERSION in lib/inputValidation.ts.
+export const DEFAULTS: HousingCalculatorInputs = {
   annualSalaryBeforeTax: 420000,
-  effectiveFederalTaxRate: 19.1,
+  // Federal INCOME tax only: TY2026 MFJ tax on $420k less the $32,200 standard
+  // deduction is $78,268 (18.6%). Payroll taxes are computed separately.
+  effectiveFederalTaxRate: 18.6,
   standardDeduction: 32200, // TY2026 MFJ (IRS Rev. Proc. 2025-32)
   initialInvestment: 1500000,
   monthlyMiscExpenses: 1000,
@@ -19,14 +35,15 @@ const DEFAULTS = {
   annualMaintenanceRate: 0.5,
   monthlyHOAFee: 0,
   monthlyHomeInsurance: 150,
-  monthlyRent: 3000,
-  monthlyRentalIncome: 1500,
+  monthlyRent: 3000, // rent for a home comparable to the one being bought
+  monthlyRentalIncome: 0, // the general case: the buyer lives in the whole home
   rentDeposit: 1000,
   movingCostBuying: 0,
   movingCostRenting: 0,
   monthlyRenterInsurance: 25,
+  // Same utility basket for both households (see the tooltips)
   monthlyRentUtilities: 300,
-  monthlyPropertyUtilities: 120,
+  monthlyPropertyUtilities: 300,
   homeAppreciation: 4.5,
   investmentReturn: 11.71,
   rentIncrease: 4.5,
@@ -37,70 +54,71 @@ const DEFAULTS = {
   mortgageInterestDeductionCap: 750000,
   saltCap: 40400, // TY2026 (OBBBA: $40k for 2025, indexed +1%/yr through 2029)
   effectiveStateIncomeTaxRate: 7.5,
-  marginalFederalTaxRate: 32,
+  // TY2026 MFJ bracket for ~$356k-$388k of taxable income ($211,400-$403,550)
+  marginalFederalTaxRate: 24,
   useMarginalTaxRate: true,
   assumeSaltCapExtension: false, // current law: cap reverts to $10k in 2030
   melloRoosGrowsWithAssessment: false,
   includeSellingCosts: false,
   sellingCostPercent: 6,
   annualInvestmentTaxDrag: 0.2,
+  includePayrollTax: true,
+  payrollEarners: 2,
 };
 
-// URL param name -> state property name
-const URL_PARAM_MAP: Record<string, string> = {
-  annualSalary: 'annualSalaryBeforeTax',
-  taxRate: 'effectiveFederalTaxRate',
-  standardDeduction: 'standardDeduction',
-  initialInvestment: 'initialInvestment',
-  miscExpenses: 'monthlyMiscExpenses',
-  homePrice: 'homePrice',
-  downPayment: 'downPaymentPercent',
-  mortgageRate: 'effectiveMortgageRate',
-  mortgageYears: 'mortgageYears',
-  PMIRate: 'PMIRate',
-  propertyTaxRate: 'propertyTaxRate',
-  melloRoosTaxRate: 'melloRoosTaxRate',
-  closingCost: 'closingCostPercent',
-  maintenanceRate: 'annualMaintenanceRate',
-  hoaFee: 'monthlyHOAFee',
-  homeInsurance: 'monthlyHomeInsurance',
-  monthlyRent: 'monthlyRent',
-  rentalIncome: 'monthlyRentalIncome',
-  rentDeposit: 'rentDeposit',
-  movingCostBuy: 'movingCostBuying',
-  movingCostRent: 'movingCostRenting',
-  renterInsurance: 'monthlyRenterInsurance',
-  rentUtilities: 'monthlyRentUtilities',
-  propertyUtilities: 'monthlyPropertyUtilities',
-  appreciation: 'homeAppreciation',
-  investmentReturn: 'investmentReturn',
-  rentIncrease: 'rentIncrease',
-  salaryGrowth: 'salaryGrowthRate',
-  inflationRate: 'inflationRate',
-  taxAssessmentCap: 'propertyTaxAssessmentCap',
-  xAxisYears: 'xAxisYears',
-  mortgageInterestCap: 'mortgageInterestDeductionCap',
-  saltCap: 'saltCap',
-  effectiveStateIncomeTaxRate: 'effectiveStateIncomeTaxRate',
-  marginalTaxRate: 'marginalFederalTaxRate',
-  useMarginalTaxRate: 'useMarginalTaxRate',
-  assumeSaltCapExtension: 'assumeSaltCapExtension',
-  melloRoosGrows: 'melloRoosGrowsWithAssessment',
-  includeSellingCosts: 'includeSellingCosts',
-  sellingCostPercent: 'sellingCostPercent',
-  investmentTaxDrag: 'annualInvestmentTaxDrag',
+type InputKey = keyof HousingCalculatorInputs;
+
+// State property -> [localStorage key, URL parameter]. Listed in display order.
+const INPUT_KEYS: Record<InputKey, [string, string]> = {
+  annualSalaryBeforeTax: ['housing-annualSalary', 'annualSalary'],
+  effectiveFederalTaxRate: ['housing-taxRate', 'taxRate'],
+  standardDeduction: ['housing-standardDeduction', 'standardDeduction'],
+  initialInvestment: ['housing-initialInvestment', 'initialInvestment'],
+  monthlyMiscExpenses: ['housing-miscExpenses', 'miscExpenses'],
+  homePrice: ['housing-homePrice', 'homePrice'],
+  downPaymentPercent: ['housing-downPayment', 'downPayment'],
+  effectiveMortgageRate: ['housing-mortgageRate', 'mortgageRate'],
+  mortgageYears: ['housing-mortgageYears', 'mortgageYears'],
+  PMIRate: ['housing-PMIRate', 'PMIRate'],
+  propertyTaxRate: ['housing-propertyTaxRate', 'propertyTaxRate'],
+  melloRoosTaxRate: ['housing-melloRoosTaxRate', 'melloRoosTaxRate'],
+  closingCostPercent: ['housing-closingCost', 'closingCost'],
+  annualMaintenanceRate: ['housing-maintenanceRate', 'maintenanceRate'],
+  monthlyHOAFee: ['housing-hoaFee', 'hoaFee'],
+  monthlyHomeInsurance: ['housing-homeInsurance', 'homeInsurance'],
+  monthlyRent: ['housing-monthlyRent', 'monthlyRent'],
+  monthlyRentalIncome: ['housing-rentalIncome', 'rentalIncome'],
+  rentDeposit: ['housing-rentDeposit', 'rentDeposit'],
+  movingCostBuying: ['housing-movingCostBuy', 'movingCostBuy'],
+  movingCostRenting: ['housing-movingCostRent', 'movingCostRent'],
+  monthlyRenterInsurance: ['housing-renterInsurance', 'renterInsurance'],
+  monthlyRentUtilities: ['housing-rentUtilities', 'rentUtilities'],
+  monthlyPropertyUtilities: ['housing-propertyUtilities', 'propertyUtilities'],
+  homeAppreciation: ['housing-appreciation', 'appreciation'],
+  investmentReturn: ['housing-investmentReturn', 'investmentReturn'],
+  rentIncrease: ['housing-rentIncrease', 'rentIncrease'],
+  salaryGrowthRate: ['housing-salaryGrowth', 'salaryGrowth'],
+  inflationRate: ['housing-inflationRate', 'inflationRate'],
+  propertyTaxAssessmentCap: ['housing-taxAssessmentCap', 'taxAssessmentCap'],
+  xAxisYears: ['housing-xAxisYears', 'xAxisYears'],
+  mortgageInterestDeductionCap: ['housing-mortgageInterestCap', 'mortgageInterestCap'],
+  saltCap: ['housing-saltCap', 'saltCap'],
+  effectiveStateIncomeTaxRate: ['housing-effectiveStateIncomeTaxRate', 'effectiveStateIncomeTaxRate'],
+  marginalFederalTaxRate: ['housing-marginalTaxRate', 'marginalTaxRate'],
+  useMarginalTaxRate: ['housing-useMarginalTaxRate', 'useMarginalTaxRate'],
+  assumeSaltCapExtension: ['housing-assumeSaltCapExtension', 'assumeSaltCapExtension'],
+  melloRoosGrowsWithAssessment: ['housing-melloRoosGrows', 'melloRoosGrows'],
+  includeSellingCosts: ['housing-includeSellingCosts', 'includeSellingCosts'],
+  sellingCostPercent: ['housing-sellingCostPercent', 'sellingCostPercent'],
+  annualInvestmentTaxDrag: ['housing-investmentTaxDrag', 'investmentTaxDrag'],
+  includePayrollTax: ['housing-includePayrollTax', 'payrollTax'],
+  payrollEarners: ['housing-payrollEarners', 'earners'],
 };
 
-// Reverse: state property name -> URL param name
-const STATE_TO_URL_PARAM = Object.fromEntries(
-  Object.entries(URL_PARAM_MAP).map(([urlParam, stateKey]) => [stateKey, urlParam])
-);
+const INPUT_NAMES = Object.keys(INPUT_KEYS) as InputKey[];
 
-// Boolean URL params need special parsing (not parseFloat)
-const BOOLEAN_URL_PARAMS = new Set(['useMarginalTaxRate', 'assumeSaltCapExtension', 'melloRoosGrows', 'includeSellingCosts']);
-
-// CustomEvent name -> state property name
-const EVENT_MAP: Record<string, string> = {
+// CustomEvent name -> state property name (from MortgagePayoffOptimizer)
+const EVENT_MAP: Record<string, InputKey> = {
   updateInvestmentReturn: 'investmentReturn',
   updateMortgageRate: 'effectiveMortgageRate',
   updateFederalTaxRate: 'effectiveFederalTaxRate',
@@ -119,110 +137,26 @@ const EVENT_MAP: Record<string, string> = {
   updateMortgageInterestCap: 'mortgageInterestDeductionCap',
 };
 
+const setterName = (key: string) => `set${key[0].toUpperCase()}${key.slice(1)}`;
+
 export const useCalculatorInputs = () => {
-  // Core Financial Inputs
-  const [annualSalaryBeforeTax, setAnnualSalaryBeforeTax] = usePersistedState('housing-annualSalary', DEFAULTS.annualSalaryBeforeTax);
-  const [effectiveFederalTaxRate, setEffectiveFederalTaxRate] = usePersistedState('housing-taxRate', DEFAULTS.effectiveFederalTaxRate);
-  const [standardDeduction, setStandardDeduction] = usePersistedState('housing-standardDeduction', DEFAULTS.standardDeduction);
-  const [initialInvestment, setInitialInvestment] = usePersistedState('housing-initialInvestment', DEFAULTS.initialInvestment);
-  const [monthlyMiscExpenses, setMonthlyMiscExpenses] = usePersistedState('housing-miscExpenses', DEFAULTS.monthlyMiscExpenses);
+  // One persisted, sanitized state per input. INPUT_NAMES is a constant, so
+  // the hook order is stable across renders.
+  const state = {} as Record<InputKey, any>;
+  const setterMap = {} as Record<InputKey, (value: any) => void>;
+  for (const name of INPUT_NAMES) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const [value, setValue] = usePersistedState<any>(
+      INPUT_KEYS[name][0],
+      DEFAULTS[name],
+      (raw) => sanitizeInputValue(name, raw)
+    );
+    state[name] = value;
+    setterMap[name] = setValue;
+  }
 
-  // Property Details
-  const [homePrice, setHomePrice] = usePersistedState('housing-homePrice', DEFAULTS.homePrice);
-  const [downPaymentPercent, setDownPaymentPercent] = usePersistedState('housing-downPayment', DEFAULTS.downPaymentPercent);
-  const [effectiveMortgageRate, setEffectiveMortgageRate] = usePersistedState('housing-mortgageRate', DEFAULTS.effectiveMortgageRate);
-  const [mortgageYears, setMortgageYears] = usePersistedState('housing-mortgageYears', DEFAULTS.mortgageYears);
-  const [PMIRate, setPMIRate] = usePersistedState('housing-PMIRate', DEFAULTS.PMIRate);
-  const [propertyTaxRate, setPropertyTaxRate] = usePersistedState('housing-propertyTaxRate', DEFAULTS.propertyTaxRate);
-  const [melloRoosTaxRate, setMelloRoosTaxRate] = usePersistedState('housing-melloRoosTaxRate', DEFAULTS.melloRoosTaxRate);
-  const [closingCostPercent, setClosingCostPercent] = usePersistedState('housing-closingCost', DEFAULTS.closingCostPercent);
-  const [annualMaintenanceRate, setannualMaintenanceRate] = usePersistedState('housing-maintenanceRate', DEFAULTS.annualMaintenanceRate);
-  const [monthlyHOAFee, setMonthlyHOAFee] = usePersistedState('housing-hoaFee', DEFAULTS.monthlyHOAFee);
-  const [monthlyHomeInsurance, setMonthlyHomeInsurance] = usePersistedState('housing-homeInsurance', DEFAULTS.monthlyHomeInsurance);
-
-  // Rental Related
-  const [monthlyRent, setMonthlyRent] = usePersistedState('housing-monthlyRent', DEFAULTS.monthlyRent);
-  const [monthlyRentalIncome, setMonthlyRentalIncome] = usePersistedState('housing-rentalIncome', DEFAULTS.monthlyRentalIncome);
-  const [rentDeposit, setRentDeposit] = usePersistedState('housing-rentDeposit', DEFAULTS.rentDeposit);
-
-  // One-time Moving Costs
-  const [movingCostBuying, setMovingCostBuying] = usePersistedState('housing-movingCostBuy', DEFAULTS.movingCostBuying);
-  const [movingCostRenting, setMovingCostRenting] = usePersistedState('housing-movingCostRent', DEFAULTS.movingCostRenting);
-
-  // Monthly Recurring Expenses
-  const [monthlyRenterInsurance, setMonthlyRenterInsurance] = usePersistedState('housing-renterInsurance', DEFAULTS.monthlyRenterInsurance);
-  const [monthlyRentUtilities, setMonthlyRentUtilities] = usePersistedState('housing-rentUtilities', DEFAULTS.monthlyRentUtilities);
-  const [monthlyPropertyUtilities, setMonthlyPropertyUtilities] = usePersistedState('housing-propertyUtilities', DEFAULTS.monthlyPropertyUtilities);
-
-  // Annual Growth/Return Rates
-  const [homeAppreciation, setHomeAppreciation] = usePersistedState('housing-appreciation', DEFAULTS.homeAppreciation);
-  const [investmentReturn, setInvestmentReturn] = usePersistedState('housing-investmentReturn', DEFAULTS.investmentReturn);
-  const [rentIncrease, setRentIncrease] = usePersistedState('housing-rentIncrease', DEFAULTS.rentIncrease);
-  const [salaryGrowthRate, setSalaryGrowthRate] = usePersistedState('housing-salaryGrowth', DEFAULTS.salaryGrowthRate);
-  const [inflationRate, setInflationRate] = usePersistedState('housing-inflationRate', DEFAULTS.inflationRate);
-  const [propertyTaxAssessmentCap, setPropertyTaxAssessmentCap] = usePersistedState('housing-taxAssessmentCap', DEFAULTS.propertyTaxAssessmentCap);
-
-  // Visualization / Tax
-  const [xAxisYears, setXAxisYears] = usePersistedState('housing-xAxisYears', DEFAULTS.xAxisYears);
-  const [mortgageInterestDeductionCap, setMortgageInterestDeductionCap] = usePersistedState('housing-mortgageInterestCap', DEFAULTS.mortgageInterestDeductionCap);
-  const [saltCap, setSaltCap] = usePersistedState('housing-saltCap', DEFAULTS.saltCap);
-  const [effectiveStateIncomeTaxRate, setEffectiveStateIncomeTaxRate] = usePersistedState('housing-effectiveStateIncomeTaxRate', DEFAULTS.effectiveStateIncomeTaxRate);
-
-  // Model settings
-  const [marginalFederalTaxRate, setMarginalFederalTaxRate] = usePersistedState('housing-marginalTaxRate', DEFAULTS.marginalFederalTaxRate);
-  const [useMarginalTaxRate, setUseMarginalTaxRate] = usePersistedState('housing-useMarginalTaxRate', DEFAULTS.useMarginalTaxRate);
-  const [assumeSaltCapExtension, setAssumeSaltCapExtension] = usePersistedState('housing-assumeSaltCapExtension', DEFAULTS.assumeSaltCapExtension);
-  const [melloRoosGrowsWithAssessment, setMelloRoosGrowsWithAssessment] = usePersistedState('housing-melloRoosGrows', DEFAULTS.melloRoosGrowsWithAssessment);
-  const [includeSellingCosts, setIncludeSellingCosts] = usePersistedState('housing-includeSellingCosts', DEFAULTS.includeSellingCosts);
-  const [sellingCostPercent, setSellingCostPercent] = usePersistedState('housing-sellingCostPercent', DEFAULTS.sellingCostPercent);
-  const [annualInvestmentTaxDrag, setAnnualInvestmentTaxDrag] = usePersistedState('housing-investmentTaxDrag', DEFAULTS.annualInvestmentTaxDrag);
-
-  // Lookup table for data-driven operations (useState setters are stable across renders)
-  const setterMap: Record<string, (value: any) => void> = {
-    annualSalaryBeforeTax: setAnnualSalaryBeforeTax,
-    effectiveFederalTaxRate: setEffectiveFederalTaxRate,
-    standardDeduction: setStandardDeduction,
-    initialInvestment: setInitialInvestment,
-    monthlyMiscExpenses: setMonthlyMiscExpenses,
-    homePrice: setHomePrice,
-    downPaymentPercent: setDownPaymentPercent,
-    effectiveMortgageRate: setEffectiveMortgageRate,
-    mortgageYears: setMortgageYears,
-    PMIRate: setPMIRate,
-    propertyTaxRate: setPropertyTaxRate,
-    melloRoosTaxRate: setMelloRoosTaxRate,
-    closingCostPercent: setClosingCostPercent,
-    annualMaintenanceRate: setannualMaintenanceRate,
-    monthlyHOAFee: setMonthlyHOAFee,
-    monthlyHomeInsurance: setMonthlyHomeInsurance,
-    monthlyRent: setMonthlyRent,
-    monthlyRentalIncome: setMonthlyRentalIncome,
-    rentDeposit: setRentDeposit,
-    movingCostBuying: setMovingCostBuying,
-    movingCostRenting: setMovingCostRenting,
-    monthlyRenterInsurance: setMonthlyRenterInsurance,
-    monthlyRentUtilities: setMonthlyRentUtilities,
-    monthlyPropertyUtilities: setMonthlyPropertyUtilities,
-    homeAppreciation: setHomeAppreciation,
-    investmentReturn: setInvestmentReturn,
-    rentIncrease: setRentIncrease,
-    salaryGrowthRate: setSalaryGrowthRate,
-    inflationRate: setInflationRate,
-    propertyTaxAssessmentCap: setPropertyTaxAssessmentCap,
-    xAxisYears: setXAxisYears,
-    mortgageInterestDeductionCap: setMortgageInterestDeductionCap,
-    saltCap: setSaltCap,
-    effectiveStateIncomeTaxRate: setEffectiveStateIncomeTaxRate,
-    marginalFederalTaxRate: setMarginalFederalTaxRate,
-    useMarginalTaxRate: setUseMarginalTaxRate,
-    assumeSaltCapExtension: setAssumeSaltCapExtension,
-    melloRoosGrowsWithAssessment: setMelloRoosGrowsWithAssessment,
-    includeSellingCosts: setIncludeSellingCosts,
-    sellingCostPercent: setSellingCostPercent,
-    annualInvestmentTaxDrag: setAnnualInvestmentTaxDrag,
-  };
-
-  // Cross-page parameter updates via CustomEvents (from MortgagePayoffOptimizer)
+  // Cross-page parameter updates via CustomEvents (from MortgagePayoffOptimizer).
+  // Values are sanitized by the setters; invalid ones are ignored.
   useEffect(() => {
     const handlers = Object.entries(EVENT_MAP).map(([eventName, stateKey]) => {
       const handler = (e: CustomEvent) => setterMap[stateKey](e.detail.value);
@@ -236,118 +170,61 @@ export const useCalculatorInputs = () => {
     };
   }, []);
 
-  // Load URL parameters on mount
+  // Load URL parameters on mount, then drop them from the address bar so a
+  // reload doesn't re-apply the link over later edits.
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (!urlParams.toString()) return;
-    Object.entries(URL_PARAM_MAP).forEach(([urlParam, stateKey]) => {
-      const value = urlParams.get(urlParam);
-      if (value !== null) {
-        if (BOOLEAN_URL_PARAMS.has(urlParam)) {
-          setterMap[stateKey](value === 'true' || value === '1');
-        } else {
-          setterMap[stateKey](parseFloat(value));
-        }
-      }
-    });
+    for (const name of INPUT_NAMES) {
+      const raw = urlParams.get(INPUT_KEYS[name][1]);
+      if (raw === null) continue;
+      const value = parseUrlValue(name, raw);
+      if (value !== undefined) setterMap[name](value);
+    }
+    try {
+      window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+    } catch {
+      // ignore (e.g. sandboxed frames)
+    }
   }, []);
 
   // Single source of truth for the inputs object
-  const inputs: HousingCalculatorInputs = useMemo(() => ({
-    annualSalaryBeforeTax, effectiveFederalTaxRate, standardDeduction,
-    initialInvestment, monthlyMiscExpenses, homePrice, downPaymentPercent,
-    effectiveMortgageRate, mortgageYears, PMIRate, propertyTaxRate,
-    melloRoosTaxRate, closingCostPercent, annualMaintenanceRate,
-    monthlyHOAFee, monthlyHomeInsurance, monthlyRent, monthlyRentalIncome,
-    rentDeposit, movingCostBuying, movingCostRenting, monthlyRenterInsurance,
-    monthlyRentUtilities, monthlyPropertyUtilities, homeAppreciation,
-    investmentReturn, rentIncrease, salaryGrowthRate, inflationRate,
-    propertyTaxAssessmentCap, xAxisYears, mortgageInterestDeductionCap,
-    saltCap, effectiveStateIncomeTaxRate,
-    marginalFederalTaxRate, useMarginalTaxRate, assumeSaltCapExtension,
-    melloRoosGrowsWithAssessment,
-    includeSellingCosts, sellingCostPercent, annualInvestmentTaxDrag,
-  }), [
-    annualSalaryBeforeTax, effectiveFederalTaxRate, standardDeduction,
-    initialInvestment, monthlyMiscExpenses, homePrice, downPaymentPercent,
-    effectiveMortgageRate, mortgageYears, PMIRate, propertyTaxRate,
-    melloRoosTaxRate, closingCostPercent, annualMaintenanceRate,
-    monthlyHOAFee, monthlyHomeInsurance, monthlyRent, monthlyRentalIncome,
-    rentDeposit, movingCostBuying, movingCostRenting, monthlyRenterInsurance,
-    monthlyRentUtilities, monthlyPropertyUtilities, homeAppreciation,
-    investmentReturn, rentIncrease, salaryGrowthRate, inflationRate,
-    propertyTaxAssessmentCap, xAxisYears, mortgageInterestDeductionCap,
-    saltCap, effectiveStateIncomeTaxRate,
-    marginalFederalTaxRate, useMarginalTaxRate, assumeSaltCapExtension,
-    melloRoosGrowsWithAssessment,
-    includeSellingCosts, sellingCostPercent, annualInvestmentTaxDrag,
-  ]);
+  const stateValues = INPUT_NAMES.map(name => state[name]);
+  const inputs: HousingCalculatorInputs = useMemo(
+    () => ({ ...state }) as HousingCalculatorInputs,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    stateValues
+  );
 
   const projectionData = useMemo(() => calculateProjectionData(inputs), [inputs]);
 
   const resetToDefaults = () => {
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('housing-')) localStorage.removeItem(key);
-    });
-    Object.entries(DEFAULTS).forEach(([key, value]) => setterMap[key](value));
+    const storage = getBrowserStorage();
+    clearSavedSettings(storage);
+    writePersisted(storage, SETTINGS_VERSION_KEY, SETTINGS_VERSION);
+    for (const name of INPUT_NAMES) setterMap[name](DEFAULTS[name]);
   };
 
   const handleShare = () => {
     const params = new URLSearchParams();
-    Object.entries(STATE_TO_URL_PARAM).forEach(([stateKey, urlParam]) => {
-      params.append(urlParam, String(inputs[stateKey as keyof HousingCalculatorInputs]));
-    });
+    for (const name of INPUT_NAMES) {
+      params.append(INPUT_KEYS[name][1], String(inputs[name]));
+    }
     const shareUrl = `${window.location.origin}/?${params.toString()}`;
     navigator.clipboard.writeText(shareUrl);
   };
+
+  const inputCardProps: Record<string, any> = {};
+  for (const name of INPUT_NAMES) {
+    inputCardProps[name] = state[name];
+    inputCardProps[setterName(name)] = setterMap[name];
+  }
 
   return {
     inputs,
     projectionData,
     resetToDefaults,
     handleShare,
-    inputCardProps: {
-      initialInvestment, setInitialInvestment,
-      annualSalaryBeforeTax, setAnnualSalaryBeforeTax,
-      effectiveFederalTaxRate, setEffectiveFederalTaxRate,
-      standardDeduction, setStandardDeduction,
-      monthlyMiscExpenses, setMonthlyMiscExpenses,
-      mortgageInterestDeductionCap, setMortgageInterestDeductionCap,
-      saltCap, setSaltCap,
-      effectiveStateIncomeTaxRate, setEffectiveStateIncomeTaxRate,
-      homePrice, setHomePrice,
-      downPaymentPercent, setDownPaymentPercent,
-      closingCostPercent, setClosingCostPercent,
-      effectiveMortgageRate, setEffectiveMortgageRate,
-      PMIRate, setPMIRate,
-      propertyTaxRate, setPropertyTaxRate,
-      melloRoosTaxRate, setMelloRoosTaxRate,
-      annualMaintenanceRate, setannualMaintenanceRate,
-      monthlyHOAFee, setMonthlyHOAFee,
-      monthlyHomeInsurance, setMonthlyHomeInsurance,
-      monthlyPropertyUtilities, setMonthlyPropertyUtilities,
-      monthlyRentalIncome, setMonthlyRentalIncome,
-      movingCostBuying, setMovingCostBuying,
-      mortgageYears, setMortgageYears,
-      monthlyRent, setMonthlyRent,
-      rentDeposit, setRentDeposit,
-      monthlyRentUtilities, setMonthlyRentUtilities,
-      monthlyRenterInsurance, setMonthlyRenterInsurance,
-      movingCostRenting, setMovingCostRenting,
-      xAxisYears, setXAxisYears,
-      homeAppreciation, setHomeAppreciation,
-      investmentReturn, setInvestmentReturn,
-      rentIncrease, setRentIncrease,
-      salaryGrowthRate, setSalaryGrowthRate,
-      inflationRate, setInflationRate,
-      propertyTaxAssessmentCap, setPropertyTaxAssessmentCap,
-      marginalFederalTaxRate, setMarginalFederalTaxRate,
-      useMarginalTaxRate, setUseMarginalTaxRate,
-      assumeSaltCapExtension, setAssumeSaltCapExtension,
-      melloRoosGrowsWithAssessment, setMelloRoosGrowsWithAssessment,
-      includeSellingCosts, setIncludeSellingCosts,
-      sellingCostPercent, setSellingCostPercent,
-      annualInvestmentTaxDrag, setAnnualInvestmentTaxDrag,
-    },
+    inputCardProps,
   };
 };

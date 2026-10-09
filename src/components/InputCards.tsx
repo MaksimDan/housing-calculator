@@ -39,7 +39,7 @@ interface InputCardsProps {
     melloRoosTaxRate: number;
     setMelloRoosTaxRate: (value: number) => void;
     annualMaintenanceRate: number;
-    setannualMaintenanceRate: (value: number) => void;
+    setAnnualMaintenanceRate: (value: number) => void;
     monthlyHOAFee: number;
     setMonthlyHOAFee: (value: number) => void;
     monthlyHomeInsurance: number;
@@ -84,6 +84,10 @@ interface InputCardsProps {
     // Model Settings
     marginalFederalTaxRate: number;
     setMarginalFederalTaxRate: (value: number) => void;
+    includePayrollTax: boolean;
+    setIncludePayrollTax: (value: boolean) => void;
+    payrollEarners: number;
+    setPayrollEarners: (value: number) => void;
     useMarginalTaxRate: boolean;
     setUseMarginalTaxRate: (value: boolean) => void;
     assumeSaltCapExtension: boolean;
@@ -114,7 +118,7 @@ const InputCards: React.FC<InputCardsProps> = ({
     PMIRate, setPMIRate,
     propertyTaxRate, setPropertyTaxRate,
     melloRoosTaxRate, setMelloRoosTaxRate,
-    annualMaintenanceRate, setannualMaintenanceRate,
+    annualMaintenanceRate, setAnnualMaintenanceRate,
     monthlyHOAFee, setMonthlyHOAFee,
     monthlyHomeInsurance, setMonthlyHomeInsurance,
     monthlyPropertyUtilities, setMonthlyPropertyUtilities,
@@ -134,6 +138,8 @@ const InputCards: React.FC<InputCardsProps> = ({
     inflationRate, setInflationRate,
     propertyTaxAssessmentCap, setPropertyTaxAssessmentCap,
     marginalFederalTaxRate, setMarginalFederalTaxRate,
+    includePayrollTax, setIncludePayrollTax,
+    payrollEarners, setPayrollEarners,
     useMarginalTaxRate, setUseMarginalTaxRate,
     assumeSaltCapExtension, setAssumeSaltCapExtension,
     melloRoosGrowsWithAssessment, setMelloRoosGrowsWithAssessment,
@@ -155,9 +161,9 @@ const InputCards: React.FC<InputCardsProps> = ({
                     min={50000} max={2000000} step={10000} suffix="$"
                 />
                 <AnimatedInput
-                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your effective federal tax rate as a percentage - the average percentage of income paid in federal taxes")} /> Effective Federal Tax Rate (${(annualSalaryBeforeTax * (effectiveFederalTaxRate / 100)).toLocaleString()})</>}
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Federal INCOME tax as a percentage of gross salary (your total federal income tax divided by salary). Do not include Social Security or Medicare: those are calculated separately below, unless you turn that off.")} /> Effective Federal Tax Rate (${(annualSalaryBeforeTax * (effectiveFederalTaxRate / 100)).toLocaleString()})</>}
                     value={effectiveFederalTaxRate} onChange={setEffectiveFederalTaxRate}
-                    min={1} max={100} step={1} suffix="%"
+                    min={0} max={50} step={0.1} suffix="%"
                 />
                 <AnimatedInput
                     label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Your effective state income tax rate as a percentage - the average percentage of income paid in state taxes")} /> Effective State Income Tax Rate (${(annualSalaryBeforeTax * (effectiveStateIncomeTaxRate / 100)).toLocaleString()})</>}
@@ -191,6 +197,26 @@ const InputCards: React.FC<InputCardsProps> = ({
                         label="Assume SALT cap extended past 2029"
                     />
                     <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-pointer flex-shrink-0" onClick={() => alert("Off (current law): the elevated cap rises 1%/yr through 2029, then reverts to a flat $10,000 from 2030 on. On: the cap you entered applies to every year, as if Congress extends it.")} />
+                </div>
+
+                <div className="pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-2">
+                        <Toggle
+                            checked={includePayrollTax}
+                            onChange={setIncludePayrollTax}
+                            label="Deduct Social Security & Medicare"
+                        />
+                        <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-pointer flex-shrink-0" onClick={() => alert("Employee payroll taxes (2026): Social Security 6.2% of each earner's wages up to $184,500 (indexed with inflation in later years), Medicare 1.45%, plus 0.9% Additional Medicare Tax on household wages above $250,000. Turn off only if your federal tax rate above already includes them.")} />
+                    </div>
+                    {includePayrollTax && (
+                        <div className="mt-3">
+                            <AnimatedInput
+                                label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Number of people earning the salary above (split evenly). Each earner pays Social Security up to their own wage cap, so two earners pay more in total.")} /> Wage Earners</>}
+                                value={payrollEarners} onChange={setPayrollEarners}
+                                min={1} max={2} step={1} animationStep={1}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 <div className="pt-3 border-t border-gray-100">
@@ -266,7 +292,7 @@ const InputCards: React.FC<InputCardsProps> = ({
                 )}
                 <AnimatedInput
                     label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual maintenance and repairs as percentage of home value (typically 1-3%)")} /> Annual Maintenance Rate (${(homePrice * (annualMaintenanceRate / 100)).toLocaleString()} year 1)</>}
-                    value={annualMaintenanceRate} onChange={setannualMaintenanceRate}
+                    value={annualMaintenanceRate} onChange={setAnnualMaintenanceRate}
                     min={0} max={30} step={.1} suffix="%"
                 />
                 <AnimatedInput
@@ -280,12 +306,12 @@ const InputCards: React.FC<InputCardsProps> = ({
                     min={50} max={1000} step={10} suffix="$"
                 />
                 <AnimatedInput
-                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly utilities cost for the owned property (gas, electric, water, trash) - adjusted for inflation")} /> Monthly Property Utilities</>}
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly utilities for the home you buy: gas, electric, water/sewer, trash, internet. Use the same list as the rental's utilities so the two scenarios compare like for like; leave out anything your HOA covers (adjusted for inflation).")} /> Monthly Property Utilities</>}
                     value={monthlyPropertyUtilities} onChange={setMonthlyPropertyUtilities}
                     min={0} max={500} step={10} suffix="$"
                 />
                 <AnimatedInput
-                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly after-tax income from renting out part of your property (e.g., ADU, room)")} /> Monthly Rental Income</>}
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly after-tax income from renting out part of your property (e.g., ADU, room). If you enter this, set Monthly Rent (Renting Details) to the rent for housing like the part you would live in, not the whole property.")} /> Monthly Rental Income</>}
                     value={monthlyRentalIncome} onChange={setMonthlyRentalIncome}
                     min={0} max={10000} step={100} suffix="$"
                 />
@@ -297,7 +323,7 @@ const InputCards: React.FC<InputCardsProps> = ({
                 <AnimatedInput
                     label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Length of mortgage loan in years (15 or 30 years are most common)")} /> Mortgage Term</>}
                     value={mortgageYears} onChange={setMortgageYears}
-                    min={5} max={30} step={1} suffix=" years"
+                    min={5} max={30} step={1} animationStep={1} suffix=" years"
                 />
 
                 <div className="pt-3 border-t border-gray-100">
@@ -323,7 +349,7 @@ const InputCards: React.FC<InputCardsProps> = ({
 
             <CollapsibleCard title="Renting Details">
                 <AnimatedInput
-                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly rental payment for comparable housing")} /> Monthly Rent</>}
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly rent for a home comparable to the one you would buy. If you enter rental income for renting out part of the home (an ADU or a room), set this to the rent for housing like the part you would live in yourself; otherwise the comparison credits the buyer for space the renter is paying for.")} /> Monthly Rent</>}
                     value={monthlyRent} onChange={setMonthlyRent}
                     min={1000} max={10000} step={100} suffix="$"
                 />
@@ -333,7 +359,7 @@ const InputCards: React.FC<InputCardsProps> = ({
                     min={0} max={5000} step={100} suffix="$"
                 />
                 <AnimatedInput
-                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly utilities cost for rental property (gas, electric, internet) - adjusted for inflation")} /> Monthly Rent Utilities</>}
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Monthly utilities for the rental: gas, electric, water/sewer, trash, internet. Use the same list as the owned home's utilities; leave out anything included in the rent (adjusted for inflation).")} /> Monthly Rent Utilities</>}
                     value={monthlyRentUtilities} onChange={setMonthlyRentUtilities}
                     min={0} max={500} step={10} suffix="$"
                 />
@@ -353,7 +379,7 @@ const InputCards: React.FC<InputCardsProps> = ({
                 <AnimatedInput
                     label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Number of years to display in the projection chart")} /> Graph Timeline</>}
                     value={xAxisYears} onChange={setXAxisYears}
-                    min={5} max={30} step={1} suffix=" years"
+                    min={5} max={30} step={1} animationStep={1} suffix=" years"
                 />
                 <AnimatedInput
                     label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Annual rate of home value appreciation (historical average ~3-5%)")} /> Home Appreciation (${(homePrice * (homeAppreciation / 100)).toLocaleString()} year 1)</>}

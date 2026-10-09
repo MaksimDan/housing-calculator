@@ -17,10 +17,12 @@ interface NetWorthChartProps {
     setActivePoint: (point: any) => void;
 }
 
-export const NetWorthChart: React.FC<NetWorthChartProps> = ({ projectionData, xAxisYears, setActivePoint }) => {
+export const NetWorthChart: React.FC<NetWorthChartProps> = ({ projectionData, xAxisYears: requestedYears, setActivePoint }) => {
+    // Rows are whole years; never index with a fractional or out-of-range year
+    const xAxisYears = Math.min(Math.floor(requestedYears), projectionData.length - 1);
     const findBreakEvenYear = () => {
         // Only consider years inside the displayed window
-        const lastYear = Math.min(xAxisYears, projectionData.length - 1);
+        const lastYear = xAxisYears;
         for (let i = 0; i <= lastYear; i++) {
             if (projectionData[i].buying > projectionData[i].renting) {
                 return i;
@@ -30,7 +32,7 @@ export const NetWorthChart: React.FC<NetWorthChartProps> = ({ projectionData, xA
     };
 
     const breakEvenYear = findBreakEvenYear();
-    const finalDifference = projectionData[Math.min(xAxisYears, projectionData.length - 1)].buying - projectionData[Math.min(xAxisYears, projectionData.length - 1)].renting;
+    const finalDifference = projectionData[xAxisYears].buying - projectionData[xAxisYears].renting;
     const isBuyingBetterAtEnd = finalDifference > 0;
 
     return (

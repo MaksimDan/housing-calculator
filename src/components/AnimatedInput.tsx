@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { Play, Pause, Plus, Minus } from 'lucide-react';
+import { cleanFloat } from '../lib/inputValidation';
 
 export const AnimatedInput = ({
   label,
@@ -75,12 +76,14 @@ export const AnimatedInput = ({
   }, [value, isPlaying]);
 
   const increment = useCallback(() => {
-    const newValue = Math.min(value + step, max);
+    // cleanFloat: repeated +/- clicks must not drift (19.99999999999999% down
+    // would charge PMI)
+    const newValue = cleanFloat(Math.min(value + step, max));
     onChange(newValue);
   }, [value, step, max, onChange]);
 
   const decrement = useCallback(() => {
-    const newValue = Math.max(value - step, min);
+    const newValue = cleanFloat(Math.max(value - step, min));
     onChange(newValue);
   }, [value, step, min, onChange]);
 

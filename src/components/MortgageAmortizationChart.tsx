@@ -178,6 +178,9 @@ export const MortgageAmortizationChart: React.FC<MortgageAmortizationChartProps>
 
       {/* Additional Info */}
       <div className="mt-4 p-3 bg-gray-50 rounded text-sm text-gray-600">
+        {summaryStats.loanAmount <= 0 ? (
+        <p>No mortgage: with a 100% down payment this is a cash purchase.</p>
+        ) : (
         <p>
           At {effectiveMortgageRate}% interest rate, you'll pay{' '}
           <span className="font-medium text-orange-600">
@@ -189,6 +192,7 @@ export const MortgageAmortizationChart: React.FC<MortgageAmortizationChartProps>
           </span>{' '}
           of the original loan amount.
         </p>
+        )}
       </div>
     </div>
   );

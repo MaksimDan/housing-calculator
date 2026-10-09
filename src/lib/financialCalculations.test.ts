@@ -9,8 +9,11 @@ import {
   calculateMortgageScenario,
   calculateProjectionData,
   saltCapForYear,
+  calculateAnnualPayrollTax,
+  takeHomeForYear,
   HousingCalculatorInputs,
 } from './financialCalculations';
+import { DEFAULTS } from '../hooks/useCalculatorInputs';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -58,6 +61,10 @@ const baseInputs: HousingCalculatorInputs = {
   sellingCostPercent: 6,
   annualInvestmentTaxDrag: 0.2,
   assumeSaltCapExtension: false,
+  // Fixture predates payroll-tax modeling; payroll is covered by its own
+  // tests and cross-engine cases below
+  includePayrollTax: false,
+  payrollEarners: 2,
 };
 
 function inputs(overrides: Partial<HousingCalculatorInputs> = {}): HousingCalculatorInputs {
@@ -957,5 +964,135 @@ describe('engine consistency', () => {
     const data = calculateProjectionData(inp) as any[];
     const scenario = calculateMortgageScenario(inp, 0, 30);
     expect(Math.abs(data[30].buying - scenario.finalNetWorth)).toBeLessThanOrEqual(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Payroll taxes (Social Security + Medicare)
+// ---------------------------------------------------------------------------
+
+describe('calculateAnnualPayrollTax', () => {
+  it('one earner at $420k: SS capped at the 2026 wage base, Medicare, Additional Medicare', () => {
+    // 6.2% x 184,500 = 11,439; 1.45% x 420,000 = 6,090; 0.9% x 170,000 = 1,530
+    expect(calculateAnnualPayrollTax(420000, 0, 1, 3)).toBeCloseTo(19059, 6);
+  });
+
+  it('two earners split the salary and each pays SS up to their own wage base', () => {
+    // 2 x 6.2% x 184,500 = 22,878 + 6,090 + 1,530
+    expect(calculateAnnualPayrollTax(420000, 0, 2, 3)).toBeCloseTo(30498, 6);
+  });
+
+  it('below the wage base and the Additional Medicare threshold', () => {
+    // 7.65% x 150,000
+    expect(calculateAnnualPayrollTax(150000, 0, 1, 3)).toBeCloseTo(11475, 6);
+  });
+
+  it('indexes the SS wage base with inflation but not the $250k Additional Medicare threshold', () => {
+    const base10 = 184500 * Math.pow(1.03, 10);
+    const expected = 0.062 * base10 + 0.0145 * 420000 + 0.009 * (420000 - 250000);
+    expect(calculateAnnualPayrollTax(420000, 10, 1, 3)).toBeCloseTo(expected, 6);
+  });
+
+  it('is zero for no salary', () => {
+    expect(calculateAnnualPayrollTax(0, 0, 2, 3)).toBe(0);
+  });
+});
+
+describe('payroll taxes in the engines', () => {
+  const withPayroll = (overrides: Partial<HousingCalculatorInputs> = {}) =>
+    inputs({ includePayrollTax: true, payrollEarners: 2, ...overrides });
+
+  it('reduces take-home by the payroll tax, at year-N salary and wage base', () => {
+    const data = calculateProjectionData(withPayroll()) as any[];
+    const year1 = (420000 * (1 - 0.191 - 0.075) - 30498) / 12;
+    expect(data[1].monthlyTakeHome).toBe(Math.round(year1));
+    expect(data[0].monthlyTakeHome).toBe(Math.round(year1));
+    const salary5 = 420000 * Math.pow(1.024, 4);
+    const year5 = (salary5 * (1 - 0.191 - 0.075) - calculateAnnualPayrollTax(salary5, 4, 2, 3)) / 12;
+    expect(data[5].monthlyTakeHome).toBe(Math.round(year5));
+  });
+
+  it('lowers both net worths by the same cash, leaving the gap unchanged', () => {
+    const off = calculateProjectionData(inputs()) as any[];
+    const on = calculateProjectionData(withPayroll()) as any[];
+    expect(on[30].buying).toBeLessThan(off[30].buying);
+    expect(on[30].renting).toBeLessThan(off[30].renting);
+    const gapOff = off[30].buying - off[30].renting;
+    const gapOn = on[30].buying - on[30].renting;
+    expect(Math.abs(gapOn - gapOff)).toBeLessThanOrEqual(2);
+  });
+
+  it('counts payroll tax in the affordability check', () => {
+    // Take-home without payroll covers costs by a margin smaller than payroll tax
+    const base = { annualSalaryBeforeTax: 150000, effectiveFederalTaxRate: 10, effectiveStateIncomeTaxRate: 5,
+      homePrice: 1150000, downPaymentPercent: 20, initialInvestment: 400000, monthlyMiscExpenses: 2500,
+      monthlyRentalIncome: 0, effectiveMortgageRate: 6.25 };
+    expect(Array.isArray(calculateProjectionData(inputs(base)))).toBe(true);
+    expect((calculateProjectionData(withPayroll(base)) as any).error).toMatch(/exceed monthly take-home/);
+  });
+
+  it('takeHomeForYear ignores payroll when the toggle is off', () => {
+    expect(takeHomeForYear(inputs(), 420000, 0)).toBeCloseTo(calculateMonthlyTakeHome(420000, 19.1, 7.5), 9);
+  });
+
+  it.each([3, 10, 30])('engines agree with payroll taxes on at year %i', (years) => {
+    const inp = withPayroll();
+    const data = calculateProjectionData(inp) as any[];
+    expect(Math.abs(data[years].buying - calculateMortgageScenario(inp, 0, years).finalNetWorth)).toBeLessThanOrEqual(5);
+  });
+
+  it('engines agree when salary growth pushes one earner across the wage base', () => {
+    // $160k grows past the $184.5k base (indexed at 3%) because salary grows 6%
+    const inp = withPayroll({ annualSalaryBeforeTax: 160000, payrollEarners: 1, salaryGrowthRate: 6,
+      homePrice: 500000, downPaymentPercent: 20, initialInvestment: 200000, effectiveFederalTaxRate: 12,
+      effectiveStateIncomeTaxRate: 5, monthlyRentalIncome: 0 });
+    const data = calculateProjectionData(inp) as any[];
+    for (const years of [5, 15, 30]) {
+      expect(Math.abs(data[years].buying - calculateMortgageScenario(inp, 0, years).finalNetWorth)).toBeLessThanOrEqual(5);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// App defaults must match current (TY2026) tax law
+// ---------------------------------------------------------------------------
+
+describe('DEFAULTS', () => {
+  // TY2026 married-filing-jointly brackets (Rev. Proc. 2025-32)
+  const BRACKETS_2026_MFJ: [number, number][] = [
+    [24800, 10], [100800, 12], [211400, 22], [403550, 24], [512450, 32], [768700, 35], [Infinity, 37],
+  ];
+  const federalIncomeTax = (taxable: number) => {
+    let tax = 0, lower = 0;
+    for (const [upper, rate] of BRACKETS_2026_MFJ) {
+      if (taxable > lower) tax += (Math.min(taxable, upper) - lower) * rate / 100;
+      lower = upper;
+    }
+    return tax;
+  };
+  const bracketRate = (taxable: number) => BRACKETS_2026_MFJ.find(([upper]) => taxable <= upper)![1];
+
+  it('marginal rate is the TY2026 bracket for the default salary (standard or itemized)', () => {
+    const itemized = (calculateProjectionData(DEFAULTS) as any[])[1].totalItemizedDeductions;
+    expect(bracketRate(DEFAULTS.annualSalaryBeforeTax - DEFAULTS.standardDeduction)).toBe(DEFAULTS.marginalFederalTaxRate);
+    expect(bracketRate(DEFAULTS.annualSalaryBeforeTax - itemized)).toBe(DEFAULTS.marginalFederalTaxRate);
+  });
+
+  it('effective federal rate is TY2026 income tax / salary (within 0.1 point)', () => {
+    const tax = federalIncomeTax(DEFAULTS.annualSalaryBeforeTax - DEFAULTS.standardDeduction);
+    expect(Math.abs(tax / DEFAULTS.annualSalaryBeforeTax * 100 - DEFAULTS.effectiveFederalTaxRate)).toBeLessThan(0.1);
+  });
+
+  it('are general: no rental income, and the same utilities for both households', () => {
+    expect(DEFAULTS.monthlyRentalIncome).toBe(0);
+    expect(DEFAULTS.monthlyPropertyUtilities).toBe(DEFAULTS.monthlyRentUtilities);
+    expect(DEFAULTS.includePayrollTax).toBe(true);
+  });
+
+  it('engines agree on the defaults', () => {
+    const data = calculateProjectionData(DEFAULTS) as any[];
+    for (const years of [3, 10, 30]) {
+      expect(Math.abs(data[years].buying - calculateMortgageScenario(DEFAULTS, 0, years).finalNetWorth)).toBeLessThanOrEqual(5);
+    }
   });
 });

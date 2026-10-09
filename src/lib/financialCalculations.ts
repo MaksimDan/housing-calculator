@@ -40,6 +40,13 @@ export interface HousingCalculatorInputs {
     sellingCostPercent: number;
     annualInvestmentTaxDrag: number;
     assumeSaltCapExtension: boolean;
+    // Employee payroll taxes (Social Security + Medicare) are computed separately
+    // from the effective federal income-tax rate. Off = the user's rates already
+    // include them.
+    includePayrollTax: boolean;
+    // Salary is split evenly across earners; each earner has their own Social
+    // Security wage base.
+    payrollEarners: number;
 }
 
 // Timing convention used by BOTH engines: each simulated year charges that year's
@@ -47,12 +54,53 @@ export interface HousingCalculatorInputs {
 // growth/inflation applies at each year boundary. Stocks (home value, balances)
 // are reported at end of year.
 
-export const calculateMonthlyTakeHome = (annualSalary: number, effectiveFederalTaxRate: number, effectiveStateIncomeTaxRate: number) => {
+export const calculateMonthlyTakeHome = (
+    annualSalary: number,
+    effectiveFederalTaxRate: number,
+    effectiveStateIncomeTaxRate: number,
+    annualPayrollTax: number = 0
+) => {
     const federalTaxAmount = annualSalary * (effectiveFederalTaxRate / 100);
     const stateTaxAmount = annualSalary * (effectiveStateIncomeTaxRate / 100);
-    const totalTaxAmount = federalTaxAmount + stateTaxAmount;
+    const totalTaxAmount = federalTaxAmount + stateTaxAmount + annualPayrollTax;
     const afterTaxAnnual = annualSalary - totalTaxAmount;
     return afterTaxAnnual / 12;
+};
+
+// Employee payroll taxes for tax year 2026 (projection year 1).
+export const SOCIAL_SECURITY_RATE = 6.2;
+export const SOCIAL_SECURITY_WAGE_BASE_2026 = 184500; // SSA, indexed annually
+export const MEDICARE_RATE = 1.45;
+export const ADDITIONAL_MEDICARE_RATE = 0.9;
+// Statutory and NOT indexed for inflation (IRC 3101(b)(2)); MFJ threshold,
+// consistent with the app's MFJ defaults.
+export const ADDITIONAL_MEDICARE_THRESHOLD = 250000;
+
+// yearsFromBase = 0 for the first simulated year. The Social Security wage base
+// follows the national wage index; the model approximates it with the
+// inflation rate.
+export const calculateAnnualPayrollTax = (
+    annualSalary: number,
+    yearsFromBase: number,
+    earners: number,
+    inflationRate: number
+) => {
+    if (annualSalary <= 0) return 0;
+    const earnerCount = Math.max(1, Math.round(earners));
+    const wageBase = SOCIAL_SECURITY_WAGE_BASE_2026 * Math.pow(1 + inflationRate / 100, yearsFromBase);
+    const wagesPerEarner = annualSalary / earnerCount;
+    const socialSecurity = earnerCount * Math.min(wagesPerEarner, wageBase) * (SOCIAL_SECURITY_RATE / 100);
+    const medicare = annualSalary * (MEDICARE_RATE / 100);
+    const additionalMedicare = Math.max(0, annualSalary - ADDITIONAL_MEDICARE_THRESHOLD) * (ADDITIONAL_MEDICARE_RATE / 100);
+    return socialSecurity + medicare + additionalMedicare;
+};
+
+// Single entry point both engines use, so payroll handling can't diverge.
+export const takeHomeForYear = (inputs: HousingCalculatorInputs, annualSalary: number, yearsFromBase: number) => {
+    const payrollTax = inputs.includePayrollTax
+        ? calculateAnnualPayrollTax(annualSalary, yearsFromBase, inputs.payrollEarners, inputs.inflationRate)
+        : 0;
+    return calculateMonthlyTakeHome(annualSalary, inputs.effectiveFederalTaxRate, inputs.effectiveStateIncomeTaxRate, payrollTax);
 };
 
 // The user's SALT-cap input refers to this tax year (projection year 1).
@@ -292,7 +340,7 @@ export const calculateMortgageScenario = (
             currentMonthlyHOAFee;
 
         const netMonthlyHomeownerCosts = totalMonthlyHomeownerCosts - currentMonthlyRentalIncome;
-        const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary, effectiveFederalTaxRate, effectiveStateIncomeTaxRate);
+        const monthlyTakeHome = takeHomeForYear(inputs, currentAnnualSalary, Math.floor((month - 1) / 12));
         const monthlyInvestment = monthlyTakeHome - netMonthlyHomeownerCosts - currentMonthlyMiscExpenses;
 
         investmentBalance += monthlyInvestment;
@@ -425,7 +473,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
     const totalMonthlyPayments = mortgageYears * 12;
     const monthlyMortgagePayment = calculateMonthlyMortgagePayment(mortgageBalance, monthlyInterestRate, totalMonthlyPayments);
 
-    const initialMonthlyTakeHome = calculateMonthlyTakeHome(annualSalaryBeforeTax, effectiveFederalTaxRate, effectiveStateIncomeTaxRate);
+    const initialMonthlyTakeHome = takeHomeForYear(inputs, annualSalaryBeforeTax, 0);
     const initialMonthlyPropertyTax = (currentAssessedValue * (propertyTaxRate / 100)) / 12;
     const initialMonthlyMelloRoosTax = (homePrice * (melloRoosTaxRate / 100)) / 12;
     const initialMonthlyMaintenance = (currentHomeValue * annualMaintenanceRate / 100) / 12;
@@ -561,7 +609,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         const totalMonthlyRenterCosts =
             currentMonthlyRent + currentMonthlyRenterInsurance + currentMonthlyRentUtilities;
 
-        const monthlyTakeHome = calculateMonthlyTakeHome(currentAnnualSalary, effectiveFederalTaxRate, effectiveStateIncomeTaxRate);
+        const monthlyTakeHome = takeHomeForYear(inputs, currentAnnualSalary, year - 1);
 
         // Allow negative surplus — draws from investments when costs exceed income
         const monthlyAvailableForBuyerInvestment = monthlyTakeHome - netMonthlyHomeownerCosts - currentMonthlyMiscExpenses;

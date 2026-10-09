@@ -40,6 +40,7 @@ const HousingCalculator = () => {
                 <p className="font-medium mb-1">Key Settings:</p>
                 <ul className="space-y-1 text-xs">
                   <li>• Selling costs ({inputs.includeSellingCosts ? `${inputs.sellingCostPercent}% included` : 'excluded'}) — configurable in Property Details</li>
+                  <li>• Take-home pay {inputs.includePayrollTax ? `deducts Social Security & Medicare (${inputs.payrollEarners} earner${inputs.payrollEarners === 1 ? '' : 's'})` : 'assumes your federal rate already includes Social Security & Medicare'} — configurable in Financial Parameters</li>
                   <li>• Tax deduction savings use {inputs.useMarginalTaxRate ? `marginal rate (${inputs.marginalFederalTaxRate}%)` : `effective rate (${inputs.effectiveFederalTaxRate}%)`} — configurable in Financial Parameters</li>
                   <li>• Investment tax drag: {inputs.annualInvestmentTaxDrag}% (net return: {(inputs.investmentReturn - inputs.annualInvestmentTaxDrag).toFixed(1)}%) — configurable in Growth Assumptions</li>
                   <li>• Mello-Roos is not SALT-deductible per IRS rules (IRC 164)</li>

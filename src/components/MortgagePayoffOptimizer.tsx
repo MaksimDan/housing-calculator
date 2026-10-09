@@ -1,7 +1,39 @@
 import React, { useState, useMemo } from 'react';
 import { HousingCalculatorInputs, calculateMortgageScenario } from '../lib/financialCalculations';
 import { usePersistedState } from '../hooks/usePersistedState';
+import { sanitizeInputValue } from '../lib/inputValidation';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
+// Number input that keeps the user's draft text (so "", "-" and "1." can be
+// typed) and only commits finite numbers. Out-of-range values are clamped by
+// the receiving setter; the field shows the committed value again on blur.
+const NumberField: React.FC<{
+  value: number;
+  onCommit: (value: number) => void;
+  step?: string;
+  min?: string;
+  max?: string;
+  className?: string;
+}> = ({ value, onCommit, step, min, max, className }) => {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <input
+      type="number"
+      step={step}
+      min={min}
+      max={max}
+      value={draft ?? String(value)}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        const text = e.target.value.trim();
+        const parsed = Number(text);
+        if (text !== '' && Number.isFinite(parsed)) onCommit(parsed);
+      }}
+      onBlur={() => setDraft(null)}
+      className={className}
+    />
+  );
+};
 
 interface PayoffScenario {
   name: string;
@@ -19,7 +51,9 @@ interface MortgagePayoffOptimizerProps {
 }
 
 export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = ({ inputs }) => {
-  const [optimizationHorizon, setOptimizationHorizon] = usePersistedState('payoff-horizon', 30);
+  const [optimizationHorizon, setOptimizationHorizon] = usePersistedState<number>(
+    'payoff-horizon', 30, (raw) => sanitizeInputValue('payoffHorizon', raw)
+  );
   const [selectedYear, setSelectedYear] = useState(1);
 
   const calculatePayoffScenario = (monthlyExtraPayment: number): PayoffScenario => {
@@ -109,10 +143,9 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Optimization Timeline (Years)
             </label>
-            <input
-              type="number"
+            <NumberField
               value={optimizationHorizon}
-              onChange={(e) => setOptimizationHorizon(parseInt(e.target.value) || 30)}
+              onCommit={setOptimizationHorizon}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               min="5"
               max="50"
@@ -135,61 +168,37 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-sm">
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Investment Return (%)</label>
-              <input
-                type="number"
+              <NumberField
                 step="0.1"
                 value={inputs.investmentReturn}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateInvestmentReturn', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateInvestmentReturn', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Mortgage Rate (%)</label>
-              <input
-                type="number"
+              <NumberField
                 step="0.1"
                 value={inputs.effectiveMortgageRate}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateMortgageRate', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateMortgageRate', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Federal Tax (%)</label>
-              <input
-                type="number"
+              <NumberField
                 step="0.1"
                 value={inputs.effectiveFederalTaxRate}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateFederalTaxRate', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateFederalTaxRate', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-gray-600 mb-1 font-medium">State Tax (%)</label>
-              <input
-                type="number"
+              <NumberField
                 step="0.1"
                 value={inputs.effectiveStateIncomeTaxRate}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateStateTaxRate', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateStateTaxRate', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
@@ -198,61 +207,37 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-sm">
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Home Price ($)</label>
-              <input
-                type="number"
+              <NumberField
                 step="1000"
                 value={inputs.homePrice}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateHomePrice', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateHomePrice', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Down Payment (%)</label>
-              <input
-                type="number"
+              <NumberField
                 step="0.5"
                 value={inputs.downPaymentPercent}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateDownPayment', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateDownPayment', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Mortgage Years</label>
-              <input
-                type="number"
+              <NumberField
                 step="1"
                 value={inputs.mortgageYears}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateMortgageYears', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateMortgageYears', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Home Appreciation (%)</label>
-              <input
-                type="number"
+              <NumberField
                 step="0.1"
                 value={inputs.homeAppreciation}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateHomeAppreciation', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateHomeAppreciation', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
@@ -261,61 +246,37 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-sm">
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Property Tax (%)</label>
-              <input
-                type="number"
+              <NumberField
                 step="0.01"
                 value={inputs.propertyTaxRate}
-                onChange={(e) => {
-                  const event = new CustomEvent('updatePropertyTaxRate', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updatePropertyTaxRate', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Inflation Rate (%)</label>
-              <input
-                type="number"
+              <NumberField
                 step="0.1"
                 value={inputs.inflationRate}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateInflationRate', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateInflationRate', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Salary Growth (%)</label>
-              <input
-                type="number"
+              <NumberField
                 step="0.1"
                 value={inputs.salaryGrowthRate}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateSalaryGrowth', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateSalaryGrowth', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-gray-600 mb-1 font-medium">PMI Rate (%)</label>
-              <input
-                type="number"
+              <NumberField
                 step="0.01"
                 value={inputs.PMIRate}
-                onChange={(e) => {
-                  const event = new CustomEvent('updatePMIRate', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updatePMIRate', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
@@ -324,61 +285,37 @@ export const MortgagePayoffOptimizer: React.FC<MortgagePayoffOptimizerProps> = (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Annual Salary ($)</label>
-              <input
-                type="number"
+              <NumberField
                 step="1000"
                 value={inputs.annualSalaryBeforeTax}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateAnnualSalary', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateAnnualSalary', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Standard Deduction ($)</label>
-              <input
-                type="number"
+              <NumberField
                 step="100"
                 value={inputs.standardDeduction}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateStandardDeduction', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateStandardDeduction', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-gray-600 mb-1 font-medium">SALT Cap ($)</label>
-              <input
-                type="number"
+              <NumberField
                 step="1000"
                 value={inputs.saltCap}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateSaltCap', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateSaltCap', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-gray-600 mb-1 font-medium">Mortgage Interest Cap ($)</label>
-              <input
-                type="number"
+              <NumberField
                 step="10000"
                 value={inputs.mortgageInterestDeductionCap}
-                onChange={(e) => {
-                  const event = new CustomEvent('updateMortgageInterestCap', { 
-                    detail: { value: parseFloat(e.target.value) || 0 } 
-                  });
-                  window.dispatchEvent(event);
-                }}
+                onCommit={(value) => window.dispatchEvent(new CustomEvent('updateMortgageInterestCap', { detail: { value } }))}
                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
