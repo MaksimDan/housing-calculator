@@ -10,6 +10,7 @@ import { ScenarioTabs } from './components/ScenarioTabs';
 import { NetWorthChart } from './components/NetWorthChart';
 import { TaxSavingsSummary } from './components/TaxSavingsSummary';
 import { MortgagePayoffOptimizer } from './components/MortgagePayoffOptimizer';
+import { TaxYearSelector } from './components/TaxYearSelector';
 import { useCalculatorInputs } from './hooks/useCalculatorInputs';
 
 const isValidProjectionData = (data: any) => Array.isArray(data) && !data.error;
@@ -36,11 +37,17 @@ const HousingCalculator = () => {
               <h1 className="text-2xl font-light text-gray-800">
                 Build Wealth: Buy vs. Rent Calculator
               </h1>
+              <TaxYearSelector
+                filingStatus={inputs.filingStatus}
+                setFilingStatus={inputCardProps.setFilingStatus}
+                firstTaxYear={inputs.firstTaxYear}
+                setFirstTaxYear={inputCardProps.setFirstTaxYear}
+              />
               <div className="mt-2 p-3 bg-yellow-50 border-l-4 border-yellow-400 text-sm text-gray-700">
                 <p className="font-medium mb-1">Key Settings:</p>
                 <ul className="space-y-1 text-xs">
                   <li>• Selling costs ({inputs.includeSellingCosts ? `${inputs.sellingCostPercent}% included` : 'excluded'}) — configurable in Property Details</li>
-                  <li>• Taxes: {({ mfj: 'married filing jointly', single: 'single', hoh: 'head of household', mfs: 'married filing separately' } as Record<string, string>)[inputs.filingStatus]}, tax year {inputs.firstTaxYear}{inputs.assumeSaltCapExtension ? ', SALT cap extension assumed' : ''} — configurable in Financial Parameters</li>
+                  <li>• Taxes: {({ mfj: 'married filing jointly', single: 'single', hoh: 'head of household', mfs: 'married filing separately' } as Record<string, string>)[inputs.filingStatus]}, tax year {inputs.firstTaxYear}{inputs.assumeSaltCapExtension ? ', SALT cap extension assumed' : ''} — set above</li>
                   <li>• Take-home pay {inputs.includePayrollTax ? `deducts Social Security & Medicare (${inputs.payrollEarners} earner${inputs.payrollEarners === 1 ? '' : 's'})` : 'assumes your federal rate already includes Social Security & Medicare'} — configurable in Financial Parameters</li>
                   <li>• Tax deduction savings use {inputs.useMarginalTaxRate ? `marginal rate (${inputs.marginalFederalTaxRate}%)` : `effective rate (${inputs.effectiveFederalTaxRate}%)`} — configurable in Financial Parameters</li>
                   <li>• Investment tax drag: {inputs.annualInvestmentTaxDrag}% (net return: {(inputs.investmentReturn - inputs.annualInvestmentTaxDrag).toFixed(1)}%) — configurable in Growth Assumptions</li>

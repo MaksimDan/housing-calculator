@@ -3,7 +3,6 @@ import { HelpCircle } from 'lucide-react';
 import { AnimatedInput } from './AnimatedInput';
 import { Toggle } from './Toggle';
 import { CollapsibleCard } from './CollapsibleCard';
-import { taxYearOptions } from '../lib/taxLaw';
 
 interface InputCardsProps {
     // Financial Parameters
@@ -85,10 +84,6 @@ interface InputCardsProps {
     // Model Settings
     marginalFederalTaxRate: number;
     setMarginalFederalTaxRate: (value: number) => void;
-    filingStatus: 'mfj' | 'single' | 'hoh' | 'mfs';
-    setFilingStatus: (value: 'mfj' | 'single' | 'hoh' | 'mfs') => void;
-    firstTaxYear: number;
-    setFirstTaxYear: (value: number) => void;
     includePayrollTax: boolean;
     setIncludePayrollTax: (value: boolean) => void;
     payrollEarners: number;
@@ -143,8 +138,6 @@ const InputCards: React.FC<InputCardsProps> = ({
     inflationRate, setInflationRate,
     propertyTaxAssessmentCap, setPropertyTaxAssessmentCap,
     marginalFederalTaxRate, setMarginalFederalTaxRate,
-    filingStatus, setFilingStatus,
-    firstTaxYear, setFirstTaxYear,
     includePayrollTax, setIncludePayrollTax,
     payrollEarners, setPayrollEarners,
     useMarginalTaxRate, setUseMarginalTaxRate,
@@ -177,37 +170,6 @@ const InputCards: React.FC<InputCardsProps> = ({
                     value={effectiveStateIncomeTaxRate} onChange={setEffectiveStateIncomeTaxRate}
                     min={0} max={15} step={0.1} suffix="%"
                 />
-                <div className="grid grid-cols-2 gap-3">
-                    <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-                        <span><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Federal filing status. Changing it sets the 2026 standard deduction, SALT cap and mortgage-interest cap for that status (you can still edit them). It also sets the SALT phase-down threshold and floor (halved for married filing separately) and the Additional Medicare Tax threshold.")} />Filing Status</span>
-                        <select
-                            value={filingStatus}
-                            onChange={(e) => setFilingStatus(e.target.value as 'mfj' | 'single' | 'hoh' | 'mfs')}
-                            className="px-2 py-1 border border-gray-300 rounded text-sm font-normal"
-                        >
-                            <option value="mfj">Married filing jointly</option>
-                            <option value="single">Single</option>
-                            <option value="hoh">Head of household</option>
-                            <option value="mfs">Married filing separately</option>
-                        </select>
-                    </label>
-                    <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-                        <span><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("The tax year most of your first 12 months of ownership falls in (a purchase in the second half of a year is mostly next year). Choosing a year fills in that year's standard deduction, SALT cap and Social Security wage base from the IRS tables; later years follow the law from there (the SALT cap reverts to $10,000 in 2030). 'Projected' years haven't been published yet and are estimated from the newest published year with your inflation rate.")} />Tax Year</span>
-                        <select
-                            value={firstTaxYear}
-                            onChange={(e) => setFirstTaxYear(Number(e.target.value))}
-                            className="px-2 py-1 border border-gray-300 rounded text-sm font-normal"
-                        >
-                            {(() => {
-                                const options = taxYearOptions();
-                                if (!options.some(o => o.year === firstTaxYear)) options.push({ year: firstTaxYear, projected: true });
-                                return options.sort((a, b) => a.year - b.year).map(o => (
-                                    <option key={o.year} value={o.year}>{o.year}{o.projected ? ' (projected)' : ''}</option>
-                                ));
-                            })()}
-                        </select>
-                    </label>
-                </div>
                 <AnimatedInput
                     label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Standard deduction for the selected tax year, filled in from the IRS tables when you change the tax year or filing status (2026: $32,200 married filing jointly; $16,100 single or married filing separately; $24,150 head of household). Later years are indexed with the inflation rate.")} /> Standard Deduction</>}
                     value={standardDeduction} onChange={setStandardDeduction}
