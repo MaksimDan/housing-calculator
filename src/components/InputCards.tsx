@@ -3,6 +3,7 @@ import { HelpCircle } from 'lucide-react';
 import { AnimatedInput } from './AnimatedInput';
 import { Toggle } from './Toggle';
 import { CollapsibleCard } from './CollapsibleCard';
+import { taxYearOptions } from '../lib/taxLaw';
 
 interface InputCardsProps {
     // Financial Parameters
@@ -191,20 +192,24 @@ const InputCards: React.FC<InputCardsProps> = ({
                         </select>
                     </label>
                     <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-                        <span><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("The tax year most of your first 12 months of ownership falls in (a purchase in the second half of a year is mostly next year). Tax rules follow the calendar from here: the SALT cap reverts to $10,000 in 2030, and the standard deduction and Social Security wage base are indexed from their 2026 amounts.")} />First Tax Year</span>
+                        <span><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("The tax year most of your first 12 months of ownership falls in (a purchase in the second half of a year is mostly next year). Choosing a year fills in that year's standard deduction, SALT cap and Social Security wage base from the IRS tables; later years follow the law from there (the SALT cap reverts to $10,000 in 2030). 'Projected' years haven't been published yet and are estimated from the newest published year with your inflation rate.")} />Tax Year</span>
                         <select
                             value={firstTaxYear}
                             onChange={(e) => setFirstTaxYear(Number(e.target.value))}
                             className="px-2 py-1 border border-gray-300 rounded text-sm font-normal"
                         >
-                            {Array.from({ length: 10 }, (_, i) => 2026 + i).concat(
-                                firstTaxYear >= 2026 && firstTaxYear < 2036 ? [] : [firstTaxYear]
-                            ).sort((a, b) => a - b).map(y => <option key={y} value={y}>{y}</option>)}
+                            {(() => {
+                                const options = taxYearOptions();
+                                if (!options.some(o => o.year === firstTaxYear)) options.push({ year: firstTaxYear, projected: true });
+                                return options.sort((a, b) => a.year - b.year).map(o => (
+                                    <option key={o.year} value={o.year}>{o.year}{o.projected ? ' (projected)' : ''}</option>
+                                ));
+                            })()}
                         </select>
                     </label>
                 </div>
                 <AnimatedInput
-                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Standard deduction for tax year 2026 ($32,200 married filing jointly; $16,100 single or married filing separately; $24,150 head of household). Later years are indexed with the inflation rate from 2026.")} /> Standard Deduction</>}
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("Standard deduction for the selected tax year, filled in from the IRS tables when you change the tax year or filing status (2026: $32,200 married filing jointly; $16,100 single or married filing separately; $24,150 head of household). Later years are indexed with the inflation rate.")} /> Standard Deduction</>}
                     value={standardDeduction} onChange={setStandardDeduction}
                     min={10000} max={40000} step={100} suffix="$"
                 />
@@ -219,7 +224,7 @@ const InputCards: React.FC<InputCardsProps> = ({
                     min={0} max={1500000} step={25000} suffix="$"
                 />
                 <AnimatedInput
-                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("SALT deduction cap for tax year 2026 ($40,400; $20,200 married filing separately). Modeled automatically from it under current law: +1%/yr through 2029; reduced by 30% of income above $505,000 (2026, also +1%/yr; salary is used as income) but not below $10,000; and a flat $10,000 from 2030. Married filing separately halves the threshold and the $10,000.")} /> SALT Cap</>}
+                    label={<><HelpCircle className="w-4 h-4 inline text-gray-400 hover:text-gray-600 cursor-pointer mr-2" onClick={() => alert("SALT deduction cap for the selected tax year, filled in from the law when you change the tax year or filing status (2026: $40,400; $20,200 married filing separately). Later years follow current law: +1%/yr through 2029; reduced by 30% of income above $505,000 (2026, also +1%/yr; salary is used as income) but not below $10,000; and a flat $10,000 from 2030. Married filing separately halves the threshold and the $10,000.")} /> SALT Cap</>}
                     value={saltCap} onChange={setSaltCap}
                     min={0} max={50000} step={1000} suffix="$"
                 />

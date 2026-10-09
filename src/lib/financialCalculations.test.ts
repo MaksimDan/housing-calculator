@@ -352,52 +352,52 @@ describe('calculateRenterTaxSavings', () => {
 
 describe('saltCapForYear', () => {
   it('uses the entered cap for tax year 2026', () => {
-    expect(saltCapForYear(40400, 2026, false)).toBe(40400);
+    expect(saltCapForYear(40400, 2026, 2026, false)).toBe(40400);
   });
 
   it('follows the statute 2025-2029: $40,000, then +1%/yr', () => {
-    expect(saltCapForYear(40400, 2025, false)).toBeCloseTo(40000, 6);
-    expect(saltCapForYear(40400, 2027, false)).toBeCloseTo(40804, 6);
-    expect(saltCapForYear(40400, 2029, false)).toBeCloseTo(41624.1604, 4);
+    expect(saltCapForYear(40400, 2026, 2025, false)).toBeCloseTo(40000, 6);
+    expect(saltCapForYear(40400, 2026, 2027, false)).toBeCloseTo(40804, 6);
+    expect(saltCapForYear(40400, 2026, 2029, false)).toBeCloseTo(41624.16, 2);
   });
 
   it('reverts to $10,000 in 2030 and beyond under current law', () => {
-    expect(saltCapForYear(40400, 2030, false)).toBe(10000);
-    expect(saltCapForYear(40400, 2055, false)).toBe(10000);
+    expect(saltCapForYear(40400, 2026, 2030, false)).toBe(10000);
+    expect(saltCapForYear(40400, 2026, 2055, false)).toBe(10000);
   });
 
   it('never raises a user cap already below $10,000 after reversion', () => {
-    expect(saltCapForYear(8000, 2036, false)).toBe(8000);
+    expect(saltCapForYear(8000, 2026, 2036, false)).toBe(8000);
   });
 
   it('phases down by 30% of MAGI over $505,000 (2026), never below $10,000', () => {
-    expect(saltCapForYear(40400, 2026, false, 505000)).toBe(40400);
-    expect(saltCapForYear(40400, 2026, false, 550000)).toBeCloseTo(26900, 6);
-    expect(saltCapForYear(40400, 2026, false, 600000)).toBeCloseTo(11900, 6);
-    expect(saltCapForYear(40400, 2026, false, 650000)).toBe(10000);
+    expect(saltCapForYear(40400, 2026, 2026, false, 505000)).toBe(40400);
+    expect(saltCapForYear(40400, 2026, 2026, false, 550000)).toBeCloseTo(26900, 6);
+    expect(saltCapForYear(40400, 2026, 2026, false, 600000)).toBeCloseTo(11900, 6);
+    expect(saltCapForYear(40400, 2026, 2026, false, 650000)).toBe(10000);
   });
 
   it('indexes the phase-down threshold +1%/yr with the cap', () => {
     // 2027: cap 40,804, threshold 510,050; MAGI 563,200 -> 40,804 - 0.3 x 53,150
-    expect(saltCapForYear(40400, 2027, false, 563200)).toBeCloseTo(40804 - 0.3 * (563200 - 510050), 6);
+    expect(saltCapForYear(40400, 2026, 2027, false, 563200)).toBeCloseTo(40804 - 0.3 * (563200 - 510050), 6);
     // 2029: cap 41,624.16, threshold 520,302.02
-    expect(saltCapForYear(40400, 2029, false, 600000))
-      .toBeCloseTo(40400 * 1.01 ** 3 - 0.3 * (600000 - 505000 * 1.01 ** 3), 6);
+    expect(saltCapForYear(40400, 2026, 2029, false, 600000))
+      .toBeCloseTo(41624.16 - 0.3 * (600000 - 520302.01), 2);
   });
 
   it('halves the cap floor, threshold and post-2029 cap for married filing separately', () => {
-    expect(saltCapForYear(20200, 2026, false, 252500, 'mfs')).toBe(20200);
-    expect(saltCapForYear(20200, 2026, false, 300000, 'mfs')).toBeCloseTo(20200 - 0.3 * 47500, 6);
-    expect(saltCapForYear(20200, 2026, false, 400000, 'mfs')).toBe(5000);
-    expect(saltCapForYear(20200, 2030, false, 0, 'mfs')).toBe(5000);
+    expect(saltCapForYear(20200, 2026, 2026, false, 252500, 'mfs')).toBe(20200);
+    expect(saltCapForYear(20200, 2026, 2026, false, 300000, 'mfs')).toBeCloseTo(20200 - 0.3 * 47500, 6);
+    expect(saltCapForYear(20200, 2026, 2026, false, 400000, 'mfs')).toBe(5000);
+    expect(saltCapForYear(20200, 2026, 2030, false, 0, 'mfs')).toBe(5000);
   });
 
   it('extension keeps the 2029 rules after 2029 and leaves 2026-2029 at current law', () => {
     for (const y of [2026, 2027, 2028, 2029]) {
-      expect(saltCapForYear(40400, y, true)).toBe(saltCapForYear(40400, y, false));
+      expect(saltCapForYear(40400, 2026, y, true)).toBe(saltCapForYear(40400, 2026, y, false));
     }
-    expect(saltCapForYear(40400, 2035, true)).toBeCloseTo(40400 * 1.01 ** 3, 6);
-    expect(saltCapForYear(40400, 2035, true, 650000)).toBe(10000);
+    expect(saltCapForYear(40400, 2026, 2035, true)).toBeCloseTo(41624.16, 2);
+    expect(saltCapForYear(40400, 2026, 2035, true, 650000)).toBe(10000);
   });
 });
 
@@ -1002,27 +1002,27 @@ describe('engine consistency', () => {
 describe('calculateAnnualPayrollTax', () => {
   it('one earner at $420k: SS capped at the 2026 wage base, Medicare, Additional Medicare', () => {
     // 6.2% x 184,500 = 11,439; 1.45% x 420,000 = 6,090; 0.9% x 170,000 = 1,530
-    expect(calculateAnnualPayrollTax(420000, 0, 1, 3)).toBeCloseTo(19059, 6);
+    expect(calculateAnnualPayrollTax(420000, 2026, 1, 3)).toBeCloseTo(19059, 6);
   });
 
   it('two earners split the salary and each pays SS up to their own wage base', () => {
     // 2 x 6.2% x 184,500 = 22,878 + 6,090 + 1,530
-    expect(calculateAnnualPayrollTax(420000, 0, 2, 3)).toBeCloseTo(30498, 6);
+    expect(calculateAnnualPayrollTax(420000, 2026, 2, 3)).toBeCloseTo(30498, 6);
   });
 
   it('below the wage base and the Additional Medicare threshold', () => {
     // 7.65% x 150,000
-    expect(calculateAnnualPayrollTax(150000, 0, 1, 3)).toBeCloseTo(11475, 6);
+    expect(calculateAnnualPayrollTax(150000, 2026, 1, 3)).toBeCloseTo(11475, 6);
   });
 
   it('indexes the SS wage base with inflation but not the $250k Additional Medicare threshold', () => {
     const base10 = 184500 * Math.pow(1.03, 10);
     const expected = 0.062 * base10 + 0.0145 * 420000 + 0.009 * (420000 - 250000);
-    expect(calculateAnnualPayrollTax(420000, 10, 1, 3)).toBeCloseTo(expected, 6);
+    expect(calculateAnnualPayrollTax(420000, 2036, 1, 3)).toBeCloseTo(expected, 6);
   });
 
   it('is zero for no salary', () => {
-    expect(calculateAnnualPayrollTax(0, 0, 2, 3)).toBe(0);
+    expect(calculateAnnualPayrollTax(0, 2026, 2, 3)).toBe(0);
   });
 });
 
@@ -1036,7 +1036,7 @@ describe('payroll taxes in the engines', () => {
     expect(data[1].monthlyTakeHome).toBe(Math.round(year1));
     expect(data[0].monthlyTakeHome).toBe(Math.round(year1));
     const salary5 = 420000 * Math.pow(1.024, 4);
-    const year5 = (salary5 * (1 - 0.191 - 0.075) - calculateAnnualPayrollTax(salary5, 4, 2, 3)) / 12;
+    const year5 = (salary5 * (1 - 0.191 - 0.075) - calculateAnnualPayrollTax(salary5, 2030, 2, 3)) / 12;
     expect(data[5].monthlyTakeHome).toBe(Math.round(year5));
   });
 
@@ -1138,12 +1138,19 @@ describe('tax year and filing status in the engines', () => {
     expect(y2027[30].buying).toBeLessThan(y2026[30].buying);
   });
 
-  it('a later first tax year indexes the TY2026 standard deduction forward', () => {
-    // SALT (8,550 property + 31,500 state = 40,050) is under both years' caps,
-    // so year-1 savings differ only by one year of standard-deduction indexing
-    const y2026 = calculateProjectionData(inputs({ firstTaxYear: 2026 })) as any[];
-    const y2027 = calculateProjectionData(inputs({ firstTaxYear: 2027 })) as any[];
-    expect(y2027[1].yearlyTaxSavings - y2026[1].yearlyTaxSavings).toBe(Math.round(-32200 * 0.03 * 0.32));
+  it('the standard deduction input is the first tax year amount, indexed from there', () => {
+    const data = calculateProjectionData(inputs({ firstTaxYear: 2027, standardDeduction: 33166, assumeSaltCapExtension: true })) as any[];
+    const control = calculateProjectionData(inputs({ firstTaxYear: 2027, standardDeduction: 32200, assumeSaltCapExtension: true })) as any[];
+    // Itemizing in both: savings differ by the deduction gap x 32% in year 1,
+    // and by the inflation-indexed gap in year 2
+    expect(control[1].yearlyTaxSavings - data[1].yearlyTaxSavings).toBe(Math.round(966 * 0.32));
+    expect(control[2].yearlyTaxSavings - data[2].yearlyTaxSavings).toBe(Math.round(966 * 1.03 * 0.32));
+  });
+
+  it('a first tax year after the published table still matches the statute for SALT', () => {
+    const data = calculateProjectionData(inputs({ firstTaxYear: 2028, saltCap: 41212.04, annualSalaryBeforeTax: 600000 })) as any[];
+    // 2028 threshold 515,150.50: cap = 41,212.04 - 0.3 x 84,849.50
+    expect(data[1].totalItemizedDeductions - data[1].yearlyInterestPaid).toBeLessThanOrEqual(41212.04 - 0.3 * 84849.5 + 1);
   });
 
   it('applies the SALT phase-down to buyer and renter at high salaries', () => {
@@ -1170,7 +1177,7 @@ describe('tax year and filing status in the engines', () => {
   });
 
   it('Additional Medicare threshold depends on filing status', () => {
-    expect(calculateAnnualPayrollTax(300000, 0, 1, 3, 'single') - calculateAnnualPayrollTax(300000, 0, 1, 3, 'mfj'))
+    expect(calculateAnnualPayrollTax(300000, 2026, 1, 3, 'single') - calculateAnnualPayrollTax(300000, 2026, 1, 3, 'mfj'))
       .toBeCloseTo(0.009 * 50000, 6);
   });
 });

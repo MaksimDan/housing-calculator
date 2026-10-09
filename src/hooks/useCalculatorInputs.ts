@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { usePersistedState } from './usePersistedState';
-import { calculateProjectionData, HousingCalculatorInputs, FilingStatus } from '../lib/financialCalculations';
+import { calculateProjectionData, HousingCalculatorInputs } from '../lib/financialCalculations';
+import { FilingStatus, statutoryInputsFor, FIRST_PUBLISHED_TAX_YEAR } from '../lib/taxLaw';
 import {
   sanitizeInputValue,
   parseUrlValue,
@@ -16,20 +17,16 @@ import {
 // year's taxes.
 const defaultFirstTaxYear = () => {
   const now = new Date();
-  return Math.max(2026, now.getMonth() >= 6 ? now.getFullYear() + 1 : now.getFullYear());
+  return Math.max(FIRST_PUBLISHED_TAX_YEAR, now.getMonth() >= 6 ? now.getFullYear() + 1 : now.getFullYear());
 };
 
-// TY2026 statutory amounts by filing status (Rev. Proc. 2025-32; OBBBA SALT
-// cap; IRC 163(h)(3)(F) acquisition-debt limit). Picking a filing status sets
-// these inputs; the user can still edit them.
-export const FILING_STATUS_AMOUNTS: Record<FilingStatus, { standardDeduction: number; saltCap: number; mortgageInterestDeductionCap: number }> = {
-  mfj: { standardDeduction: 32200, saltCap: 40400, mortgageInterestDeductionCap: 750000 },
-  single: { standardDeduction: 16100, saltCap: 40400, mortgageInterestDeductionCap: 750000 },
-  hoh: { standardDeduction: 24150, saltCap: 40400, mortgageInterestDeductionCap: 750000 },
-  mfs: { standardDeduction: 16100, saltCap: 20200, mortgageInterestDeductionCap: 375000 },
-};
+const DEFAULT_INFLATION = 3.0;
+const DEFAULT_TAX_YEAR = defaultFirstTaxYear();
+// Standard deduction, SALT cap and interest cap for the default tax year,
+// from the table in lib/taxLaw.ts
+const DEFAULT_TAX_AMOUNTS = statutoryInputsFor(DEFAULT_TAX_YEAR, 'mfj', DEFAULT_INFLATION);
 
-// General defaults (married filing jointly, tax year 2026). Only values that
+// General defaults (married filing jointly). Only values that
 // differ from these are saved, so changing a default here reaches every
 // visitor who hasn't edited that field. If a stored value could be mistaken
 // for a user's edit, add the old default to HISTORICAL_DEFAULTS and bump
@@ -39,7 +36,7 @@ export const DEFAULTS: HousingCalculatorInputs = {
   // Federal INCOME tax only: TY2026 MFJ tax on $420k less the $32,200 standard
   // deduction is $78,268 (18.6%). Payroll taxes are computed separately.
   effectiveFederalTaxRate: 18.6,
-  standardDeduction: 32200, // TY2026 MFJ (IRS Rev. Proc. 2025-32)
+  standardDeduction: DEFAULT_TAX_AMOUNTS.standardDeduction,
   initialInvestment: 1500000,
   monthlyMiscExpenses: 1000,
   homePrice: 750000,
@@ -66,11 +63,11 @@ export const DEFAULTS: HousingCalculatorInputs = {
   investmentReturn: 11.71,
   rentIncrease: 4.5,
   salaryGrowthRate: 2.4,
-  inflationRate: 3.0,
+  inflationRate: DEFAULT_INFLATION,
   propertyTaxAssessmentCap: 2,
   xAxisYears: 30,
-  mortgageInterestDeductionCap: 750000,
-  saltCap: 40400, // TY2026 (OBBBA: $40k for 2025, indexed +1%/yr through 2029)
+  mortgageInterestDeductionCap: DEFAULT_TAX_AMOUNTS.mortgageInterestDeductionCap,
+  saltCap: DEFAULT_TAX_AMOUNTS.saltCap,
   effectiveStateIncomeTaxRate: 7.5,
   // TY2026 MFJ bracket for ~$356k-$388k of taxable income ($211,400-$403,550)
   marginalFederalTaxRate: 24,
@@ -82,7 +79,7 @@ export const DEFAULTS: HousingCalculatorInputs = {
   annualInvestmentTaxDrag: 0.2,
   includePayrollTax: true,
   payrollEarners: 2,
-  firstTaxYear: defaultFirstTaxYear(),
+  firstTaxYear: DEFAULT_TAX_YEAR,
   filingStatus: 'mfj',
 };
 
@@ -241,14 +238,21 @@ export const useCalculatorInputs = () => {
     inputCardProps[name] = state[name];
     inputCardProps[setterName(name)] = setterMap[name];
   }
-  // Changing filing status also sets that status's statutory amounts
-  inputCardProps.setFilingStatus = (status: FilingStatus) => {
-    const amounts = FILING_STATUS_AMOUNTS[status];
-    if (!amounts) return;
-    setterMap.filingStatus(status);
+  // The tax-year and filing-status dropdowns fill in that year's statutory
+  // amounts from the table in lib/taxLaw.ts (still editable afterwards)
+  const applyTaxAmounts = (year: number, status: FilingStatus) => {
+    const amounts = statutoryInputsFor(year, status, state.inflationRate);
     setterMap.standardDeduction(amounts.standardDeduction);
     setterMap.saltCap(amounts.saltCap);
     setterMap.mortgageInterestDeductionCap(amounts.mortgageInterestDeductionCap);
+  };
+  inputCardProps.setFilingStatus = (status: FilingStatus) => {
+    setterMap.filingStatus(status);
+    applyTaxAmounts(state.firstTaxYear, status);
+  };
+  inputCardProps.setFirstTaxYear = (year: number) => {
+    setterMap.firstTaxYear(year);
+    applyTaxAmounts(year, state.filingStatus);
   };
 
   return {

@@ -40,7 +40,7 @@ const HousingCalculator = () => {
                 <p className="font-medium mb-1">Key Settings:</p>
                 <ul className="space-y-1 text-xs">
                   <li>• Selling costs ({inputs.includeSellingCosts ? `${inputs.sellingCostPercent}% included` : 'excluded'}) — configurable in Property Details</li>
-                  <li>• Taxes: {({ mfj: 'married filing jointly', single: 'single', hoh: 'head of household', mfs: 'married filing separately' } as Record<string, string>)[inputs.filingStatus]}, first tax year {inputs.firstTaxYear}{inputs.assumeSaltCapExtension ? ', SALT cap extension assumed' : ''} — configurable in Financial Parameters</li>
+                  <li>• Taxes: {({ mfj: 'married filing jointly', single: 'single', hoh: 'head of household', mfs: 'married filing separately' } as Record<string, string>)[inputs.filingStatus]}, tax year {inputs.firstTaxYear}{inputs.assumeSaltCapExtension ? ', SALT cap extension assumed' : ''} — configurable in Financial Parameters</li>
                   <li>• Take-home pay {inputs.includePayrollTax ? `deducts Social Security & Medicare (${inputs.payrollEarners} earner${inputs.payrollEarners === 1 ? '' : 's'})` : 'assumes your federal rate already includes Social Security & Medicare'} — configurable in Financial Parameters</li>
                   <li>• Tax deduction savings use {inputs.useMarginalTaxRate ? `marginal rate (${inputs.marginalFederalTaxRate}%)` : `effective rate (${inputs.effectiveFederalTaxRate}%)`} — configurable in Financial Parameters</li>
                   <li>• Investment tax drag: {inputs.annualInvestmentTaxDrag}% (net return: {(inputs.investmentReturn - inputs.annualInvestmentTaxDrag).toFixed(1)}%) — configurable in Growth Assumptions</li>
