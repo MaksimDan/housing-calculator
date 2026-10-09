@@ -47,12 +47,37 @@ export interface HousingCalculatorInputs {
     // Salary is split evenly across earners; each earner has their own Social
     // Security wage base.
     payrollEarners: number;
+    // Calendar tax year that projection year 1 falls in. Statutory amounts
+    // (SALT schedule, standard deduction, wage base) are anchored to TAX_BASE_YEAR
+    // and follow the calendar from here.
+    firstTaxYear: number;
+    filingStatus: FilingStatus;
 }
+
+export type FilingStatus = 'mfj' | 'single' | 'hoh' | 'mfs';
 
 // Timing convention used by BOTH engines: each simulated year charges that year's
 // cash flows at start-of-year levels (year 1 uses the user's entered values), and
 // growth/inflation applies at each year boundary. Stocks (home value, balances)
 // are reported at end of year.
+
+// Statutory inputs (standard deduction, SALT cap) are entered as tax-year-2026
+// amounts. Projection year N is tax year firstTaxYear + N - 1.
+export const TAX_BASE_YEAR = 2026;
+export const SALT_CAP_BASE_TAX_YEAR = TAX_BASE_YEAR;
+
+export const taxYearForProjectionYear = (inputs: HousingCalculatorInputs, projectionYear: number) =>
+    inputs.firstTaxYear + projectionYear - 1;
+
+// Years of inflation indexing from TAX_BASE_YEAR to the tax year of a
+// projection year (0-based index: 0 = projection year 1)
+export const yearsSinceTaxBase = (inputs: HousingCalculatorInputs, yearIndex: number) =>
+    inputs.firstTaxYear - TAX_BASE_YEAR + yearIndex;
+
+// Standard deduction for a 0-based projection year index. The input is the
+// TY2026 amount, indexed with the inflation rate.
+export const standardDeductionForYear = (inputs: HousingCalculatorInputs, yearIndex: number) =>
+    inputs.standardDeduction * Math.pow(1 + inputs.inflationRate / 100, yearsSinceTaxBase(inputs, yearIndex));
 
 export const calculateMonthlyTakeHome = (
     annualSalary: number,
@@ -67,23 +92,26 @@ export const calculateMonthlyTakeHome = (
     return afterTaxAnnual / 12;
 };
 
-// Employee payroll taxes for tax year 2026 (projection year 1).
+// Employee payroll taxes, tax year 2026.
 export const SOCIAL_SECURITY_RATE = 6.2;
 export const SOCIAL_SECURITY_WAGE_BASE_2026 = 184500; // SSA, indexed annually
 export const MEDICARE_RATE = 1.45;
 export const ADDITIONAL_MEDICARE_RATE = 0.9;
-// Statutory and NOT indexed for inflation (IRC 3101(b)(2)); MFJ threshold,
-// consistent with the app's MFJ defaults.
-export const ADDITIONAL_MEDICARE_THRESHOLD = 250000;
+// Statutory and NOT indexed for inflation (IRC 3101(b)(2))
+export const ADDITIONAL_MEDICARE_THRESHOLDS: Record<FilingStatus, number> = {
+    mfj: 250000, single: 200000, hoh: 200000, mfs: 125000,
+};
+export const ADDITIONAL_MEDICARE_THRESHOLD = ADDITIONAL_MEDICARE_THRESHOLDS.mfj;
 
-// yearsFromBase = 0 for the first simulated year. The Social Security wage base
+// yearsFromBase = years since tax year 2026. The Social Security wage base
 // follows the national wage index; the model approximates it with the
 // inflation rate.
 export const calculateAnnualPayrollTax = (
     annualSalary: number,
     yearsFromBase: number,
     earners: number,
-    inflationRate: number
+    inflationRate: number,
+    filingStatus: FilingStatus = 'mfj'
 ) => {
     if (annualSalary <= 0) return 0;
     const earnerCount = Math.max(1, Math.round(earners));
@@ -91,33 +119,52 @@ export const calculateAnnualPayrollTax = (
     const wagesPerEarner = annualSalary / earnerCount;
     const socialSecurity = earnerCount * Math.min(wagesPerEarner, wageBase) * (SOCIAL_SECURITY_RATE / 100);
     const medicare = annualSalary * (MEDICARE_RATE / 100);
-    const additionalMedicare = Math.max(0, annualSalary - ADDITIONAL_MEDICARE_THRESHOLD) * (ADDITIONAL_MEDICARE_RATE / 100);
+    const threshold = ADDITIONAL_MEDICARE_THRESHOLDS[filingStatus] ?? ADDITIONAL_MEDICARE_THRESHOLD;
+    const additionalMedicare = Math.max(0, annualSalary - threshold) * (ADDITIONAL_MEDICARE_RATE / 100);
     return socialSecurity + medicare + additionalMedicare;
 };
 
 // Single entry point both engines use, so payroll handling can't diverge.
-export const takeHomeForYear = (inputs: HousingCalculatorInputs, annualSalary: number, yearsFromBase: number) => {
+// yearIndex is 0-based (0 = projection year 1).
+export const takeHomeForYear = (inputs: HousingCalculatorInputs, annualSalary: number, yearIndex: number) => {
     const payrollTax = inputs.includePayrollTax
-        ? calculateAnnualPayrollTax(annualSalary, yearsFromBase, inputs.payrollEarners, inputs.inflationRate)
+        ? calculateAnnualPayrollTax(annualSalary, yearsSinceTaxBase(inputs, yearIndex), inputs.payrollEarners,
+            inputs.inflationRate, inputs.filingStatus)
         : 0;
     return calculateMonthlyTakeHome(annualSalary, inputs.effectiveFederalTaxRate, inputs.effectiveStateIncomeTaxRate, payrollTax);
 };
 
-// The user's SALT-cap input refers to this tax year (projection year 1).
-// Under current law (OBBBA 2025) the elevated cap rises 1%/yr through 2029,
-// then reverts to a flat, non-indexed $10,000 in 2030.
-export const SALT_CAP_BASE_TAX_YEAR = 2026;
+// SALT cap under OBBBA (IRC 164(b)(7)), with baseCap = the TY2026 cap entered by
+// the user ($40,400; $20,200 married filing separately):
+// - 2025-2029: baseCap x 1.01^(year - 2026), reduced by 30% of MAGI above a
+//   threshold ($505,000 in 2026, also +1%/yr; halved for MFS), but never below
+//   $10,000 ($5,000 MFS) through the phase-down
+// - 2030 on: flat, non-indexed $10,000 ($5,000 MFS)
+// assumeExtension keeps the 2029 rules (cap, threshold, phase-down) in force
+// after 2029 instead of reverting. Salary stands in for MAGI.
 const SALT_CAP_LAST_ELEVATED_TAX_YEAR = 2029;
-const SALT_CAP_AFTER_REVERSION = 10000;
+const SALT_PHASEDOWN_THRESHOLD_2026 = 505000;
+const SALT_PHASEDOWN_RATE = 0.30;
+const SALT_FLOOR = 10000;
 
-// yearsFromBase = 0 for the first simulated year of ownership.
-export const saltCapForYear = (baseCap: number, yearsFromBase: number, assumeExtension: boolean) => {
-    if (assumeExtension) return baseCap;
-    const taxYear = SALT_CAP_BASE_TAX_YEAR + yearsFromBase;
-    if (taxYear <= SALT_CAP_LAST_ELEVATED_TAX_YEAR) {
-        return baseCap * Math.pow(1.01, yearsFromBase);
+export const saltCapForYear = (
+    baseCap: number,
+    taxYear: number,
+    assumeExtension: boolean,
+    magi: number = 0,
+    filingStatus: FilingStatus = 'mfj'
+) => {
+    const statusFactor = filingStatus === 'mfs' ? 0.5 : 1;
+    const floor = SALT_FLOOR * statusFactor;
+    if (taxYear > SALT_CAP_LAST_ELEVATED_TAX_YEAR && !assumeExtension) {
+        return Math.min(baseCap, floor);
     }
-    return Math.min(baseCap, SALT_CAP_AFTER_REVERSION);
+    const scheduleYear = Math.min(taxYear, SALT_CAP_LAST_ELEVATED_TAX_YEAR);
+    const indexYears = scheduleYear - SALT_CAP_BASE_TAX_YEAR;
+    const scheduledCap = baseCap * Math.pow(1.01, indexYears);
+    const threshold = SALT_PHASEDOWN_THRESHOLD_2026 * statusFactor * Math.pow(1.01, indexYears);
+    const reduction = SALT_PHASEDOWN_RATE * Math.max(0, magi - threshold);
+    return Math.max(Math.min(scheduledCap, floor), scheduledCap - reduction);
 };
 
 // Standard fixed-payment annuity; falls back to straight-line for a 0% loan
@@ -266,7 +313,7 @@ export const calculateMortgageScenario = (
     const itemizedDeductionsByYear: number[] = [];
 
     let currentAssessedValue = homePrice;
-    let currentStandardDeduction = standardDeduction;
+    let currentStandardDeduction = standardDeductionForYear(inputs, 0);
     let currentAnnualSalary = annualSalaryBeforeTax;
     let currentMonthlyMiscExpenses = monthlyMiscExpenses;
     let currentMonthlyHOAFee = monthlyHOAFee;
@@ -280,7 +327,7 @@ export const calculateMortgageScenario = (
         if ((month - 1) % 12 === 0 && month > 1) {
             const yearsPassed = Math.floor((month - 1) / 12);
             currentAnnualSalary = annualSalaryBeforeTax * Math.pow(1 + salaryGrowthRate / 100, yearsPassed);
-            currentStandardDeduction = standardDeduction * Math.pow(1 + inflationRate / 100, yearsPassed);
+            currentStandardDeduction = standardDeductionForYear(inputs, yearsPassed);
             const assessmentIncrease = Math.min(inflationRate, propertyTaxAssessmentCap) / 100;
             currentAssessedValue = homePrice * Math.pow(1 + assessmentIncrease, yearsPassed);
 
@@ -358,7 +405,8 @@ export const calculateMortgageScenario = (
                 : 0;
 
             // SALT = property taxes + state income tax (Mello-Roos excluded per IRC 164)
-            const effectiveSaltCap = saltCapForYear(saltCap, yearIndex - 1, assumeSaltCapExtension);
+            const effectiveSaltCap = saltCapForYear(saltCap, taxYearForProjectionYear(inputs, yearIndex),
+                assumeSaltCapExtension, currentAnnualSalary, inputs.filingStatus);
             const totalSaltTaxes = annualPropertyTax + stateIncomeTax;
             const cappedSaltDeduction = Math.min(totalSaltTaxes, effectiveSaltCap);
             const totalItemizedDeductions = cappedMortgageInterest + cappedSaltDeduction;
@@ -467,7 +515,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
     let currentMonthlyPropertyUtilities = monthlyPropertyUtilities;
     let currentMonthlyRentUtilities = monthlyRentUtilities;
     let currentMonthlyRenterInsurance = monthlyRenterInsurance;
-    let currentStandardDeduction = standardDeduction;
+    let currentStandardDeduction = standardDeductionForYear(inputs, 0);
 
     const monthlyInterestRate = effectiveMortgageRate / 100 / 12;
     const totalMonthlyPayments = mortgageYears * 12;
@@ -562,7 +610,8 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         };
 
         const yearlyPropertyTaxes = currentAssessedValue * (propertyTaxRate / 100);
-        const effectiveSaltCap = saltCapForYear(saltCap, year - 1, assumeSaltCapExtension);
+        const effectiveSaltCap = saltCapForYear(saltCap, taxYearForProjectionYear(inputs, year),
+            assumeSaltCapExtension, currentAnnualSalary, inputs.filingStatus);
         // Pub 936: prorate the interest deduction by average balance
         const averageMortgageBalance = (mortgageBalance + mortgageBreakdown.endingBalance) / 2;
         const { yearlyTaxSavings, totalItemizedDeductions } = calculateTaxSavings(

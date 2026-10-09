@@ -65,6 +65,8 @@ const baseInputs: HousingCalculatorInputs = {
   // tests and cross-engine cases below
   includePayrollTax: false,
   payrollEarners: 2,
+  firstTaxYear: 2026,
+  filingStatus: 'mfj',
 };
 
 function inputs(overrides: Partial<HousingCalculatorInputs> = {}): HousingCalculatorInputs {
@@ -349,27 +351,53 @@ describe('calculateRenterTaxSavings', () => {
 // ---------------------------------------------------------------------------
 
 describe('saltCapForYear', () => {
-  it('uses the entered cap for the base tax year (2026)', () => {
-    expect(saltCapForYear(40400, 0, false)).toBe(40400);
+  it('uses the entered cap for tax year 2026', () => {
+    expect(saltCapForYear(40400, 2026, false)).toBe(40400);
   });
 
-  it('indexes the cap 1%/yr through 2029', () => {
-    expect(saltCapForYear(40400, 1, false)).toBeCloseTo(40400 * 1.01, 5);
-    expect(saltCapForYear(40400, 3, false)).toBeCloseTo(40400 * Math.pow(1.01, 3), 5);
+  it('follows the statute 2025-2029: $40,000, then +1%/yr', () => {
+    expect(saltCapForYear(40400, 2025, false)).toBeCloseTo(40000, 6);
+    expect(saltCapForYear(40400, 2027, false)).toBeCloseTo(40804, 6);
+    expect(saltCapForYear(40400, 2029, false)).toBeCloseTo(41624.1604, 4);
   });
 
   it('reverts to $10,000 in 2030 and beyond under current law', () => {
-    expect(saltCapForYear(40400, 4, false)).toBe(10000);
-    expect(saltCapForYear(40400, 25, false)).toBe(10000);
+    expect(saltCapForYear(40400, 2030, false)).toBe(10000);
+    expect(saltCapForYear(40400, 2055, false)).toBe(10000);
   });
 
   it('never raises a user cap already below $10,000 after reversion', () => {
-    expect(saltCapForYear(8000, 10, false)).toBe(8000);
+    expect(saltCapForYear(8000, 2036, false)).toBe(8000);
   });
 
-  it('holds the cap constant when extension is assumed', () => {
-    expect(saltCapForYear(40400, 0, true)).toBe(40400);
-    expect(saltCapForYear(40400, 10, true)).toBe(40400);
+  it('phases down by 30% of MAGI over $505,000 (2026), never below $10,000', () => {
+    expect(saltCapForYear(40400, 2026, false, 505000)).toBe(40400);
+    expect(saltCapForYear(40400, 2026, false, 550000)).toBeCloseTo(26900, 6);
+    expect(saltCapForYear(40400, 2026, false, 600000)).toBeCloseTo(11900, 6);
+    expect(saltCapForYear(40400, 2026, false, 650000)).toBe(10000);
+  });
+
+  it('indexes the phase-down threshold +1%/yr with the cap', () => {
+    // 2027: cap 40,804, threshold 510,050; MAGI 563,200 -> 40,804 - 0.3 x 53,150
+    expect(saltCapForYear(40400, 2027, false, 563200)).toBeCloseTo(40804 - 0.3 * (563200 - 510050), 6);
+    // 2029: cap 41,624.16, threshold 520,302.02
+    expect(saltCapForYear(40400, 2029, false, 600000))
+      .toBeCloseTo(40400 * 1.01 ** 3 - 0.3 * (600000 - 505000 * 1.01 ** 3), 6);
+  });
+
+  it('halves the cap floor, threshold and post-2029 cap for married filing separately', () => {
+    expect(saltCapForYear(20200, 2026, false, 252500, 'mfs')).toBe(20200);
+    expect(saltCapForYear(20200, 2026, false, 300000, 'mfs')).toBeCloseTo(20200 - 0.3 * 47500, 6);
+    expect(saltCapForYear(20200, 2026, false, 400000, 'mfs')).toBe(5000);
+    expect(saltCapForYear(20200, 2030, false, 0, 'mfs')).toBe(5000);
+  });
+
+  it('extension keeps the 2029 rules after 2029 and leaves 2026-2029 at current law', () => {
+    for (const y of [2026, 2027, 2028, 2029]) {
+      expect(saltCapForYear(40400, y, true)).toBe(saltCapForYear(40400, y, false));
+    }
+    expect(saltCapForYear(40400, 2035, true)).toBeCloseTo(40400 * 1.01 ** 3, 6);
+    expect(saltCapForYear(40400, 2035, true, 650000)).toBe(10000);
   });
 });
 
@@ -1094,5 +1122,55 @@ describe('DEFAULTS', () => {
     for (const years of [3, 10, 30]) {
       expect(Math.abs(data[years].buying - calculateMortgageScenario(DEFAULTS, 0, years).finalNetWorth)).toBeLessThanOrEqual(5);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tax-year anchoring, SALT phase-down and filing status in the engines
+// ---------------------------------------------------------------------------
+
+describe('tax year and filing status in the engines', () => {
+  it('a later first tax year reaches the 2030 SALT reversion sooner', () => {
+    const y2026 = calculateProjectionData(inputs({ firstTaxYear: 2026 })) as any[];
+    const y2027 = calculateProjectionData(inputs({ firstTaxYear: 2027 })) as any[];
+    // Projection year 4 is TY2029 for a 2026 start, TY2030 for a 2027 start
+    expect(y2027[4].yearlyTaxSavings).toBeLessThan(y2026[4].yearlyTaxSavings);
+    expect(y2027[30].buying).toBeLessThan(y2026[30].buying);
+  });
+
+  it('a later first tax year indexes the TY2026 standard deduction forward', () => {
+    // SALT (8,550 property + 31,500 state = 40,050) is under both years' caps,
+    // so year-1 savings differ only by one year of standard-deduction indexing
+    const y2026 = calculateProjectionData(inputs({ firstTaxYear: 2026 })) as any[];
+    const y2027 = calculateProjectionData(inputs({ firstTaxYear: 2027 })) as any[];
+    expect(y2027[1].yearlyTaxSavings - y2026[1].yearlyTaxSavings).toBe(Math.round(-32200 * 0.03 * 0.32));
+  });
+
+  it('applies the SALT phase-down to buyer and renter at high salaries', () => {
+    const inp = inputs({ annualSalaryBeforeTax: 650000, effectiveStateIncomeTaxRate: 9.3 });
+    const data = calculateProjectionData(inp) as any[];
+    // Cap is $10,000 for 2026-2029 at $650k
+    expect(data[1].renterYearlyTaxSavings).toBe(0);
+    const itemizedInterestOnly = data[1].totalItemizedDeductions - 10000;
+    expect(itemizedInterestOnly).toBeGreaterThan(20000);
+    expect(itemizedInterestOnly).toBeLessThan(25000);
+  });
+
+  it.each([
+    { label: 'high earner', o: { annualSalaryBeforeTax: 600000 } },
+    { label: 'MFS', o: { filingStatus: 'mfs' as const, saltCap: 20200, annualSalaryBeforeTax: 300000, standardDeduction: 16100 } },
+    { label: 'first tax year 2028 + extension', o: { firstTaxYear: 2028, assumeSaltCapExtension: true } },
+    { label: 'payroll on, single', o: { includePayrollTax: true, payrollEarners: 1, filingStatus: 'single' as const } },
+  ])('engines agree: $label', ({ o }) => {
+    const inp = inputs(o);
+    const data = calculateProjectionData(inp) as any[];
+    for (const years of [3, 6, 30]) {
+      expect(Math.abs(data[years].buying - calculateMortgageScenario(inp, 0, years).finalNetWorth)).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it('Additional Medicare threshold depends on filing status', () => {
+    expect(calculateAnnualPayrollTax(300000, 0, 1, 3, 'single') - calculateAnnualPayrollTax(300000, 0, 1, 3, 'mfj'))
+      .toBeCloseTo(0.009 * 50000, 6);
   });
 });

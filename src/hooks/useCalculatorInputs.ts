@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { usePersistedState } from './usePersistedState';
-import { calculateProjectionData, HousingCalculatorInputs } from '../lib/financialCalculations';
+import { calculateProjectionData, HousingCalculatorInputs, FilingStatus } from '../lib/financialCalculations';
 import {
   sanitizeInputValue,
   parseUrlValue,
@@ -10,6 +10,24 @@ import {
   SETTINGS_VERSION_KEY,
   SETTINGS_VERSION,
 } from '../lib/inputValidation';
+
+// Tax year that most of the first 12 months of ownership falls in, for a
+// purchase made now: a closing in the second half of the year is mostly next
+// year's taxes.
+const defaultFirstTaxYear = () => {
+  const now = new Date();
+  return Math.max(2026, now.getMonth() >= 6 ? now.getFullYear() + 1 : now.getFullYear());
+};
+
+// TY2026 statutory amounts by filing status (Rev. Proc. 2025-32; OBBBA SALT
+// cap; IRC 163(h)(3)(F) acquisition-debt limit). Picking a filing status sets
+// these inputs; the user can still edit them.
+export const FILING_STATUS_AMOUNTS: Record<FilingStatus, { standardDeduction: number; saltCap: number; mortgageInterestDeductionCap: number }> = {
+  mfj: { standardDeduction: 32200, saltCap: 40400, mortgageInterestDeductionCap: 750000 },
+  single: { standardDeduction: 16100, saltCap: 40400, mortgageInterestDeductionCap: 750000 },
+  hoh: { standardDeduction: 24150, saltCap: 40400, mortgageInterestDeductionCap: 750000 },
+  mfs: { standardDeduction: 16100, saltCap: 20200, mortgageInterestDeductionCap: 375000 },
+};
 
 // General defaults (married filing jointly, tax year 2026). Only values that
 // differ from these are saved, so changing a default here reaches every
@@ -64,6 +82,8 @@ export const DEFAULTS: HousingCalculatorInputs = {
   annualInvestmentTaxDrag: 0.2,
   includePayrollTax: true,
   payrollEarners: 2,
+  firstTaxYear: defaultFirstTaxYear(),
+  filingStatus: 'mfj',
 };
 
 type InputKey = keyof HousingCalculatorInputs;
@@ -113,6 +133,8 @@ const INPUT_KEYS: Record<InputKey, [string, string]> = {
   annualInvestmentTaxDrag: ['housing-investmentTaxDrag', 'investmentTaxDrag'],
   includePayrollTax: ['housing-includePayrollTax', 'payrollTax'],
   payrollEarners: ['housing-payrollEarners', 'earners'],
+  firstTaxYear: ['housing-firstTaxYear', 'firstTaxYear'],
+  filingStatus: ['housing-filingStatus', 'filingStatus'],
 };
 
 const INPUT_NAMES = Object.keys(INPUT_KEYS) as InputKey[];
@@ -219,6 +241,15 @@ export const useCalculatorInputs = () => {
     inputCardProps[name] = state[name];
     inputCardProps[setterName(name)] = setterMap[name];
   }
+  // Changing filing status also sets that status's statutory amounts
+  inputCardProps.setFilingStatus = (status: FilingStatus) => {
+    const amounts = FILING_STATUS_AMOUNTS[status];
+    if (!amounts) return;
+    setterMap.filingStatus(status);
+    setterMap.standardDeduction(amounts.standardDeduction);
+    setterMap.saltCap(amounts.saltCap);
+    setterMap.mortgageInterestDeductionCap(amounts.mortgageInterestDeductionCap);
+  };
 
   return {
     inputs,

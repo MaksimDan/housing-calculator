@@ -46,6 +46,11 @@ export const NUMBER_RULES: Record<string, NumberRule> = {
   annualInvestmentTaxDrag: { min: 0, max: 100 },
   payrollEarners: { min: 1, max: 2, integer: true },
   payoffHorizon: { min: 1, max: 50, integer: true },
+  firstTaxYear: { min: 2025, max: 2100, integer: true },
+};
+
+export const ENUM_INPUTS: Record<string, readonly string[]> = {
+  filingStatus: ['mfj', 'single', 'hoh', 'mfs'],
 };
 
 export const BOOLEAN_INPUTS = new Set([
@@ -65,6 +70,9 @@ export const cleanFloat = (value: number) => Number(value.toFixed(10));
 export const sanitizeInputValue = (key: string, raw: unknown): any => {
   if (BOOLEAN_INPUTS.has(key)) {
     return typeof raw === 'boolean' ? raw : undefined;
+  }
+  if (ENUM_INPUTS[key]) {
+    return typeof raw === 'string' && ENUM_INPUTS[key].includes(raw) ? raw : undefined;
   }
   const rule = NUMBER_RULES[key];
   if (!rule) return undefined;

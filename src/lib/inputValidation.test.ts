@@ -13,6 +13,7 @@ import {
   SETTINGS_VERSION,
   NUMBER_RULES,
   BOOLEAN_INPUTS,
+  ENUM_INPUTS,
 } from './inputValidation';
 import { DEFAULTS } from '../hooks/useCalculatorInputs';
 import { calculateProjectionData } from './financialCalculations';
@@ -37,7 +38,7 @@ const throwingStorage: KeyValueStorage = {
 describe('sanitizeInputValue', () => {
   it('covers every input with a rule', () => {
     for (const key of Object.keys(DEFAULTS)) {
-      expect(NUMBER_RULES[key] !== undefined || BOOLEAN_INPUTS.has(key)).toBe(true);
+      expect(NUMBER_RULES[key] !== undefined || BOOLEAN_INPUTS.has(key) || ENUM_INPUTS[key] !== undefined).toBe(true);
       expect(sanitizeInputValue(key, (DEFAULTS as any)[key])).toBe((DEFAULTS as any)[key]);
     }
   });
@@ -73,6 +74,14 @@ describe('sanitizeInputValue', () => {
   it('accepts negative growth rates where allowed', () => {
     expect(sanitizeInputValue('homeAppreciation', -2)).toBe(-2);
     expect(sanitizeInputValue('monthlyRent', -2)).toBe(0);
+  });
+
+  it('only accepts known filing statuses', () => {
+    expect(sanitizeInputValue('filingStatus', 'mfs')).toBe('mfs');
+    expect(sanitizeInputValue('filingStatus', 'MFJ')).toBeUndefined();
+    expect(parseUrlValue('filingStatus', 'single')).toBe('single');
+    expect(sanitizeInputValue('firstTaxYear', 2027.4)).toBe(2027);
+    expect(sanitizeInputValue('firstTaxYear', 1990)).toBe(2025);
   });
 
   it('only accepts real booleans for toggles', () => {
