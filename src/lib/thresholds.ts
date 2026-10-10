@@ -1,5 +1,5 @@
 import { calculateProjectionData, HousingCalculatorInputs } from './financialCalculations';
-import { FIELDS, InputKey } from './fields';
+import { FIELDS, InputKey, appliesTo } from './fields';
 
 // Buy-minus-rent gap at the horizon, or null when the inputs are unaffordable.
 export const gapAt = (inputs: HousingCalculatorInputs, horizon: number): number | null => {
@@ -52,7 +52,7 @@ export const findFlipThreshold = (
 export const findFlipThresholds = (inputs: HousingCalculatorInputs, horizon: number): FlipThreshold[] => {
   const results: FlipThreshold[] = [];
   for (const f of FIELDS) {
-    if (!f.flip) continue;
+    if (!f.flip || !appliesTo(f, inputs.situation)) continue;
     const t = findFlipThreshold(inputs, f.key, horizon, f.flip);
     if (t) results.push(t);
   }

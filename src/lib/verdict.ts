@@ -1,4 +1,6 @@
+import type { Situation } from './financialCalculations';
 import { formatCompactUSD } from './format';
+import { wordsFor } from './situation';
 
 export type Side = 'buy' | 'rent' | 'tie';
 
@@ -26,7 +28,6 @@ export interface Verdict {
   headline: string;
 }
 
-const sideName = (s: Side) => (s === 'buy' ? 'Buying' : s === 'rent' ? 'Renting' : 'Neither');
 const sideOf = (gap: number): Side => (gap > 0 ? 'buy' : gap < 0 ? 'rent' : 'tie');
 
 // The leader in each year 0..horizon, and the years the lead changed hands.
@@ -47,8 +48,12 @@ export const computeVerdict = (
   rows: ProjectionRow[],
   requestedHorizon: number,
   inflationRate: number,
-  firstTaxYear: number
+  firstTaxYear: number,
+  situation: Situation = 'renter'
 ): Verdict => {
+  const words = wordsFor(situation);
+  const name = (s: Side) => (s === 'buy' ? words.own.name : words.rent.name);
+  const lower = (s: Side) => (s === 'buy' ? words.own.lower : words.rent.lower);
   const horizon = Math.min(Math.floor(requestedHorizon), rows.length - 1);
   const end = rows[horizon];
   const gap = end.buying - end.renting;
@@ -65,16 +70,16 @@ export const computeVerdict = (
   if (winner === 'tie') {
     story = `The two paths end up even after ${horizon} years.`;
   } else if (crossovers.length === 0) {
-    story = `${sideName(winner)} is ahead from the start and stays ahead for all ${horizon} years.`;
+    story = `${name(winner)} is ahead from the start and stays ahead for all ${horizon} years.`;
   } else if (crossovers.length === 1) {
-    story = `${sideName(loser)} leads at first; ${sideName(winner).toLowerCase()} pulls ahead in year ${leadSince} and stays ahead.`;
+    story = `${name(loser)} leads at first; ${lower(winner)} pulls ahead in year ${leadSince} and stays ahead.`;
   } else {
-    story = `The lead changes hands ${crossovers.length} times (years ${crossovers.join(', ')}); ${sideName(winner).toLowerCase()} has led since year ${leadSince}.`;
+    story = `The lead changes hands ${crossovers.length} times (years ${crossovers.join(', ')}); ${lower(winner)} has led since year ${leadSince}.`;
   }
 
   const headline = winner === 'tie'
-    ? `Buying and renting come out even after ${horizon} years`
-    : `${sideName(winner)} comes out ahead by ${formatCompactUSD(gapAbs)} after ${horizon} years`;
+    ? `${words.even} come out even after ${horizon} years`
+    : `${name(winner)} comes out ahead by ${formatCompactUSD(gapAbs)} after ${horizon} years`;
 
   return {
     horizon,

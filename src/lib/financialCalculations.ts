@@ -8,20 +8,34 @@ import {
     ADDITIONAL_MEDICARE_THRESHOLDS,
 } from './taxLaw';
 
+// Where you start: renting today and thinking of buying, or owning today and
+// thinking of selling and renting. See startingPosition.
+export type Situation = 'renter' | 'owner';
+
 export interface HousingCalculatorInputs {
+    // The engines' "buying" side is the path that owns the home (buy it, or
+    // keep the one you own) and "renting" the path that rents (keep renting,
+    // or sell and rent), whichever situation you start from.
+    situation: Situation;
     annualSalaryBeforeTax: number;
     effectiveFederalTaxRate: number;
     standardDeduction: number;
     initialInvestment: number;
     monthlyMiscExpenses: number;
+    // Purchase price for a renter; today's value for an owner
     homePrice: number;
+    // Renter only (an owner's loan is mortgageBalance)
     downPaymentPercent: number;
+    // Owner only: what you still owe today
+    mortgageBalance: number;
     effectiveMortgageRate: number;
+    // Loan term for a renter, years left for an owner; fractions are whole
+    // months (see paymentCount)
     mortgageYears: number;
     PMIRate: number;
     propertyTaxRate: number;
     melloRoosTaxRate: number;
-    closingCostPercent: number;
+    closingCostPercent: number; // renter only, like movingCostBuying
     annualMaintenanceRate: number;
     monthlyHOAFee: number;
     monthlyHomeInsurance: number;
@@ -46,7 +60,9 @@ export interface HousingCalculatorInputs {
     marginalFederalTaxRate: number;
     useMarginalTaxRate: boolean;
     melloRoosGrowsWithAssessment: boolean;
+    // Selling the home at the end (the owning path's net worth)
     includeSellingCosts: boolean;
+    // Also what an owner pays to sell today on the renting path
     sellingCostPercent: number;
     annualInvestmentTaxDrag: number;
     assumeSaltCapExtension: boolean;
@@ -66,6 +82,48 @@ export interface HousingCalculatorInputs {
 
 export type { FilingStatus };
 export { saltCapForYear };
+
+// Monthly payments left on the loan: the term in whole months
+export const paymentCount = (inputs: HousingCalculatorInputs) => Math.round(inputs.mortgageYears * 12);
+
+// Where both paths start, shared by both engines. A renter who buys pays the
+// down payment, closing and moving costs from savings and borrows the rest;
+// staying a renter keeps the savings invested, less the deposit and any
+// moving costs. An owner who keeps the home carries the loan as it stands and
+// pays nothing upfront; selling instead pays the selling costs and the loan
+// out of the sale price, and the rest joins savings, less moving costs and
+// the deposit on the rental.
+export const startingPosition = (inputs: HousingCalculatorInputs) => {
+    const { homePrice, initialInvestment, rentDeposit, movingCostRenting } = inputs;
+    if (inputs.situation === 'owner') {
+        const loanAmount = inputs.mortgageBalance;
+        const saleCosts = homePrice * (inputs.sellingCostPercent / 100);
+        // Negative when the home is worth less than the loan plus selling costs
+        const saleProceeds = homePrice - saleCosts - loanAmount;
+        return {
+            loanAmount,
+            downPayment: 0,
+            closingCosts: 0,
+            upfrontCash: 0,
+            saleCosts,
+            saleProceeds,
+            buyingInvestment: initialInvestment,
+            rentingInvestment: initialInvestment + saleProceeds - movingCostRenting - rentDeposit,
+        };
+    }
+    const downPayment = homePrice * (inputs.downPaymentPercent / 100);
+    const closingCosts = homePrice * (inputs.closingCostPercent / 100);
+    return {
+        loanAmount: homePrice - downPayment,
+        downPayment,
+        closingCosts,
+        upfrontCash: downPayment + closingCosts + inputs.movingCostBuying,
+        saleCosts: 0,
+        saleProceeds: 0,
+        buyingInvestment: initialInvestment - downPayment - closingCosts - inputs.movingCostBuying,
+        rentingInvestment: initialInvestment - rentDeposit - movingCostRenting,
+    };
+};
 
 // Timing convention used by BOTH engines: each simulated year charges that year's
 // cash flows at start-of-year levels (year 1 uses the user's entered values), and
@@ -240,22 +298,21 @@ export const calculateMortgageScenario = (
     extraMonthlyPayment: number = 0,
     horizonYears: number = 30
 ) => {
-    const { homePrice, downPaymentPercent, effectiveMortgageRate, mortgageYears, investmentReturn,
+    const { homePrice, effectiveMortgageRate, mortgageYears, investmentReturn,
             propertyTaxRate, melloRoosTaxRate, annualSalaryBeforeTax, effectiveStateIncomeTaxRate,
             mortgageInterestDeductionCap, saltCap, standardDeduction, effectiveFederalTaxRate,
             homeAppreciation, inflationRate, propertyTaxAssessmentCap, salaryGrowthRate,
-            initialInvestment, closingCostPercent, movingCostBuying, monthlyMiscExpenses,
+            monthlyMiscExpenses,
             PMIRate, annualMaintenanceRate, monthlyHOAFee, monthlyHomeInsurance,
             monthlyPropertyUtilities, monthlyRentalIncome,
             marginalFederalTaxRate, useMarginalTaxRate, melloRoosGrowsWithAssessment,
             includeSellingCosts, sellingCostPercent, annualInvestmentTaxDrag,
             assumeSaltCapExtension } = inputs;
 
-    const downPaymentAmount = homePrice * (downPaymentPercent / 100);
-    const closingCostsAmount = homePrice * (closingCostPercent / 100);
-    const loanAmount = homePrice - downPaymentAmount;
+    const start = startingPosition(inputs);
+    const loanAmount = start.loanAmount;
     const monthlyRate = effectiveMortgageRate / 100 / 12;
-    const totalPayments = mortgageYears * 12;
+    const totalPayments = paymentCount(inputs);
     const monthlyInvestmentReturn = toMonthlyRate(investmentReturn - annualInvestmentTaxDrag);
     const horizonMonths = horizonYears * 12;
     const taxRateForDeductions = useMarginalTaxRate ? marginalFederalTaxRate : effectiveFederalTaxRate;
@@ -265,7 +322,7 @@ export const calculateMortgageScenario = (
     const pmiThresholdBalance = homePrice * 0.8;
 
     let balance = loanAmount;
-    let investmentBalance = initialInvestment - downPaymentAmount - closingCostsAmount - movingCostBuying;
+    let investmentBalance = start.buyingInvestment;
     let totalInterestPaid = 0;
     let totalPrincipalPaid = 0;
     let payoffMonth = -1;
@@ -423,12 +480,12 @@ export const calculateMortgageScenario = (
 
 export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
     const {
-        annualSalaryBeforeTax, effectiveFederalTaxRate, standardDeduction,
-        initialInvestment, monthlyMiscExpenses, homePrice, downPaymentPercent,
-        effectiveMortgageRate, mortgageYears, PMIRate, propertyTaxRate,
-        melloRoosTaxRate, closingCostPercent, annualMaintenanceRate,
+        situation, annualSalaryBeforeTax, effectiveFederalTaxRate, standardDeduction,
+        initialInvestment, monthlyMiscExpenses, homePrice,
+        effectiveMortgageRate, PMIRate, propertyTaxRate,
+        melloRoosTaxRate, annualMaintenanceRate,
         monthlyHOAFee, monthlyHomeInsurance, monthlyRent, monthlyRentalIncome,
-        rentDeposit, movingCostBuying, movingCostRenting, monthlyRenterInsurance,
+        rentDeposit, movingCostRenting, monthlyRenterInsurance,
         monthlyRentUtilities, monthlyPropertyUtilities, homeAppreciation,
         investmentReturn, rentIncrease, salaryGrowthRate, inflationRate,
         propertyTaxAssessmentCap, xAxisYears, mortgageInterestDeductionCap,
@@ -441,19 +498,31 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
     const data = [];
     const taxRateForDeductions = useMarginalTaxRate ? marginalFederalTaxRate : effectiveFederalTaxRate;
 
-    const downPaymentAmount = homePrice * (downPaymentPercent / 100);
-    const closingCostsAmount = homePrice * (closingCostPercent / 100);
-    const originalLoanAmount = homePrice * (1 - downPaymentPercent / 100);
+    const start = startingPosition(inputs);
     const pmiThresholdBalance = homePrice * 0.8;
-    const monthlyPMIWhenOwed = (originalLoanAmount * PMIRate) / 100 / 12;
+    const monthlyPMIWhenOwed = (start.loanAmount * PMIRate) / 100 / 12;
 
     const initialSellingCosts = includeSellingCosts ? homePrice * (sellingCostPercent / 100) : 0;
 
-    const totalCashNeeded = downPaymentAmount + closingCostsAmount + movingCostBuying;
-    if (totalCashNeeded > initialInvestment) {
+    if (start.upfrontCash > initialInvestment) {
         return {
+            kind: 'upfront' as const,
             error: "Insufficient initial investment for down payment and closing costs",
-            requiredUpfront: totalCashNeeded,
+            requiredUpfront: start.upfrontCash,
+            availableInvestment: initialInvestment
+        };
+    }
+    // Selling has to cover the loan, the selling costs, the move and the
+    // deposit, from the sale price plus savings
+    if (situation === 'owner' && start.rentingInvestment < 0) {
+        return {
+            kind: 'sale' as const,
+            error: "Insufficient cash to sell the home and move to a rental",
+            salePrice: homePrice,
+            saleCosts: start.saleCosts,
+            mortgageBalance: start.loanAmount,
+            movingCost: movingCostRenting,
+            rentDeposit,
             availableInvestment: initialInvestment
         };
     }
@@ -462,13 +531,13 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
     let currentAssessedValue = homePrice;
     let currentMonthlyRent = monthlyRent;
     let currentAnnualSalary = annualSalaryBeforeTax;
-    let mortgageBalance = homePrice - downPaymentAmount;
+    let mortgageBalance = start.loanAmount;
     let currentMonthlyRentalIncome = monthlyRentalIncome;
 
     // Liquid portfolios; the rent deposit is excluded from the renter's
     // investable funds but reported as a (non-compounding) asset in net worth.
-    let buyingInvestmentBalance = initialInvestment - downPaymentAmount - closingCostsAmount - movingCostBuying;
-    let rentingInvestmentBalance = initialInvestment - rentDeposit - movingCostRenting;
+    let buyingInvestmentBalance = start.buyingInvestment;
+    let rentingInvestmentBalance = start.rentingInvestment;
 
     let currentMonthlyMiscExpenses = monthlyMiscExpenses;
     let currentMonthlyHOAFee = monthlyHOAFee;
@@ -479,7 +548,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
     let currentStandardDeduction = standardDeductionForYear(inputs, 0);
 
     const monthlyInterestRate = effectiveMortgageRate / 100 / 12;
-    const totalMonthlyPayments = mortgageYears * 12;
+    const totalMonthlyPayments = paymentCount(inputs);
     const monthlyMortgagePayment = calculateMonthlyMortgagePayment(mortgageBalance, monthlyInterestRate, totalMonthlyPayments);
 
     const initialMonthlyTakeHome = takeHomeForYear(inputs, annualSalaryBeforeTax, 0);
@@ -501,8 +570,12 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
     // Net of rental income — the simulation itself runs on net costs
     const initialNetMonthlyExpenses = initialTotalMonthlyHousingCosts - monthlyRentalIncome + currentMonthlyMiscExpenses;
 
-    if (initialNetMonthlyExpenses > initialMonthlyTakeHome) {
+    // A purchase has to be affordable from take-home pay. An owner already
+    // carries these costs, so for them a shortfall is drawn from savings like
+    // any later year's (the cash check flags it) instead of blocking.
+    if (situation !== 'owner' && initialNetMonthlyExpenses > initialMonthlyTakeHome) {
         return {
+            kind: 'monthly' as const,
             error: "Monthly housing costs and living expenses exceed monthly take-home pay",
             monthlyHousingCosts: initialTotalMonthlyHousingCosts,
             monthlyMiscExpenses: currentMonthlyMiscExpenses,
@@ -511,8 +584,9 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         };
     }
 
-    // Year 0 is the moment of purchase: a snapshot of starting balances plus the
-    // upcoming first year's monthly costs. No time has elapsed, so no tax savings.
+    // Year 0 is the starting point (the purchase, or today for an owner): a
+    // snapshot of starting balances plus the upcoming first year's monthly
+    // costs. No time has elapsed, so no tax savings.
     const netMonthlyHomeownerCostsAtStart = initialTotalMonthlyHousingCosts - currentMonthlyRentalIncome;
     const totalMonthlyRenterCostsAtStart =
         currentMonthlyRent + currentMonthlyRenterInsurance + currentMonthlyRentUtilities;
@@ -554,7 +628,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
 
     const monthlyReturn = toMonthlyRate(investmentReturn - annualInvestmentTaxDrag);
 
-    for (let year = 1; year <= Math.max(mortgageYears, xAxisYears); year++) {
+    for (let year = 1; year <= Math.max(Math.ceil(totalMonthlyPayments / 12), xAxisYears); year++) {
         // --- Cash flows during this year, at start-of-year levels ---
         const mortgageBreakdown = mortgageBalance > 0 ? calculateYearlyMortgageBreakdown(
             mortgageBalance,

@@ -56,10 +56,14 @@ describe('sanitizeInputValue', () => {
     expect(sanitizeInputValue('xAxisYears', 1e6)).toBe(50);
   });
 
-  it('rounds integer-only fields (no fractional years)', () => {
+  it('rounds integer-only fields (no fractional horizon)', () => {
     expect(sanitizeInputValue('xAxisYears', 10.1)).toBe(10);
     expect(sanitizeInputValue('xAxisYears', 12.5)).toBe(13);
-    expect(sanitizeInputValue('mortgageYears', 15.5)).toBe(16);
+  });
+
+  it("keeps fractional mortgage years (an owner's 26 years and 6 months left)", () => {
+    expect(sanitizeInputValue('mortgageYears', 26.5)).toBe(26.5);
+    expect(sanitizeInputValue('mortgageYears', 0.5)).toBe(1);
   });
 
   it('removes floating-point residue from +/- clicks', () => {
@@ -74,6 +78,13 @@ describe('sanitizeInputValue', () => {
   it('accepts negative growth rates where allowed', () => {
     expect(sanitizeInputValue('homeAppreciation', -2)).toBe(-2);
     expect(sanitizeInputValue('monthlyRent', -2)).toBe(0);
+  });
+
+  it('only accepts known situations', () => {
+    expect(sanitizeInputValue('situation', 'owner')).toBe('owner');
+    expect(parseUrlValue('situation', 'renter')).toBe('renter');
+    expect(sanitizeInputValue('situation', 'landlord')).toBeUndefined();
+    expect(sanitizeInputValue('mortgageBalance', -1)).toBe(0);
   });
 
   it('only accepts known filing statuses', () => {

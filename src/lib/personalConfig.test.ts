@@ -15,7 +15,12 @@ class MemoryStorage implements KeyValueStorage {
 
 describe('startingInputs', () => {
   it('is the defaults when there is no personal config (the deployed site, and the tests)', () => {
-    expect(startingInputs(DEFAULTS, null)).toEqual({ inputs: DEFAULTS, personal: null, problems: [] });
+    expect(startingInputs(DEFAULTS, null)).toEqual({
+      inputs: DEFAULTS,
+      bySituation: { renter: DEFAULTS, owner: { ...DEFAULTS, situation: 'owner' } },
+      personal: null,
+      problems: [],
+    });
     expect(PERSONAL_CONFIG).toBeNull();
     expect(STARTING_INPUTS).toBe(DEFAULTS);
   });
@@ -41,10 +46,10 @@ describe('startingInputs', () => {
   });
 
   it('clamps out-of-range numbers like every other input path, and says so', () => {
-    const { inputs, problems } = startingInputs(DEFAULTS, { downPaymentPercent: 120, mortgageYears: 29.6 });
+    const { inputs, problems } = startingInputs(DEFAULTS, { downPaymentPercent: 120, xAxisYears: 29.6 });
     expect(inputs.downPaymentPercent).toBe(100);
-    expect(inputs.mortgageYears).toBe(30);
-    expect(problems).toEqual(['downPaymentPercent: 120 read as 100', 'mortgageYears: 29.6 read as 30']);
+    expect(inputs.xAxisYears).toBe(30);
+    expect(problems).toEqual(['downPaymentPercent: 120 read as 100', 'xAxisYears: 29.6 read as 30']);
   });
 
   it("takes the tax amounts for the config's filing status, tax year and inflation", () => {
@@ -57,6 +62,53 @@ describe('startingInputs', () => {
     const later = startingInputs(DEFAULTS, { firstTaxYear: 2028, inflationRate: 2.5 }).inputs;
     expect(later.standardDeduction).toBe(statutoryInputsFor(2028, 'mfj', 2.5).standardDeduction);
     expect(later.saltCap).toBe(41212.04);
+  });
+
+  it("keeps an owner's home out of the renter's purchase, and the other way round", () => {
+    const { bySituation, problems } = startingInputs(DEFAULTS, {
+      situation: 'owner', homePrice: 820000, monthlyRentalIncome: 1200, monthlyRent: 3600, annualSalaryBeforeTax: 310000,
+    });
+    expect(problems).toEqual([]);
+    expect(bySituation.owner).toMatchObject({ situation: 'owner', homePrice: 820000, monthlyRentalIncome: 1200, monthlyRent: 3600 });
+    // A fresh purchase: the defaults for the home and rent, the same income
+    expect(bySituation.renter).toMatchObject({ situation: 'renter', homePrice: DEFAULTS.homePrice, monthlyRentalIncome: 0, monthlyRent: DEFAULTS.monthlyRent });
+    expect(bySituation.renter.annualSalaryBeforeTax).toBe(310000);
+  });
+
+  it('takes the other situation\'s home and rent from its block', () => {
+    const { inputs, bySituation, personal, problems } = startingInputs(DEFAULTS, {
+      situation: 'owner', homePrice: 820000, mortgageBalance: 380000,
+      renter: { homePrice: 600000, effectiveMortgageRate: 6.5, monthlyRent: 2100, downPaymentPercent: 20 },
+    });
+    expect(problems).toEqual([]);
+    expect(inputs).toBe(bySituation.owner);
+    expect(bySituation.renter).toMatchObject({ homePrice: 600000, effectiveMortgageRate: 6.5, monthlyRent: 2100, downPaymentPercent: 20 });
+    expect(bySituation.owner).toMatchObject({ homePrice: 820000, effectiveMortgageRate: DEFAULTS.effectiveMortgageRate, mortgageBalance: 380000 });
+    expect(personal).toEqual({ situation: 'owner', homePrice: 820000, mortgageBalance: 380000, renter: { homePrice: 600000, effectiveMortgageRate: 6.5, monthlyRent: 2100, downPaymentPercent: 20 } });
+  });
+
+  it('says so when a block sets something that is not its own', () => {
+    const { bySituation, problems } = startingInputs(DEFAULTS, {
+      renter: { annualSalaryBeforeTax: 1, mortgageBalance: 5, homePrise: 3, monthlyRent: 'x' },
+      owner: 7,
+    });
+    expect(problems).toEqual([
+      'renter.annualSalaryBeforeTax: skipped (not a renter home or rent input; set it outside the block)',
+      'renter.mortgageBalance: skipped (not a renter home or rent input; set it outside the block)',
+      'renter.homePrise: skipped (unknown input)',
+      'renter.monthlyRent: "x" skipped (invalid value)',
+      'owner: skipped (expected an object of owner inputs)',
+    ]);
+    expect(bySituation.renter).toEqual(DEFAULTS);
+  });
+
+  it("takes an owner's situation and loan", () => {
+    const { inputs, problems } = startingInputs(DEFAULTS, { situation: 'owner', mortgageBalance: 412345.67, mortgageYears: 28.33 });
+    expect(problems).toEqual([]);
+    expect(inputs.situation).toBe('owner');
+    expect(inputs.mortgageBalance).toBe(412345.67);
+    expect(inputs.mortgageYears).toBe(28.33);
+    expect(startingInputs(DEFAULTS, { situation: 'landlord' }).problems).toEqual(['situation: "landlord" skipped (invalid value)']);
   });
 
   it('keeps a tax amount the config sets itself', () => {

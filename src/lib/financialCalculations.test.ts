@@ -11,6 +11,8 @@ import {
   saltCapForYear,
   calculateAnnualPayrollTax,
   takeHomeForYear,
+  startingPosition,
+  paymentCount,
   HousingCalculatorInputs,
 } from './financialCalculations';
 import { DEFAULTS } from '../hooks/useCalculatorInputs';
@@ -20,6 +22,7 @@ import { DEFAULTS } from '../hooks/useCalculatorInputs';
 // ---------------------------------------------------------------------------
 
 const baseInputs: HousingCalculatorInputs = {
+  situation: 'renter',
   annualSalaryBeforeTax: 420000,
   effectiveFederalTaxRate: 19.1,
   standardDeduction: 32200,
@@ -27,6 +30,7 @@ const baseInputs: HousingCalculatorInputs = {
   monthlyMiscExpenses: 1000,
   homePrice: 750000,
   downPaymentPercent: 40,
+  mortgageBalance: 450000, // owner only
   effectiveMortgageRate: 5.24,
   mortgageYears: 30,
   PMIRate: 0.8,
@@ -1179,5 +1183,139 @@ describe('tax year and filing status in the engines', () => {
   it('Additional Medicare threshold depends on filing status', () => {
     expect(calculateAnnualPayrollTax(300000, 2026, 1, 3, 'single') - calculateAnnualPayrollTax(300000, 2026, 1, 3, 'mfj'))
       .toBeCloseTo(0.009 * 50000, 6);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Owner situation: keep the home you own, or sell it and rent
+// ---------------------------------------------------------------------------
+
+describe('owner situation', () => {
+  // Owns a $700k home with $412,345.67 left to pay over 340 monthly payments.
+  // The renter-only inputs in the fixture (40% down, 2.5% closing) must be ignored.
+  const owner = (o: Partial<HousingCalculatorInputs> = {}) => inputs({
+    situation: 'owner', homePrice: 700000, mortgageBalance: 412345.67, mortgageYears: 340 / 12,
+    initialInvestment: 1000000, monthlyRent: 3500, rentDeposit: 3500, movingCostBuying: 5000, ...o,
+  });
+  const rows = (i: HousingCalculatorInputs) => calculateProjectionData(i) as any[];
+
+  it('keeping starts with the loan as it stands and pays nothing upfront', () => {
+    const data = rows(owner());
+    expect(data[0].investmentsBuying).toBe(1000000);
+    expect(data[0].remainingLoan).toBe(412346);
+    expect(data[0].homeEquity).toBe(287654); // 700,000 - 412,345.67
+    expect(data[0].buying).toBe(Math.round(1000000 + 700000 - 412345.67));
+  });
+
+  it('selling pays the selling costs and the loan, and invests the rest less moving and the deposit', () => {
+    const data = rows(owner({ movingCostRenting: 4000 }));
+    // 1,000,000 + 700,000 - 6% (42,000) - 412,345.67 - 4,000 moving - 3,500 deposit
+    expect(data[0].investmentsRenting).toBe(Math.round(1000000 + 700000 - 42000 - 412345.67 - 4000 - 3500));
+    expect(data[0].renting).toBe(data[0].investmentsRenting + 3500);
+    const start = startingPosition(owner({ movingCostRenting: 4000 }));
+    expect(start.saleCosts).toBeCloseTo(42000, 6);
+    expect(start.saleProceeds).toBeCloseTo(700000 - 42000 - 412345.67, 6);
+  });
+
+  it('pays the annuity on the balance over the payments left, and is paid off in the 340th month', () => {
+    const inp = owner();
+    expect(paymentCount(inp)).toBe(340);
+    const r = 5.24 / 100 / 12;
+    const payment = calculateMonthlyMortgagePayment(412345.67, r, 340);
+    expect(payment).toBeCloseTo(412345.67 * r / (1 - Math.pow(1 + r, -340)), 6);
+    const data = rows(inp);
+    expect(Math.abs(data[1].yearlyInterestPaid + data[1].yearlyPrincipalPaid - 12 * payment)).toBeLessThanOrEqual(1);
+    expect(data[28].remainingLoan).toBeGreaterThan(0);
+    expect(data[29].remainingLoan).toBe(0);
+    // Year 29 holds the last 4 payments
+    expect(Math.abs(data[29].yearlyInterestPaid + data[29].yearlyPrincipalPaid - 4 * payment)).toBeLessThanOrEqual(1);
+  });
+
+  it('is the renter engine with the purchase replaced by the position the owner is in', () => {
+    // The same household entered the old way: savings including the equity,
+    // the equity as a "down payment", no purchase costs, and the cost of
+    // selling now charged to the renting side as a moving cost
+    const inp = owner({ movingCostRenting: 4000, includeSellingCosts: true });
+    const equity = 700000 - 412345.67;
+    const asPurchase = inputs({
+      homePrice: 700000, downPaymentPercent: equity / 700000 * 100, mortgageYears: 340 / 12,
+      initialInvestment: 1000000 + equity, closingCostPercent: 0, movingCostBuying: 0,
+      movingCostRenting: 42000 + 4000, monthlyRent: 3500, rentDeposit: 3500, includeSellingCosts: true,
+    });
+    const a = rows(inp), b = rows(asPurchase);
+    expect(a.length).toBe(b.length);
+    for (let y = 0; y < a.length; y++) {
+      expect(Math.abs(a[y].buying - b[y].buying), `year ${y} buying`).toBeLessThanOrEqual(1);
+      expect(Math.abs(a[y].renting - b[y].renting), `year ${y} renting`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('ignores the renter-only inputs (down payment, closing and moving-in costs)', () => {
+    const a = rows(owner());
+    const b = rows(owner({ downPaymentPercent: 5, closingCostPercent: 6, movingCostBuying: 20000 }));
+    expect(b).toEqual(a);
+  });
+
+  it('counting the cost of selling later changes only the keeping path', () => {
+    const off = rows(owner()), on = rows(owner({ includeSellingCosts: true }));
+    for (const y of [0, 10, 30]) {
+      expect(on[y].renting).toBe(off[y].renting);
+      // Each row field is rounded on its own
+      expect(Math.abs(off[y].buying - on[y].buying - on[y].sellingCosts)).toBeLessThanOrEqual(1);
+      expect(on[y].sellingCosts).toBeGreaterThan(0);
+    }
+  });
+
+  it('a paid-off home: keeping has no mortgage, selling invests the value less selling costs', () => {
+    const data = rows(owner({ mortgageBalance: 0 }));
+    expect(data[0].remainingLoan).toBe(0);
+    expect(data[1].yearlyInterestPaid).toBe(0);
+    expect(data[0].investmentsRenting).toBe(Math.round(1000000 + 700000 * 0.94 - 3500));
+  });
+
+  it("doesn't block when owning costs more than take-home pay (a retiree drawing on savings)", () => {
+    const data = calculateProjectionData(owner({ annualSalaryBeforeTax: 0, mortgageBalance: 0 }));
+    expect(Array.isArray(data)).toBe(true);
+    expect((data as any[])[1].availableMonthlyInvestment).toBeLessThan(0);
+    // The same costs block a renter's purchase
+    expect((calculateProjectionData(inputs({ annualSalaryBeforeTax: 0 })) as any).kind).toBe('monthly');
+  });
+
+  it('blocks when selling needs more cash than the sale and savings provide', () => {
+    const data = calculateProjectionData(owner({ homePrice: 400000, mortgageBalance: 450000, initialInvestment: 50000 })) as any;
+    expect(data.kind).toBe('sale');
+    // 50,000 + 400,000 - 24,000 - 450,000 - 3,500 = -27,500
+    expect(data.availableInvestment + data.salePrice - data.saleCosts - data.mortgageBalance - data.movingCost - data.rentDeposit).toBeCloseTo(-27500, 6);
+    // With enough savings an underwater owner can still compare
+    expect(Array.isArray(calculateProjectionData(owner({ homePrice: 400000, mortgageBalance: 450000, initialInvestment: 100000 })))).toBe(true);
+  });
+
+  it.each([
+    { label: 'an owner with a mortgage', o: {} },
+    { label: 'selling costs counted', o: { includeSellingCosts: true } },
+    { label: 'PMI still owed (balance 90% of value)', o: { mortgageBalance: 630000 } },
+    { label: 'paid off', o: { mortgageBalance: 0 } },
+    { label: 'payoff mid-year inside the horizon', o: { mortgageYears: 7.25 } },
+    { label: 'retiree drawing on savings', o: { annualSalaryBeforeTax: 0, mortgageBalance: 0 } },
+  ])('engines agree: $label', ({ o }) => {
+    const inp = owner(o);
+    const data = rows(inp);
+    for (const years of [3, 8, 10, 30]) {
+      expect(Math.abs(data[years].buying - calculateMortgageScenario(inp, 0, years).finalNetWorth)).toBeLessThanOrEqual(5);
+    }
+  });
+});
+
+describe('fractional mortgage terms', () => {
+  it('round to whole monthly payments', () => {
+    expect(paymentCount(inputs({ mortgageYears: 29.99 }))).toBe(360);
+    expect(calculateProjectionData(inputs({ mortgageYears: 29.99 }))).toEqual(calculateProjectionData(inputs({ mortgageYears: 30 })));
+  });
+
+  it('project far enough to show the last payments', () => {
+    const data = calculateProjectionData(inputs({ mortgageYears: 25.5, xAxisYears: 10 })) as any[];
+    expect(data.length).toBe(27); // years 0..26
+    expect(data[25].remainingLoan).toBeGreaterThan(0);
+    expect(data[26].remainingLoan).toBe(0);
   });
 });

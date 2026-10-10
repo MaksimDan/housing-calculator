@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { formatUSD, formatSignedUSD } from '../lib/format';
 import { netWorthParts } from '../lib/breakdown';
 import { BUY_TEXT, RENT_TEXT } from '../lib/colors';
+import type { Situation } from '../lib/financialCalculations';
+import { wordsFor } from '../lib/situation';
 
 interface YearComparisonProps {
   rows: any[];
@@ -11,15 +13,18 @@ interface YearComparisonProps {
   calendarYear: (year: number) => number;
   inflationRate: number;
   includeSellingCosts: boolean;
+  situation: Situation;
 }
 
 const diffClass = (d: number) => (d > 0 ? BUY_TEXT : d < 0 ? RENT_TEXT : 'text-gray-700');
-const diffText = (d: number) => (d > 0 ? `Buy ${formatSignedUSD(d)}` : d < 0 ? `Rent +${formatUSD(-d)}` : '$0');
 
-// Buy | Rent | Difference for the selected year, with an all-years table.
-// The parts are the engine's own fields and are checked to add up.
-export const YearComparison: React.FC<YearComparisonProps> = ({ rows, horizon, selectedYear, onSelectYear, calendarYear, inflationRate, includeSellingCosts }) => {
+// Buy | Rent | Difference (Keep | Sell & rent for an owner) for the selected
+// year, with an all-years table. The parts are the engine's own fields and
+// are checked to add up.
+export const YearComparison: React.FC<YearComparisonProps> = ({ rows, horizon, selectedYear, onSelectYear, calendarYear, inflationRate, includeSellingCosts, situation }) => {
   const [allYears, setAllYears] = useState(false);
+  const words = wordsFor(situation);
+  const diffText = (d: number) => (d > 0 ? `${words.own.short} ${formatSignedUSD(d)}` : d < 0 ? `${words.rent.short} +${formatUSD(-d)}` : '$0');
   const row = rows[selectedYear];
   const flowRow = rows[Math.max(1, selectedYear)] ?? row;
   const flowYear = Math.max(1, selectedYear);
@@ -55,15 +60,18 @@ export const YearComparison: React.FC<YearComparisonProps> = ({ rows, horizon, s
           <thead>
             <tr className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-600">
               <th scope="col" className="py-1.5 pr-3 text-left font-medium"><span className="sr-only">Item</span></th>
-              <th scope="col" className={`py-1.5 px-3 text-right font-medium ${BUY_TEXT}`}>Buy</th>
-              <th scope="col" className={`py-1.5 px-3 text-right font-medium ${RENT_TEXT}`}>Rent</th>
+              <th scope="col" className={`py-1.5 px-3 text-right font-medium ${BUY_TEXT}`}>{words.own.short}</th>
+              <th scope="col" className={`py-1.5 px-3 text-right font-medium ${RENT_TEXT}`}>{words.rent.short}</th>
               <th scope="col" className="py-1.5 pl-3 text-right font-medium">Difference</th>
             </tr>
           </thead>
           <tbody>
             {line('Home value', row.homeValue, null)}
             {line('Mortgage left', -row.remainingLoan, null, { note: 'Home equity = home value − mortgage left' })}
-            {line('Investments', row.investmentsBuying, row.investmentsRenting, { diff: true })}
+            {line('Investments', row.investmentsBuying, row.investmentsRenting, {
+              diff: true,
+              note: situation === 'owner' ? `${words.rent.short} starts from your savings plus what the sale leaves` : undefined,
+            })}
             {line('Security deposit', null, row.renting - row.investmentsRenting)}
             {includeSellingCosts && line('Selling costs', -row.sellingCosts, null)}
             {line('Net worth', row.buying, row.renting, { bold: true, diff: true })}
@@ -74,7 +82,7 @@ export const YearComparison: React.FC<YearComparisonProps> = ({ rows, horizon, s
               </td>
             </tr>
             <tr><th colSpan={4} scope="rowgroup" className="pt-4 pb-1 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">During year {flowYear}</th></tr>
-            {line('Housing cost per month', flowRow.monthlyPayment, flowRow.annualRentCosts / 12, { diff: false, note: 'Buy: mortgage, taxes, insurance, maintenance, PMI, utilities, HOA, less rental income' })}
+            {line('Housing cost per month', flowRow.monthlyPayment, flowRow.annualRentCosts / 12, { diff: false, note: `${words.own.short}: mortgage, taxes, insurance, maintenance, PMI, utilities, HOA, less rental income` })}
             {line('Invested per month', flowRow.availableMonthlyInvestment, flowRow.availableMonthlyRenterInvestment, { diff: true })}
             {line('Tax saved by itemizing', flowRow.yearlyTaxSavings, flowRow.renterYearlyTaxSavings, { diff: true, note: 'Credited to investments at year end' })}
           </tbody>
@@ -86,8 +94,8 @@ export const YearComparison: React.FC<YearComparisonProps> = ({ rows, horizon, s
             <thead className="sticky top-0 bg-gray-50">
               <tr className="text-xs uppercase tracking-wide text-gray-600">
                 <th scope="col" className="px-3 py-1.5 text-left font-medium">Year</th>
-                <th scope="col" className={`px-3 py-1.5 text-right font-medium ${BUY_TEXT}`}>Buy</th>
-                <th scope="col" className={`px-3 py-1.5 text-right font-medium ${RENT_TEXT}`}>Rent</th>
+                <th scope="col" className={`px-3 py-1.5 text-right font-medium ${BUY_TEXT}`}>{words.own.short}</th>
+                <th scope="col" className={`px-3 py-1.5 text-right font-medium ${RENT_TEXT}`}>{words.rent.short}</th>
                 <th scope="col" className="px-3 py-1.5 text-right font-medium">Difference</th>
               </tr>
             </thead>

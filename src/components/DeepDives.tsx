@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from 'recharts';
 import type { HousingCalculatorInputs } from '../lib/financialCalculations';
 import { monthlyCashFlow, Segment } from '../lib/breakdown';
+import { SituationWords, wordsFor } from '../lib/situation';
 import { formatAxisUSD, formatUSD } from '../lib/format';
 import { BUY_COLOR, RENT_COLOR, BUY_TEXT, RENT_TEXT } from '../lib/colors';
 import { MortgageAmortizationChart } from './MortgageAmortizationChart';
@@ -40,7 +41,7 @@ const Bars: React.FC<{ title: string; segments: Segment[]; scale: number; titleC
   );
 };
 
-const CashFlow: React.FC<{ rows: any[]; year: number }> = ({ rows, year }) => {
+const CashFlow: React.FC<{ rows: any[]; year: number; words: SituationWords }> = ({ rows, year, words }) => {
   const y = Math.max(1, year);
   const cf = monthlyCashFlow(rows[y]);
   const scale = Math.max(cf.buyIncome, cf.rentIncome, 1);
@@ -49,26 +50,26 @@ const CashFlow: React.FC<{ rows: any[]; year: number }> = ({ rows, year }) => {
   return (
     <div className="space-y-5">
       <p className="text-sm text-gray-700">
-        Monthly cash in year {y}. Both households earn the same take-home pay; whatever housing doesn't use is invested.{' '}
-        <span className="font-medium">{diff === 0 ? 'Both invest the same amount.' : `The ${diff < 0 ? 'buyer' : 'renter'} invests ${formatUSD(Math.abs(diff))}/mo less.`}</span>
+        Monthly cash in year {y}. Take-home pay is the same either way; whatever housing doesn't use is invested.{' '}
+        <span className="font-medium">{diff === 0 ? 'Both invest the same amount.' : `${formatUSD(Math.abs(diff))}/mo less is invested ${diff < 0 ? words.own.who : words.rent.who}.`}</span>
         {rows[y].yearlyTaxSavings > 0 || rows[y].renterYearlyTaxSavings > 0 ? ' Tax savings from itemizing are added at year end and are not shown here.' : ''}
       </p>
-      <Bars title="Buy" segments={cf.buy} scale={scale} titleClass={BUY_TEXT}
+      <Bars title={words.own.short} segments={cf.buy} scale={scale} titleClass={BUY_TEXT}
         income={`take-home ${formatUSD(rows[y].monthlyTakeHome)}${cf.rentalIncome > 0 ? ` + rental income ${formatUSD(cf.rentalIncome)}` : ''}/mo`} />
-      <Bars title="Rent" segments={cf.rent} scale={scale} titleClass={RENT_TEXT} income={`take-home ${formatUSD(rows[y].monthlyTakeHome)}/mo`} />
+      <Bars title={words.rent.short} segments={cf.rent} scale={scale} titleClass={RENT_TEXT} income={`take-home ${formatUSD(rows[y].monthlyTakeHome)}/mo`} />
     </div>
   );
 };
 
-const TaxesByYear: React.FC<{ rows: any[]; horizon: number; year: number }> = ({ rows, horizon, year }) => {
+const TaxesByYear: React.FC<{ rows: any[]; horizon: number; year: number; words: SituationWords }> = ({ rows, horizon, year, words }) => {
   const data = rows.slice(1, horizon + 1).map((r: any) => ({ year: r.year, buy: r.yearlyTaxSavings, rent: r.renterYearlyTaxSavings }));
   const totalBuy = data.reduce((a, d) => a + d.buy, 0), totalRent = data.reduce((a, d) => a + d.rent, 0);
   const firstZero = data.findIndex((d, i) => i > 0 && d.buy === 0 && data[i - 1].buy > 0);
   return (
     <div>
       <p className="text-sm text-gray-700">
-        Extra tax saved by itemizing deductions instead of taking the standard deduction: {formatUSD(totalBuy)} for the buyer and {formatUSD(totalRent)} for the renter over {horizon} years.
-        {firstZero > 0 && ` The buyer's savings end in year ${data[firstZero].year}, when itemizing no longer beats the standard deduction (the SALT cap drops to $10,000 in 2030 under current law).`}
+        Extra tax saved by itemizing deductions instead of taking the standard deduction: {formatUSD(totalBuy)} {words.own.who} and {formatUSD(totalRent)} {words.rent.who} over {horizon} years.
+        {firstZero > 0 && ` Itemizing stops paying off ${words.own.who} in year ${data[firstZero].year}, when it no longer beats the standard deduction (the SALT cap drops to $10,000 in 2030 under current law).`}
       </p>
       <div className="mt-3 h-56">
         <ResponsiveContainer width="100%" height="100%">
@@ -79,8 +80,8 @@ const TaxesByYear: React.FC<{ rows: any[]; horizon: number; year: number }> = ({
             <Tooltip formatter={(v: number, name: string) => [formatUSD(v), name]} labelFormatter={(l) => `Year ${l}`} />
             <Legend />
             <ReferenceLine x={Math.max(1, year)} stroke="#6b7280" strokeDasharray="4 4" />
-            <Bar dataKey="buy" name="Buy" fill={BUY_COLOR} isAnimationActive={false} />
-            <Bar dataKey="rent" name="Rent" fill={RENT_COLOR} isAnimationActive={false} />
+            <Bar dataKey="buy" name={words.own.short} fill={BUY_COLOR} isAnimationActive={false} />
+            <Bar dataKey="rent" name={words.rent.short} fill={RENT_COLOR} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -103,6 +104,7 @@ interface DeepDivesProps {
 
 export const DeepDives: React.FC<DeepDivesProps> = ({ rows, inputs, horizon, selectedYear }) => {
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('cash');
+  const words = wordsFor(inputs.situation);
   return (
     <section aria-labelledby="deep-dives-title" className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
       <h2 id="deep-dives-title" className="text-base font-semibold text-gray-900">Dig deeper</h2>
@@ -116,8 +118,8 @@ export const DeepDives: React.FC<DeepDivesProps> = ({ rows, inputs, horizon, sel
         ))}
       </div>
       <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="pt-4">
-        {tab === 'cash' && <CashFlow rows={rows} year={selectedYear} />}
-        {tab === 'taxes' && <TaxesByYear rows={rows} horizon={horizon} year={selectedYear} />}
+        {tab === 'cash' && <CashFlow rows={rows} year={selectedYear} words={words} />}
+        {tab === 'taxes' && <TaxesByYear rows={rows} horizon={horizon} year={selectedYear} words={words} />}
         {tab === 'mortgage' && <MortgageAmortizationChart projectionData={rows} inputs={inputs} />}
       </div>
     </section>

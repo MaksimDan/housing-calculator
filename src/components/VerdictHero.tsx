@@ -3,9 +3,10 @@ import type { HousingCalculatorInputs } from '../lib/financialCalculations';
 import type { Verdict } from '../lib/verdict';
 import type { FlipThreshold } from '../lib/thresholds';
 import type { CashCheck } from '../lib/cashCheck';
-import { FIELD_BY_KEY, InputKey } from '../lib/fields';
+import { FIELD_BY_KEY, InputKey, fieldFor } from '../lib/fields';
 import { formatCompactUSD, formatUSD } from '../lib/format';
 import { BUY_TEXT, RENT_TEXT } from '../lib/colors';
+import { pathWords } from '../lib/situation';
 import { NumberField } from './NumberField';
 import { Toggle } from './Toggle';
 import { FieldRow } from './FieldRow';
@@ -23,11 +24,6 @@ export const formatInputValue = (key: InputKey, value: number) => {
   if (unit === 'usd') return formatUSD(value);
   if (unit === 'usdPerMonth') return `${formatUSD(value)}/mo`;
   return `${value}%`;
-};
-
-const SHORT: Partial<Record<InputKey, string>> = {
-  investmentReturn: 'return', monthlyRent: 'rent', homePrice: 'price', homeAppreciation: 'appreciation',
-  rentIncrease: 'rent increase', effectiveMortgageRate: 'mortgage rate',
 };
 
 interface VerdictHeroProps {
@@ -51,7 +47,8 @@ export const VerdictHero = forwardRef<HTMLElement, VerdictHeroProps>(({
   const [showFinances, setShowFinances] = useState(false);
   const [showCashDetails, setShowCashDetails] = useState(false);
   const winnerClass = verdict.winner === 'buy' ? BUY_TEXT : verdict.winner === 'rent' ? RENT_TEXT : 'text-gray-900';
-  const other = verdict.winner === 'buy' ? 'Renting' : 'Buying';
+  const field = (key: InputKey) => fieldFor(key, inputs.situation);
+  const other = pathWords(inputs.situation, verdict.winner === 'buy' ? 'rent' : 'buy').name;
   const top = thresholds.slice(0, 3);
   const nearest = top[0] ? Math.abs(top[0].value - (inputs[top[0].key] as number)) / Math.max(Math.abs(inputs[top[0].key] as number), 1) : Infinity;
   const custom = !HORIZONS.includes(inputs.xAxisYears);
@@ -79,7 +76,7 @@ export const VerdictHero = forwardRef<HTMLElement, VerdictHeroProps>(({
                 onClick={() => focusField(t.key)}
                 className="underline decoration-dotted underline-offset-2 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
               >
-                {SHORT[t.key] ?? FIELD_BY_KEY[t.key].label.toLowerCase()} {t.direction === 'below' ? '<' : '>'} {formatThresholdValue(t.key, t.value)}
+                {field(t.key).short ?? field(t.key).label.toLowerCase()} {t.direction === 'below' ? '<' : '>'} {formatThresholdValue(t.key, t.value)}
               </button>
               <span className="text-gray-500"> (you: {formatInputValue(t.key, inputs[t.key] as number)})</span>
             </React.Fragment>
@@ -89,7 +86,7 @@ export const VerdictHero = forwardRef<HTMLElement, VerdictHeroProps>(({
 
       <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
         <div className="flex flex-wrap items-center gap-2" role="group" aria-labelledby="stay-label">
-          <span id="stay-label" className="text-sm font-medium text-gray-800">How long will you stay?</span>
+          <span id="stay-label" className="text-sm font-medium text-gray-800">{field('xAxisYears').label}</span>
           {HORIZONS.map(h => (
             <button
               key={h}
@@ -114,12 +111,12 @@ export const VerdictHero = forwardRef<HTMLElement, VerdictHeroProps>(({
           id="field-includeSellingCosts"
           checked={inputs.includeSellingCosts}
           onChange={(v) => setInput('includeSellingCosts', v)}
-          label={`Count selling costs (${inputs.sellingCostPercent}%)`}
+          label={`${field('includeSellingCosts').label} (${inputs.sellingCostPercent}%)`}
         />
       </div>
       {sellingCostFlip && (
         <p className="mt-2 text-sm text-amber-800">
-          Counting selling costs ({inputs.sellingCostPercent}%) would flip this: {sellingCostFlip.gap > 0 ? 'buying' : 'renting'} would be ahead by {formatUSD(Math.abs(sellingCostFlip.gap))} after {verdict.horizon} years.
+          {inputs.situation === 'owner' ? 'Counting the cost of selling later' : 'Counting selling costs'} ({inputs.sellingCostPercent}%) would flip this: {pathWords(inputs.situation, sellingCostFlip.gap > 0 ? 'buy' : 'rent').lower} would be ahead by {formatUSD(Math.abs(sellingCostFlip.gap))} after {verdict.horizon} years.
         </p>
       )}
 
@@ -148,7 +145,7 @@ export const VerdictHero = forwardRef<HTMLElement, VerdictHeroProps>(({
           {(['initialInvestment', 'annualSalaryBeforeTax', 'monthlyMiscExpenses'] as InputKey[]).map(key => (
             <FieldRow
               key={key}
-              def={FIELD_BY_KEY[key]}
+              def={field(key)}
               inputs={inputs}
               onChange={(v) => setInput(key, v)}
               changed={changedKeys.includes(key)}

@@ -7,10 +7,12 @@ import { findFlipThreshold, findFlipThresholds, gapAt } from './thresholds';
 import { checkCash } from './cashCheck';
 import { monthlyCashFlow, netWorthParts } from './breakdown';
 import { evaluatePrepay, breakEvenReturn, tieBand, PREPAY_AMOUNTS } from './prepay';
-import { FIELDS, FIELD_BY_KEY, DRIVER_KEYS } from './fields';
+import { FIELDS, FIELD_BY_KEY, driverKeys, fieldFor, fieldsFor } from './fields';
 import { NUMBER_RULES, BOOLEAN_INPUTS, ENUM_INPUTS } from './inputValidation';
 
 const inputs = (o: Partial<HousingCalculatorInputs> = {}): HousingCalculatorInputs => ({ ...DEFAULTS, firstTaxYear: 2027, ...o });
+// The example household as an owner: the same home and loan, already bought
+const ownerInputs = (o: Partial<HousingCalculatorInputs> = {}) => inputs({ situation: 'owner', ...o });
 const rowsFor = (i: HousingCalculatorInputs) => calculateProjectionData(i) as any[];
 
 describe('format', () => {
@@ -68,11 +70,21 @@ describe('verdict', () => {
     const none = computeVerdict([-2, -1, -3].map((g, year) => ({ year, buying: 100 + g, renting: 100 })), 2, 0, 2027);
     expect(none.story).toBe('Renting is ahead from the start and stays ahead for all 2 years.');
   });
+
+  it("speaks an owner's language: keep the home, or sell and rent", () => {
+    const rows = [-2000, -1000, 1000, 2000].map((g, year) => ({ year, buying: 1e6 + g, renting: 1e6 }));
+    const v = computeVerdict(rows, 3, 0, 2027, 'owner');
+    expect(v.headline).toBe('Keeping your home comes out ahead by $2k after 3 years');
+    expect(v.story).toBe('Selling and renting leads at first; keeping your home pulls ahead in year 2 and stays ahead.');
+    const sell = computeVerdict(rows.map(r => ({ ...r, buying: 2e6 - r.buying })), 3, 0, 2027, 'owner');
+    expect(sell.headline).toBe('Selling and renting comes out ahead by $2k after 3 years');
+    const even = computeVerdict([{ year: 0, buying: 5, renting: 5 }], 0, 0, 2027, 'owner');
+    expect(even.headline).toBe('Keeping and selling come out even after 0 years');
+  });
 });
 
 describe('flip thresholds', () => {
-  it('each threshold flips the engine\'s sign at +/- epsilon', () => {
-    const i = inputs();
+  it.each([['renter', inputs()], ['owner', ownerInputs()]] as const)('each threshold flips the engine\'s sign at +/- epsilon (%s)', (_, i) => {
     const base = Math.sign(gapAt(i, 30)!);
     const thresholds = findFlipThresholds(i, 30);
     expect(thresholds.map(t => t.key)).toContain('investmentReturn');
@@ -89,8 +101,7 @@ describe('flip thresholds', () => {
     expect(findFlipThreshold(inputs(), 'investmentReturn', 30, { min: 11, max: 12 })).toBeNull();
   });
 
-  it('only fields with a monotone effect declare a flip range', () => {
-    const i = inputs();
+  it.each([['renter', inputs()], ['owner', ownerInputs()]] as const)('only fields with a monotone effect declare a flip range (%s)', (_, i) => {
     for (const f of FIELDS.filter(x => x.flip)) {
       const { min: lo, max: hi } = f.soft!;
       const gaps = Array.from({ length: 9 }, (_, k) => gapAt({ ...i, [f.key]: lo + (hi - lo) * k / 8 }, 30))
@@ -103,7 +114,11 @@ describe('flip thresholds', () => {
 });
 
 describe('breakdowns add up to the engine', () => {
-  it.each([inputs(), inputs({ monthlyRentalIncome: 1500, downPaymentPercent: 10, monthlyHOAFee: 300, melloRoosTaxRate: 0.3, includeSellingCosts: true })])(
+  it.each([
+    inputs(),
+    inputs({ monthlyRentalIncome: 1500, downPaymentPercent: 10, monthlyHOAFee: 300, melloRoosTaxRate: 0.3, includeSellingCosts: true }),
+    ownerInputs({ monthlyRentalIncome: 1500, mortgageBalance: 680000, monthlyHOAFee: 300, includeSellingCosts: true }),
+  ])(
     'net-worth parts and monthly cash flows', (i) => {
       const rows = rowsFor(i);
       for (const y of [0, 1, 7, 15, 30]) {
@@ -132,11 +147,22 @@ describe('cash check', () => {
     const c = checkCash(i, rows, 30);
     expect(c.warnings.some(w => w.includes('renting costs more'))).toBe(true);
   });
+
+  it("checks an owner's sale and flags a year-1 shortfall instead of blocking", () => {
+    const i = ownerInputs({ annualSalaryBeforeTax: 0, mortgageBalance: 0 });
+    const c = checkCash(i, rowsFor(i), 30);
+    expect(c.tests[0].label).toBe('Selling today');
+    expect(c.tests[0].detail).toContain('$45,000 selling costs');
+    expect(c.tests[0].pass).toBe(true);
+    expect(c.tests[1].label).toBe('Year-1 monthly budget (keeping your home)');
+    expect(c.tests[1].pass).toBe(false);
+    expect(c.tests[1].detail).toContain('comes out of savings');
+    expect(c.warnings[0]).toBe('From year 1, keeping your home costs more each month than take-home pay allows; the shortfall is drawn from savings.');
+  });
 });
 
 describe('prepay', () => {
-  it('the standard row equals the main projection\'s buy result', () => {
-    const i = inputs();
+  it.each([['renter', inputs()], ['owner', ownerInputs({ mortgageYears: 27.5 })]] as const)('the standard row equals the main projection\'s buy result (%s)', (_, i) => {
     for (const h of [5, 10, 30]) {
       const [standard] = evaluatePrepay(i, h, [0]);
       expect(Math.abs(standard.finalNetWorth - rowsFor(i)[h].buying)).toBeLessThanOrEqual(5);
@@ -181,12 +207,37 @@ describe('field registry', () => {
     }
   });
 
-  it('has the seven drivers and help for every field', () => {
-    expect(DRIVER_KEYS).toHaveLength(7);
-    for (const f of FIELDS) {
-      const help = typeof f.help === 'function' ? f.help(DEFAULTS) : f.help;
-      expect(help.length, f.key).toBeGreaterThan(10);
+  it('has seven drivers in each situation and help for every field', () => {
+    expect(driverKeys('renter')).toHaveLength(7);
+    expect(driverKeys('owner')).toHaveLength(7);
+    for (const situation of ['renter', 'owner'] as const) {
+      for (const f of fieldsFor(situation)) {
+        const help = typeof f.help === 'function' ? f.help({ ...DEFAULTS, situation }) : f.help;
+        expect(help.length, f.key).toBeGreaterThan(10);
+      }
     }
     expect(FIELD_BY_KEY.saltCap.help instanceof Function ? (FIELD_BY_KEY.saltCap.help as any)(DEFAULTS) : '').toContain('$40,400');
+  });
+
+  it('shows each situation only its own inputs, in its own words', () => {
+    const renter = fieldsFor('renter').map(f => f.key), owner = fieldsFor('owner').map(f => f.key);
+    expect(renter).toContain('downPaymentPercent');
+    expect(renter).not.toContain('mortgageBalance');
+    expect(owner).toContain('mortgageBalance');
+    for (const key of ['downPaymentPercent', 'closingCostPercent', 'movingCostBuying'] as const) expect(owner).not.toContain(key);
+    expect(fieldFor('homePrice', 'owner').label).toBe('Home value today');
+    expect(fieldFor('mortgageYears', 'owner').label).toBe('Years left on the mortgage');
+    expect(fieldFor('homePrice', 'renter').label).toBe('Home price');
+    // An owner always pays to sell now, so the selling cost is always shown
+    expect(fieldFor('sellingCostPercent', 'owner').visibleWhen!(ownerInputs())).toBe(true);
+    expect(fieldFor('sellingCostPercent', 'renter').visibleWhen!(inputs())).toBe(false);
+  });
+
+  it('shows PMI exactly when the engine charges it', () => {
+    const pmiShown = (i: HousingCalculatorInputs) => fieldFor('PMIRate', i.situation).visibleWhen!(i);
+    const pmiCharged = (i: HousingCalculatorInputs) => rowsFor(i)[1].monthlyPMI > 0;
+    for (const i of [inputs(), inputs({ downPaymentPercent: 10 }), ownerInputs(), ownerInputs({ mortgageBalance: 700000 })]) {
+      expect(pmiShown(i)).toBe(pmiCharged(i));
+    }
   });
 });

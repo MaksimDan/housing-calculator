@@ -1,9 +1,10 @@
 import { useEffect, useMemo } from 'react';
 import personalConfig from 'virtual:personal-config';
 import { usePersistedState } from './usePersistedState';
-import { calculateProjectionData, HousingCalculatorInputs } from '../lib/financialCalculations';
+import { calculateProjectionData, HousingCalculatorInputs, Situation } from '../lib/financialCalculations';
 import { FilingStatus, statutoryInputsFor, FIRST_PUBLISHED_TAX_YEAR } from '../lib/taxLaw';
 import { startingInputs } from '../lib/personalConfig';
+import { SITUATIONS, isSituationKey } from '../lib/situation';
 import {
   sanitizeInputValue,
   parseUrlValue,
@@ -14,9 +15,9 @@ import {
   SETTINGS_VERSION,
 } from '../lib/inputValidation';
 
-// Tax year that most of the first 12 months of ownership falls in, for a
-// purchase made now: a closing in the second half of the year is mostly next
-// year's taxes.
+// Tax year that most of the first 12 months falls in, starting now (a
+// purchase, or a sale for an owner): a start in the second half of the year
+// is mostly next year's taxes.
 const defaultFirstTaxYear = () => {
   const now = new Date();
   return Math.max(FIRST_PUBLISHED_TAX_YEAR, now.getMonth() >= 6 ? now.getFullYear() + 1 : now.getFullYear());
@@ -34,6 +35,7 @@ const DEFAULT_TAX_AMOUNTS = statutoryInputsFor(DEFAULT_TAX_YEAR, 'mfj', DEFAULT_
 // for a user's edit, add the old default to HISTORICAL_DEFAULTS and bump
 // SETTINGS_VERSION in lib/inputValidation.ts.
 export const DEFAULTS: HousingCalculatorInputs = {
+  situation: 'renter', // the example household rents today and is thinking of buying
   annualSalaryBeforeTax: 420000,
   // Federal INCOME tax only: TY2026 MFJ tax on $420k less the $32,200 standard
   // deduction is $78,268 (18.6%). Payroll taxes are computed separately.
@@ -43,6 +45,8 @@ export const DEFAULTS: HousingCalculatorInputs = {
   monthlyMiscExpenses: 1000,
   homePrice: 750000,
   downPaymentPercent: 40,
+  // An owner's loan today; the same loan as the example purchase
+  mortgageBalance: 450000,
   effectiveMortgageRate: 5.24,
   mortgageYears: 30,
   PMIRate: 0.8,
@@ -90,12 +94,15 @@ export const DEFAULTS: HousingCalculatorInputs = {
 const start = startingInputs(DEFAULTS, personalConfig);
 if (start.problems.length) console.warn(`personal.config.ts:\n  ${start.problems.join('\n  ')}`);
 export const STARTING_INPUTS = start.inputs;
+// What each situation starts from: the same shared inputs, its own home and rent
+export const STARTING_BY_SITUATION = start.bySituation;
 export const PERSONAL_CONFIG = start.personal;
 
 type InputKey = keyof HousingCalculatorInputs;
 
 // State property -> [localStorage key, URL parameter]. Listed in display order.
 const INPUT_KEYS: Record<InputKey, [string, string]> = {
+  situation: ['housing-situation', 'situation'],
   annualSalaryBeforeTax: ['housing-annualSalary', 'annualSalary'],
   effectiveFederalTaxRate: ['housing-taxRate', 'taxRate'],
   standardDeduction: ['housing-standardDeduction', 'standardDeduction'],
@@ -103,6 +110,7 @@ const INPUT_KEYS: Record<InputKey, [string, string]> = {
   monthlyMiscExpenses: ['housing-miscExpenses', 'miscExpenses'],
   homePrice: ['housing-homePrice', 'homePrice'],
   downPaymentPercent: ['housing-downPayment', 'downPayment'],
+  mortgageBalance: ['housing-mortgageBalance', 'mortgageBalance'],
   effectiveMortgageRate: ['housing-mortgageRate', 'mortgageRate'],
   mortgageYears: ['housing-mortgageYears', 'mortgageYears'],
   PMIRate: ['housing-PMIRate', 'PMIRate'],
@@ -145,6 +153,17 @@ const INPUT_KEYS: Record<InputKey, [string, string]> = {
 
 const INPUT_NAMES = Object.keys(INPUT_KEYS) as InputKey[];
 
+// An owner's home and rent inputs are saved under their own keys; a renter's
+// keep the keys they had before there were situations
+const storageKey = (name: InputKey, situation: Situation) =>
+  situation === 'owner' && isSituationKey(name) ? INPUT_KEYS[name][0].replace(/^housing-/, 'housing-owner-') : INPUT_KEYS[name][0];
+
+// Everything an Undo of Reset all puts back
+export interface InputsSnapshot {
+  shared: Partial<HousingCalculatorInputs>;
+  bySituation: Record<Situation, Partial<HousingCalculatorInputs>>;
+}
+
 export interface TaxOverridePrompt {
   key: 'standardDeduction' | 'saltCap' | 'mortgageInterestDeductionCap';
   current: number;
@@ -154,31 +173,41 @@ export interface TaxOverridePrompt {
 const TAX_AMOUNT_KEYS = ['standardDeduction', 'saltCap', 'mortgageInterestDeductionCap'] as const;
 
 export const useCalculatorInputs = () => {
-  // One persisted, sanitized state per input. INPUT_NAMES is a constant, so
-  // the hook order is stable across renders.
-  const state = {} as Record<InputKey, any>;
-  const setterMap = {} as Record<InputKey, (value: any) => void>;
+  // One persisted, sanitized state per shared input, and one per situation
+  // for each home and rent input. The loops run over constants, so the hook
+  // order is stable across renders.
+  const shared = {} as Record<InputKey, any>;
+  const setShared = {} as Record<InputKey, (value: any) => void>;
+  const own = { renter: {}, owner: {} } as Record<Situation, Record<InputKey, any>>;
+  const setOwn = { renter: {}, owner: {} } as Record<Situation, Record<InputKey, (value: any) => void>>;
   for (const name of INPUT_NAMES) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [value, setValue] = usePersistedState<any>(
-      INPUT_KEYS[name][0],
-      STARTING_INPUTS[name],
-      (raw) => sanitizeInputValue(name, raw)
-    );
-    state[name] = value;
-    setterMap[name] = setValue;
+    const sanitize = (raw: unknown) => sanitizeInputValue(name, raw);
+    if (isSituationKey(name)) {
+      for (const s of SITUATIONS) {
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        [own[s][name], setOwn[s][name]] = usePersistedState<any>(storageKey(name, s), STARTING_BY_SITUATION[s][name], sanitize);
+      }
+    } else {
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      [shared[name], setShared[name]] = usePersistedState<any>(INPUT_KEYS[name][0], STARTING_INPUTS[name], sanitize);
+    }
   }
+  const situation = shared.situation as Situation;
+  const valueIn = (name: InputKey, s: Situation) => (isSituationKey(name) ? own[s][name] : shared[name]);
+  const setterIn = (name: InputKey, s: Situation) => (isSituationKey(name) ? setOwn[s][name] : setShared[name]);
 
   // Load URL parameters on mount, then drop them from the address bar so a
   // reload doesn't re-apply the link over later edits.
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (!urlParams.toString()) return;
+    // A link's home and rent belong to the situation it was made in
+    const linked: Situation = parseUrlValue('situation', urlParams.get(INPUT_KEYS.situation[1]) ?? '') ?? situation;
     for (const name of INPUT_NAMES) {
       const raw = urlParams.get(INPUT_KEYS[name][1]);
       if (raw === null) continue;
       const value = parseUrlValue(name, raw);
-      if (value !== undefined) setterMap[name](value);
+      if (value !== undefined) setterIn(name, linked)(value);
     }
     try {
       window.history.replaceState(null, '', window.location.pathname + window.location.hash);
@@ -187,35 +216,49 @@ export const useCalculatorInputs = () => {
     }
   }, []);
 
-  // Single source of truth for the inputs object
-  const stateValues = INPUT_NAMES.map(name => state[name]);
+  // Single source of truth for the inputs object: the shared inputs and this
+  // situation's home and rent
+  const viewValues = INPUT_NAMES.map(name => valueIn(name, situation));
   const inputs: HousingCalculatorInputs = useMemo(
-    () => ({ ...state }) as HousingCalculatorInputs,
+    () => Object.fromEntries(INPUT_NAMES.map((name, i) => [name, viewValues[i]])) as HousingCalculatorInputs,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    stateValues
+    viewValues
   );
 
   const projectionData = useMemo(() => calculateProjectionData(inputs), [inputs]);
 
   const changedKeys = useMemo(
-    () => INPUT_NAMES.filter(name => !Object.is(inputs[name], STARTING_INPUTS[name])),
+    () => INPUT_NAMES.filter(name => !Object.is(inputs[name],
+      name === 'situation' ? STARTING_INPUTS.situation : STARTING_BY_SITUATION[inputs.situation][name])),
     [inputs]
   );
 
-  const setInput = (key: InputKey, value: unknown) => setterMap[key](value);
+  const setInput = (key: InputKey, value: unknown) => setterIn(key, situation)(value);
   const setMany = (values: Partial<HousingCalculatorInputs>) => {
-    for (const [key, value] of Object.entries(values)) setterMap[key as InputKey](value);
+    for (const [key, value] of Object.entries(values)) setterIn(key as InputKey, situation)(value);
   };
-  const resetField = (key: InputKey) => setterMap[key](STARTING_INPUTS[key]);
+  const resetField = (key: InputKey) => setterIn(key, situation)(STARTING_BY_SITUATION[situation][key]);
 
-  // Resets every input; returns the previous inputs so the caller can undo.
-  const resetAll = (): HousingCalculatorInputs => {
-    const previous = { ...inputs };
+  // Resets every input, in both situations, but not the situation itself (an
+  // owner who resets still owns); returns what was there so the caller can undo.
+  const resetAll = (): InputsSnapshot => {
+    const previous = { shared: { ...shared }, bySituation: { renter: { ...own.renter }, owner: { ...own.owner } } };
     const storage = getBrowserStorage();
     clearSavedSettings(storage);
     writePersisted(storage, SETTINGS_VERSION_KEY, SETTINGS_VERSION);
-    for (const name of INPUT_NAMES) setterMap[name](STARTING_INPUTS[name]);
+    // Clearing the saved settings dropped the situation too
+    if (situation !== STARTING_INPUTS.situation) writePersisted(storage, INPUT_KEYS.situation[0], situation);
+    for (const name of INPUT_NAMES) {
+      if (isSituationKey(name)) for (const s of SITUATIONS) setOwn[s][name](STARTING_BY_SITUATION[s][name]);
+      else if (name !== 'situation') setShared[name](STARTING_INPUTS[name]);
+    }
     return previous;
+  };
+  const restore = (saved: InputsSnapshot) => {
+    for (const [name, value] of Object.entries(saved.shared)) setShared[name as InputKey](value);
+    for (const s of SITUATIONS) {
+      for (const [name, value] of Object.entries(saved.bySituation[s])) setOwn[s][name as InputKey](value);
+    }
   };
 
   // Copies a link that reproduces these inputs (and the current section).
@@ -238,25 +281,25 @@ export const useCalculatorInputs = () => {
   // previous year/status update automatically; customized ones are returned
   // so the UI can ask before overwriting them.
   const applyTaxAmounts = (fromYear: number, fromStatus: FilingStatus, toYear: number, toStatus: FilingStatus): TaxOverridePrompt[] => {
-    const before = statutoryInputsFor(fromYear, fromStatus, state.inflationRate);
-    const after = statutoryInputsFor(toYear, toStatus, state.inflationRate);
+    const before = statutoryInputsFor(fromYear, fromStatus, shared.inflationRate);
+    const after = statutoryInputsFor(toYear, toStatus, shared.inflationRate);
     const prompts: TaxOverridePrompt[] = [];
     for (const key of TAX_AMOUNT_KEYS) {
-      if (Math.abs(state[key] - before[key]) < 0.5) {
-        setterMap[key](after[key]);
-      } else if (Math.abs(state[key] - after[key]) >= 0.5) {
-        prompts.push({ key, current: state[key], next: after[key] });
+      if (Math.abs(shared[key] - before[key]) < 0.5) {
+        setShared[key](after[key]);
+      } else if (Math.abs(shared[key] - after[key]) >= 0.5) {
+        prompts.push({ key, current: shared[key], next: after[key] });
       }
     }
     return prompts;
   };
   const changeTaxYear = (year: number) => {
-    setterMap.firstTaxYear(year);
-    return applyTaxAmounts(state.firstTaxYear, state.filingStatus, year, state.filingStatus);
+    setShared.firstTaxYear(year);
+    return applyTaxAmounts(shared.firstTaxYear, shared.filingStatus, year, shared.filingStatus);
   };
   const changeFilingStatus = (status: FilingStatus) => {
-    setterMap.filingStatus(status);
-    return applyTaxAmounts(state.firstTaxYear, state.filingStatus, state.firstTaxYear, status);
+    setShared.filingStatus(status);
+    return applyTaxAmounts(shared.firstTaxYear, shared.filingStatus, shared.firstTaxYear, status);
   };
 
   return {
@@ -267,6 +310,7 @@ export const useCalculatorInputs = () => {
     setMany,
     resetField,
     resetAll,
+    restore,
     share,
     changeTaxYear,
     changeFilingStatus,

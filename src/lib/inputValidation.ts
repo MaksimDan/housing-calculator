@@ -14,8 +14,11 @@ export const NUMBER_RULES: Record<string, NumberRule> = {
   monthlyMiscExpenses: { min: 0, max: 10_000_000 },
   homePrice: { min: 0, max: 10_000_000_000 },
   downPaymentPercent: { min: 0, max: 100 },
+  mortgageBalance: { min: 0, max: 10_000_000_000 },
   effectiveMortgageRate: { min: 0, max: 100 },
-  mortgageYears: { min: 1, max: 50, integer: true },
+  // Fractions allowed (an owner's years left, e.g. 26.5); the engines round
+  // to whole monthly payments
+  mortgageYears: { min: 1, max: 50 },
   PMIRate: { min: 0, max: 100 },
   propertyTaxRate: { min: 0, max: 100 },
   melloRoosTaxRate: { min: 0, max: 100 },
@@ -50,6 +53,7 @@ export const NUMBER_RULES: Record<string, NumberRule> = {
 };
 
 export const ENUM_INPUTS: Record<string, readonly string[]> = {
+  situation: ['renter', 'owner'],
   filingStatus: ['mfj', 'single', 'hoh', 'mfs'],
 };
 

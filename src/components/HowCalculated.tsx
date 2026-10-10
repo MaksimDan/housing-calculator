@@ -1,8 +1,10 @@
 import React from 'react';
+import type { Situation } from '../lib/financialCalculations';
 import { TAX_YEARS, SALT_SCHEDULE, SALT_CAP_AFTER_SCHEDULE, LATEST_PUBLISHED_TAX_YEAR } from '../lib/taxLaw';
 import { formatUSD } from '../lib/format';
 
-export const HowCalculated: React.FC = () => {
+export const HowCalculated: React.FC<{ situation: Situation }> = ({ situation }) => {
+  const owner = situation === 'owner';
   const saltYears = Object.keys(SALT_SCHEDULE).map(Number).sort();
   return (
     <section id="method" aria-labelledby="method-title" className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -13,7 +15,14 @@ export const HowCalculated: React.FC = () => {
         <div className="mt-3 space-y-4 text-sm leading-relaxed text-gray-700">
           <div>
             <h3 className="font-semibold text-gray-900">The comparison</h3>
-            <p>Two households start with the same savings and the same take-home pay. The <span className="text-blue-700">buyer</span> pays the down payment and closing costs, then the mortgage and the costs of owning; the <span className="text-emerald-700">renter</span> pays rent and keeps the rest invested. Each month, whatever housing and living costs don't use is invested (or drawn from savings when costs exceed pay). Net worth is investments plus home equity (minus selling costs when you count them) for the buyer, and investments plus the security deposit for the renter.</p>
+            {owner ? (
+              <p>Two versions of you start today with the same savings, the same home and the same take-home pay. If you <span className="text-blue-700">keep</span> the home, you go on paying the mortgage you have and the costs of owning, with no purchase costs, and your equity stays in the home. If you <span className="text-emerald-700">sell and rent</span>, the sale pays the selling costs and the rest of the loan, and what is left joins your savings, less moving costs and the deposit on a rental; from then on you pay rent. Each month, whatever housing and living costs don't use is invested (or drawn from savings when costs exceed pay). Net worth is investments plus home equity (minus the cost of selling later, when you count it) if you keep the home, and investments plus the security deposit if you sell.</p>
+            ) : (
+              <p>Two households start with the same savings and the same take-home pay. The <span className="text-blue-700">buyer</span> pays the down payment and closing costs, then the mortgage and the costs of owning; the <span className="text-emerald-700">renter</span> pays rent and keeps the rest invested. Each month, whatever housing and living costs don't use is invested (or drawn from savings when costs exceed pay). Net worth is investments plus home equity (minus selling costs when you count them) for the buyer, and investments plus the security deposit for the renter.</p>
+            )}
+            <p className="mt-1">{owner
+              ? 'Already rent and thinking of buying? Choose "I rent" at the top: the buyer then pays a down payment and closing costs instead of carrying an existing loan.'
+              : 'Already own and thinking of selling? Choose "I own my home" at the top: keeping the home then carries your loan as it stands, with no purchase costs, and selling pays the selling costs now.'}</p>
           </div>
           <div>
             <h3 className="font-semibold text-gray-900">Timing</h3>
@@ -21,7 +30,7 @@ export const HowCalculated: React.FC = () => {
           </div>
           <div>
             <h3 className="font-semibold text-gray-900">Taxes</h3>
-            <p>Take-home pay deducts federal and state income tax at your effective rates, plus Social Security and Medicare. Each year both households itemize only if their deductions beat the standard deduction: the buyer deducts mortgage interest (prorated above the debt limit) plus property and state income tax up to the SALT cap; the renter deducts state income tax up to the cap. The extra deduction is valued at your marginal rate.</p>
+            <p>Take-home pay deducts federal and state income tax at your effective rates, plus Social Security and Medicare. Each year both paths itemize only if their deductions beat the standard deduction: {owner ? 'keeping the home' : 'the buyer'} deducts mortgage interest (prorated above the debt limit) plus property and state income tax up to the SALT cap; {owner ? 'selling and renting' : 'the renter'} deducts state income tax up to the cap. The extra deduction is valued at your marginal rate.</p>
             <div className="mt-2 overflow-x-auto">
               <table className="min-w-[28rem] text-xs">
                 <caption className="text-left text-gray-600 pb-1">Amounts used (married filing jointly). Years after {LATEST_PUBLISHED_TAX_YEAR} are projected with your inflation rate until the IRS publishes them.</caption>
@@ -45,9 +54,11 @@ export const HowCalculated: React.FC = () => {
           <div>
             <h3 className="font-semibold text-gray-900">Not modelled</h3>
             <ul className="list-disc pl-5">
-              <li>Capital-gains tax when selling the home (above the $250k/$500k exclusion) or the investments: net worth is before these taxes.</li>
+              {owner
+                ? <li>Capital-gains tax on selling the home, now or later: gains above $250,000 ($500,000 married filing jointly) are taxable even when you lived there 2 of the last 5 years. Also the tax on selling the investments. Net worth is before these taxes.</li>
+                : <li>Capital-gains tax when selling the home (above the $250k/$500k exclusion) or the investments: net worth is before these taxes.</li>}
               <li>Taxes on rental income and the split of deductions when part of the home is rented out.</li>
-              <li>Market volatility (returns and appreciation are constant every year), refinancing, moving again, and whether a lender would approve the loan.</li>
+              <li>Market volatility (returns and appreciation are constant every year), refinancing, moving again, and {owner ? 'prepayment penalties on paying off the loan' : 'whether a lender would approve the loan'}.</li>
               <li>State itemized deductions and the 37%-bracket limit on itemized deductions.</li>
             </ul>
           </div>

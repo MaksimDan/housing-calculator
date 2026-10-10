@@ -105,6 +105,116 @@ describe('the page', () => {
   });
 });
 
+describe('your situation', () => {
+  const headline = () => screen.getByRole('heading', { level: 2, name: /comes out ahead by|come out even/ }).textContent;
+  const columns = () => Array.from(document.querySelectorAll('#year-table thead th')).map(th => th.textContent);
+
+  it('starts as a renter deciding whether to buy', () => {
+    renderApp();
+    expect((screen.getByRole('radio', { name: /I rent/ }) as HTMLInputElement).checked).toBe(true);
+    expect(headline()).toMatch(/^(Buying|Renting) comes out ahead by/);
+    expect(columns()).toEqual(['Item', 'Buy', 'Rent', 'Difference']);
+    expect(document.getElementById('field-downPaymentPercent')).toBeTruthy();
+    expect(document.getElementById('field-mortgageBalance')).toBeNull();
+  });
+
+  it('as an owner, compares keeping the home with selling it and renting', () => {
+    renderApp();
+    fireEvent.click(screen.getByRole('radio', { name: /I own my home/ }));
+    const rows = calculateProjectionData({ ...DEFAULTS, situation: 'owner' }) as any[];
+    const gap = rows[30].buying - rows[30].renting;
+    expect(headline()).toBe(`${gap > 0 ? 'Keeping your home' : 'Selling and renting'} comes out ahead by ${formatCompactUSD(Math.abs(gap))} after 30 years`);
+    expect(columns()).toEqual(['Item', 'Keep', 'Sell & rent', 'Difference']);
+    // The owner's loan replaces the buyer's down payment, and the sale is spelled out
+    expect(screen.getByLabelText('Mortgage balance')).toBeTruthy();
+    expect(screen.getByLabelText('Home value today')).toBeTruthy();
+    expect(document.getElementById('field-downPaymentPercent')).toBeNull();
+    expect(document.body.textContent).toContain('Sell for $750,000, pay $45,000 selling costs and the loan out of the sale, and invest the $255,000 left');
+    expect(screen.getByRole('heading', { name: 'If you keep it: pay the mortgage off faster, or invest?' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Keep or sell?' })).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/NaN|undefined|Infinity/);
+    expect(localStorage.getItem('housing-situation')).toBe('"owner"');
+  });
+
+  it('no purchase costs for an owner: closing and moving-in costs are not offered', () => {
+    localStorage.setItem('housing-situation', '"owner"');
+    renderApp();
+    fireEvent.click(screen.getByRole('button', { name: /All assumptions/ }));
+    expect(document.getElementById('field-closingCostPercent')).toBeNull();
+    expect(document.getElementById('field-movingCostBuying')).toBeNull();
+    expect(screen.getByLabelText('Years left on the mortgage')).toBeTruthy();
+    expect(screen.getByLabelText('Selling costs')).toBeTruthy(); // always charged on a sale now
+    expect(screen.getByText('If you sell and rent')).toBeTruthy();
+  });
+
+  it("opens a shared link in the situation it was made in, with that situation's home", () => {
+    window.history.replaceState(null, '', '/?situation=owner&mortgageBalance=300000&homePrice=900000');
+    renderApp();
+    expect((screen.getByRole('radio', { name: /I own my home/ }) as HTMLInputElement).checked).toBe(true);
+    expect((document.getElementById('field-mortgageBalance') as HTMLInputElement).value).toBe('300,000');
+    expect((document.getElementById('field-homePrice') as HTMLInputElement).value).toBe('900,000');
+    fireEvent.click(screen.getByRole('radio', { name: /I rent/ }));
+    expect((document.getElementById('field-homePrice') as HTMLInputElement).value).toBe('750,000');
+  });
+
+  it('reset keeps the situation, resets both homes, and undo brings both back', () => {
+    localStorage.setItem('housing-situation', '"owner"');
+    localStorage.setItem('housing-owner-homePrice', '910000');
+    localStorage.setItem('housing-homePrice', '640000');
+    renderApp();
+    const homePrice = () => (document.getElementById('field-homePrice') as HTMLInputElement).value;
+    expect(homePrice()).toBe('910,000');
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(screen.getByRole('button', { name: /Reset all inputs/ }));
+    expect(homePrice()).toBe('750,000');
+    expect((screen.getByRole('radio', { name: /I own my home/ }) as HTMLInputElement).checked).toBe(true);
+    expect(localStorage.getItem('housing-situation')).toBe('"owner"');
+    expect(localStorage.getItem('housing-homePrice')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(homePrice()).toBe('910,000');
+    fireEvent.click(screen.getByRole('radio', { name: /I rent/ }));
+    expect(homePrice()).toBe('640,000');
+  });
+
+  it('each situation keeps its own home and rent', () => {
+    renderApp();
+    const rent = document.getElementById('field-monthlyRent') as HTMLInputElement;
+    fireEvent.focus(rent);
+    fireEvent.change(rent, { target: { value: '1700' } });
+    fireEvent.blur(rent);
+    expect(rent.value).toBe('1,700');
+    fireEvent.click(screen.getByRole('radio', { name: /I own my home/ }));
+    expect((screen.getByLabelText('Rent for a home like yours') as HTMLInputElement).value).toBe('3,000');
+    fireEvent.click(screen.getByRole('radio', { name: /I rent/ }));
+    expect((screen.getByLabelText('Monthly rent') as HTMLInputElement).value).toBe('1,700');
+    expect(localStorage.getItem('housing-monthlyRent')).toBe('1700');
+    expect(localStorage.getItem('housing-owner-monthlyRent')).toBeNull();
+  });
+
+  it("never carries an owner's rental income into a purchase", () => {
+    localStorage.setItem('housing-situation', '"owner"');
+    localStorage.setItem('housing-owner-rentalIncome', '1200');
+    localStorage.setItem('housing-owner-mortgageRate', '3.1');
+    renderApp();
+    fireEvent.click(screen.getByRole('button', { name: /All assumptions/ }));
+    expect((screen.getByLabelText('Rental income from the home') as HTMLInputElement).value).toBe('1,200');
+    fireEvent.click(screen.getByRole('radio', { name: /I rent/ }));
+    expect((screen.getByLabelText('Rental income from the home') as HTMLInputElement).value).toBe('0');
+    expect((screen.getByLabelText('Mortgage rate') as HTMLInputElement).value).toBe('5.24');
+    // Shared inputs stay shared
+    expect(document.body.textContent).toContain('Example household: $1.5M saved, $420k income');
+  });
+
+  it('blocks an owner only when selling needs more cash than there is', () => {
+    localStorage.setItem('housing-situation', '"owner"');
+    localStorage.setItem('housing-mortgageBalance', '900000');
+    localStorage.setItem('housing-initialInvestment', '50000');
+    renderApp();
+    expect(screen.getByRole('alert').textContent).toContain('selling needs more cash than you have');
+    expect(screen.getByRole('alert').textContent).toContain('Mortgage payoff');
+  });
+});
+
 describe('NumberField', () => {
   it('commits on blur or Enter, never on partial keystrokes', () => {
     const onCommit = vi.fn();

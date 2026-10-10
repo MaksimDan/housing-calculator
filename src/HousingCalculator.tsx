@@ -1,13 +1,14 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { useCalculatorInputs, TaxOverridePrompt, PERSONAL_CONFIG } from './hooks/useCalculatorInputs';
-import type { HousingCalculatorInputs } from './lib/financialCalculations';
+import { useCalculatorInputs, TaxOverridePrompt, PERSONAL_CONFIG, InputsSnapshot } from './hooks/useCalculatorInputs';
 import { computeVerdict } from './lib/verdict';
 import { findFlipThresholds, gapAt } from './lib/thresholds';
 import { checkCash } from './lib/cashCheck';
-import { FIELD_BY_KEY, FIELDS, InputKey, fieldId } from './lib/fields';
+import { FIELD_BY_KEY, InputKey, fieldId, fieldsFor } from './lib/fields';
 import { formatCompactUSD, formatUSD } from './lib/format';
 import { BUY_TEXT, RENT_TEXT } from './lib/colors';
+import { wordsFor } from './lib/situation';
 import { Header } from './components/Header';
+import { SituationPicker } from './components/SituationPicker';
 import { VerdictHero } from './components/VerdictHero';
 import { DriversPanel } from './components/DriversPanel';
 import { GapChart } from './components/GapChart';
@@ -19,12 +20,17 @@ import { HowCalculated } from './components/HowCalculated';
 import { BlockingState } from './components/BlockingState';
 
 const FINANCE_KEYS: InputKey[] = ['initialInvestment', 'annualSalaryBeforeTax', 'monthlyMiscExpenses'];
-const DRAWER_KEYS = new Set(FIELDS.filter(f => !f.driver && f.group !== 'view').map(f => f.key));
 
 const HousingCalculator = () => {
-  const { inputs, projectionData, changedKeys, setInput, setMany, resetField, resetAll, share, changeTaxYear, changeFilingStatus } = useCalculatorInputs();
+  const { inputs, projectionData, changedKeys, setInput, setMany, resetField, resetAll, restore, share, changeTaxYear, changeFilingStatus } = useCalculatorInputs();
   const rows = Array.isArray(projectionData) ? (projectionData as any[]) : null;
   const horizon = rows ? Math.min(inputs.xAxisYears, rows.length - 1) : inputs.xAxisYears;
+  const words = wordsFor(inputs.situation);
+  // The inputs in the assumptions drawer: every one that applies here except the drivers
+  const drawerKeys = useMemo(
+    () => new Set(fieldsFor(inputs.situation).filter(f => !f.driver && f.group !== 'view').map(f => f.key)),
+    [inputs.situation]
+  );
 
   // One selected year drives the chart marker, the table and the deep dives
   const [selectedYear, setSelectedYear] = useState(horizon);
@@ -32,13 +38,13 @@ const HousingCalculator = () => {
   const year = Math.min(selectedYear, horizon);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [undo, setUndo] = useState<HousingCalculatorInputs | null>(null);
+  const [undo, setUndo] = useState<InputsSnapshot | null>(null);
   const [taxPrompts, setTaxPrompts] = useState<TaxOverridePrompt[] | null>(null);
   const [rateNotice, setRateNotice] = useState(false);
 
   const verdict = useMemo(
-    () => (rows ? computeVerdict(rows, horizon, inputs.inflationRate, inputs.firstTaxYear) : null),
-    [rows, horizon, inputs.inflationRate, inputs.firstTaxYear]
+    () => (rows ? computeVerdict(rows, horizon, inputs.inflationRate, inputs.firstTaxYear, inputs.situation) : null),
+    [rows, horizon, inputs.inflationRate, inputs.firstTaxYear, inputs.situation]
   );
   // Bisection runs a few hundred engine calls; defer so typing stays responsive
   const deferredInputs = useDeferredValue(inputs);
@@ -54,7 +60,7 @@ const HousingCalculator = () => {
   const cashCheck = useMemo(() => (rows ? checkCash(inputs, rows, horizon) : null), [inputs, rows, horizon]);
 
   const focusField = (key: InputKey) => {
-    if (DRAWER_KEYS.has(key)) setDrawerOpen(true);
+    if (drawerKeys.has(key)) setDrawerOpen(true);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const el = document.getElementById(fieldId(key));
       if (el) {
@@ -100,7 +106,7 @@ const HousingCalculator = () => {
   };
   const drivers = (
     <DriversPanel inputs={inputs} thresholds={thresholds} setInput={setInput} changedKeys={changedKeys} resetField={resetField}
-      otherCount={DRAWER_KEYS.size} openAssumptions={openAssumptions} />
+      otherCount={drawerKeys.size} openAssumptions={openAssumptions} />
   );
 
   return (
@@ -109,6 +115,7 @@ const HousingCalculator = () => {
         Skip to results
       </a>
       <Header
+        situation={inputs.situation}
         firstTaxYear={inputs.firstTaxYear}
         filingStatus={inputs.filingStatus}
         onTaxYear={(y) => onTaxChange(changeTaxYear(y))}
@@ -119,6 +126,7 @@ const HousingCalculator = () => {
       />
       <main id="main" className="mx-auto max-w-[1440px] space-y-6 px-4 py-6 pb-24 sm:px-6">
         <span id="top" />
+        <SituationPicker inputs={inputs} setSituation={(s) => setInput('situation', s)} />
         {(taxPrompts || rateNotice) && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950" role="status">
             {taxPrompts && (
@@ -153,13 +161,13 @@ const HousingCalculator = () => {
             {/* Phones: the chart comes right after the answer, then the drivers */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
               <div className="min-w-0 lg:col-start-2 lg:row-start-1">
-                <GapChart rows={rows} horizon={horizon} selectedYear={year} onSelectYear={setSelectedYear} />
+                <GapChart rows={rows} horizon={horizon} selectedYear={year} onSelectYear={setSelectedYear} situation={inputs.situation} />
               </div>
               <div className="lg:col-start-1 lg:row-start-1">{drivers}</div>
             </div>
             <YearComparison rows={rows} horizon={horizon} selectedYear={year} onSelectYear={setSelectedYear}
               calendarYear={(y) => inputs.firstTaxYear + y - 1} inflationRate={inputs.inflationRate}
-              includeSellingCosts={inputs.includeSellingCosts} />
+              includeSellingCosts={inputs.includeSellingCosts} situation={inputs.situation} />
           </>
         ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
@@ -172,14 +180,14 @@ const HousingCalculator = () => {
           changedKeys={changedKeys} resetField={resetField} />
         {rows && <DeepDives rows={rows} inputs={inputs} horizon={horizon} selectedYear={year} />}
         <PrepaySection inputs={inputs} rows={rows} horizon={horizon} focusField={focusField} />
-        <HowCalculated />
+        <HowCalculated situation={inputs.situation} />
       </main>
 
       {rows && verdict && !heroVisible && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 px-4 py-2 shadow-lg backdrop-blur lg:hidden">
           <a href="#top" className="flex items-center justify-between text-sm font-semibold">
             <span className={verdict.winner === 'buy' ? BUY_TEXT : verdict.winner === 'rent' ? RENT_TEXT : 'text-gray-900'}>
-              {verdict.winner === 'tie' ? 'Even' : `${verdict.winner === 'buy' ? 'Buy' : 'Rent'} +${formatCompactUSD(verdict.gapAbs)}`} · yr {verdict.horizon}
+              {verdict.winner === 'tie' ? 'Even' : `${verdict.winner === 'buy' ? words.own.short : words.rent.short} +${formatCompactUSD(verdict.gapAbs)}`} · yr {verdict.horizon}
             </span>
             <span className="text-gray-600" aria-hidden="true">▲</span>
           </a>
@@ -188,7 +196,7 @@ const HousingCalculator = () => {
       {undo && (
         <div role="status" className="fixed bottom-16 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white shadow-lg lg:bottom-6">
           Inputs reset to defaults.
-          <button type="button" className="font-semibold underline" onClick={() => { setMany(undo); setUndo(null); }}>Undo</button>
+          <button type="button" className="font-semibold underline" onClick={() => { restore(undo); setUndo(null); }}>Undo</button>
         </div>
       )}
     </div>

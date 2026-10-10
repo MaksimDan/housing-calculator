@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea, ReferenceDot, ResponsiveContainer } from 'recharts';
 import type { HousingCalculatorInputs } from '../lib/financialCalculations';
+import { startingPosition } from '../lib/financialCalculations';
+import { wordsFor } from '../lib/situation';
 import { evaluatePrepay, breakEvenReturn, tieBand, PREPAY_AMOUNTS } from '../lib/prepay';
 import { formatAxisUSD, formatUSD } from '../lib/format';
 import type { InputKey } from '../lib/fields';
@@ -8,16 +10,18 @@ import { NumberField } from './NumberField';
 
 interface PrepaySectionProps {
   inputs: HousingCalculatorInputs;
-  rows: any[] | null; // null when the purchase isn't affordable
+  rows: any[] | null; // null when the comparison can't run (e.g. the purchase isn't affordable)
   horizon: number;
   focusField: (key: InputKey) => void;
 }
 
-// "If you buy: prepay or invest?" on the same inputs as the main comparison.
-// Extra payments are limited to what the buyer has left over each month, and a
-// plan that would run savings below zero is never recommended.
+// "If you buy (or keep it): prepay or invest?" on the same inputs as the main
+// comparison. Extra payments are limited to what the owning path has left over
+// each month, and a plan that would run savings below zero is never recommended.
 export const PrepaySection: React.FC<PrepaySectionProps> = ({ inputs, rows, horizon, focusField }) => {
-  const loan = inputs.homePrice * (1 - inputs.downPaymentPercent / 100);
+  const owner = inputs.situation === 'owner';
+  const words = wordsFor(inputs.situation);
+  const loan = startingPosition(inputs).loanAmount;
   const surplus = rows ? Math.max(0, Math.floor(rows[1].availableMonthlyInvestment / 50) * 50) : 0;
   const [requested, setRequested] = useState(1000);
   const extra = Math.max(0, Math.min(requested, surplus));
@@ -35,18 +39,20 @@ export const PrepaySection: React.FC<PrepaySectionProps> = ({ inputs, rows, hori
 
   const netReturn = inputs.investmentReturn - inputs.annualInvestmentTaxDrag;
   const using: { key: InputKey; text: string }[] = [
-    { key: 'homePrice', text: `${formatUSD(loan)} loan` },
+    { key: owner ? 'mortgageBalance' : 'homePrice', text: `${formatUSD(loan)} loan` },
     { key: 'effectiveMortgageRate', text: `${inputs.effectiveMortgageRate}%` },
-    { key: 'mortgageYears', text: `${inputs.mortgageYears} yrs` },
+    { key: 'mortgageYears', text: `${inputs.mortgageYears} yrs${owner ? ' left' : ''}` },
     { key: 'investmentReturn', text: `${inputs.investmentReturn}% return − ${inputs.annualInvestmentTaxDrag}% drag` },
     { key: 'xAxisYears', text: `compared after ${horizon} yrs` },
   ];
 
   let body: React.ReactNode;
   if (!rows) {
-    body = <p className="text-sm text-gray-700">Resolve the cash check above first: this purchase isn't affordable with the current inputs.</p>;
+    body = <p className="text-sm text-gray-700">{owner
+      ? 'Resolve the problem above first: with the current inputs, selling needs more cash than you have.'
+      : "Resolve the cash check above first: this purchase isn't affordable with the current inputs."}</p>;
   } else if (loan <= 0) {
-    body = <p className="text-sm text-gray-700">No mortgage: with a 100% down payment there is nothing to prepay.</p>;
+    body = <p className="text-sm text-gray-700">{owner ? 'No mortgage: your home is paid off, so there is nothing to prepay.' : 'No mortgage: with a 100% down payment there is nothing to prepay.'}</p>;
   } else if (surplus <= 0 || !analysis) {
     body = <p className="text-sm text-gray-700">In year 1 nothing is left over after housing and living costs, so there is no extra cash to put toward the mortgage.</p>;
   } else {
@@ -135,7 +141,7 @@ export const PrepaySection: React.FC<PrepaySectionProps> = ({ inputs, rows, hori
                 })}
               </tbody>
             </table>
-            <p className="mt-1 text-xs text-gray-600">Standard = your Buy result ({formatUSD(standard.finalNetWorth)}). Net worth is before taxes on selling.</p>
+            <p className="mt-1 text-xs text-gray-600">Standard = your {words.own.short} result ({formatUSD(standard.finalNetWorth)}). Net worth is before taxes on selling.</p>
           </div>
         </details>
       </>
@@ -144,7 +150,7 @@ export const PrepaySection: React.FC<PrepaySectionProps> = ({ inputs, rows, hori
 
   return (
     <section id="prepay" aria-labelledby="prepay-title" className="scroll-mt-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <h2 id="prepay-title" className="text-base font-semibold text-gray-900">If you buy: pay the mortgage off faster, or invest?</h2>
+      <h2 id="prepay-title" className="text-base font-semibold text-gray-900">{words.ifOwning}: pay the mortgage off faster, or invest?</h2>
       <p className="mt-1 text-sm text-gray-700">
         Using your inputs:{' '}
         {using.map((u, i) => (

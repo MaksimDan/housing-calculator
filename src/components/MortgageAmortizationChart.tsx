@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { calculateMortgageScenario, HousingCalculatorInputs } from '../lib/financialCalculations';
+import { calculateMortgageScenario, HousingCalculatorInputs, paymentCount, startingPosition } from '../lib/financialCalculations';
 import { formatAxisUSD, formatUSD, formatPercent } from '../lib/format';
 
 interface MortgageAmortizationChartProps {
@@ -9,8 +9,9 @@ interface MortgageAmortizationChartProps {
 }
 
 export const MortgageAmortizationChart: React.FC<MortgageAmortizationChartProps> = ({ projectionData, inputs }) => {
-  const loanAmount = inputs.homePrice * (1 - inputs.downPaymentPercent / 100);
-  const termYears = Math.ceil(inputs.mortgageYears);
+  const owner = inputs.situation === 'owner';
+  const loanAmount = startingPosition(inputs).loanAmount;
+  const termYears = Math.ceil(paymentCount(inputs) / 12);
   const data = useMemo(() => projectionData
     .filter((r: any) => r.year > 0 && r.year <= termYears)
     .map((r: any) => ({ year: r.year, principal: r.yearlyPrincipalPaid, interest: r.yearlyInterestPaid })), [projectionData, termYears]);
@@ -21,19 +22,19 @@ export const MortgageAmortizationChart: React.FC<MortgageAmortizationChartProps>
   );
 
   if (loanAmount <= 0) {
-    return <p className="text-sm text-gray-700">No mortgage: with a 100% down payment this is a cash purchase.</p>;
+    return <p className="text-sm text-gray-700">{owner ? 'No mortgage: your home is paid off.' : 'No mortgage: with a 100% down payment this is a cash purchase.'}</p>;
   }
 
   return (
     <div>
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded bg-gray-50 p-3"><dt className="text-xs text-gray-600">Loan</dt><dd className="text-sm font-semibold tabular-nums">{formatUSD(loanAmount)}</dd></div>
+        <div className="rounded bg-gray-50 p-3"><dt className="text-xs text-gray-600">{owner ? 'Balance today' : 'Loan'}</dt><dd className="text-sm font-semibold tabular-nums">{formatUSD(loanAmount)}</dd></div>
         <div className="rounded bg-orange-50 p-3"><dt className="text-xs text-gray-600">Total interest</dt><dd className="text-sm font-semibold tabular-nums text-orange-800">{formatUSD(totalInterest)}</dd></div>
         <div className="rounded bg-gray-50 p-3"><dt className="text-xs text-gray-600">Total paid</dt><dd className="text-sm font-semibold tabular-nums">{formatUSD(loanAmount + totalInterest)}</dd></div>
       </dl>
       <p className="mt-3 text-sm text-gray-700">
-        At {inputs.effectiveMortgageRate}% over {inputs.mortgageYears} years you pay {formatUSD(totalInterest)} in interest,{' '}
-        {formatPercent((totalInterest / loanAmount) * 100)} of the amount borrowed.{' '}
+        At {inputs.effectiveMortgageRate}% over {owner ? `the ${inputs.mortgageYears} years left` : `${inputs.mortgageYears} years`} you pay {formatUSD(totalInterest)} in interest,{' '}
+        {formatPercent((totalInterest / loanAmount) * 100)} of {owner ? 'what you owe today' : 'the amount borrowed'}.{' '}
         <a href="#prepay" className="font-medium text-blue-700 hover:underline">Pay it off faster instead? ↓</a>
       </p>
       <div className="mt-3 h-64">

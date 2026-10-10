@@ -5,32 +5,39 @@ import {
 import { formatAxisUSD, formatUSD } from '../lib/format';
 import { BUY_COLOR, RENT_COLOR } from '../lib/colors';
 import { leadHistory } from '../lib/verdict';
+import type { Situation } from '../lib/financialCalculations';
+import { SituationWords, wordsFor } from '../lib/situation';
 
 interface GapChartProps {
   rows: any[];
   horizon: number;
   selectedYear: number;
   onSelectYear: (year: number) => void;
+  situation: Situation;
 }
 
-const GapTooltip = ({ active, payload, label }: any) => {
+const GapTooltip = ({ active, payload, label, words }: any) => {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
-  const lead = p.gap > 0 ? 'Buying ahead by' : p.gap < 0 ? 'Renting ahead by' : 'Even';
+  const w = words as SituationWords;
+  const lead = p.gap > 0 ? `${w.own.name} ahead by` : p.gap < 0 ? `${w.rent.name} ahead by` : 'Even';
   return (
     <div className="rounded border border-gray-200 bg-white p-2 text-xs shadow">
       <p className="font-medium text-gray-900">Year {label}</p>
       <p className="text-gray-800">{lead} {p.gap !== 0 ? formatUSD(Math.abs(p.gap)) : ''}</p>
-      <p className="text-blue-700">Buy: {formatUSD(p.buying)}</p>
-      <p className="text-emerald-700">Rent: {formatUSD(p.renting)}</p>
+      <p className="text-blue-700">{w.own.short}: {formatUSD(p.buying)}</p>
+      <p className="text-emerald-700">{w.rent.short}: {formatUSD(p.renting)}</p>
     </div>
   );
 };
 
-// The decision itself: buy minus rent over time around a heavy zero line
-// (above = buying ahead, below = renting ahead). "Totals" shows both net worths.
-export const GapChart: React.FC<GapChartProps> = ({ rows, horizon, selectedYear, onSelectYear }) => {
+// The decision itself: the owning path minus the renting path over time,
+// around a heavy zero line (above = owning ahead, below = renting ahead).
+// "Totals" shows both net worths.
+export const GapChart: React.FC<GapChartProps> = ({ rows, horizon, selectedYear, onSelectYear, situation }) => {
   const [mode, setMode] = useState<'gap' | 'totals'>('gap');
+  const words = wordsFor(situation);
+  const gapTitle = `${words.own.short} minus ${words.rent.short.toLowerCase()}`;
   const data = rows.slice(0, horizon + 1).map((r: any) => ({ year: r.year, gap: r.buying - r.renting, buying: r.buying, renting: r.renting }));
   const gaps = data.map(d => d.gap);
   const max = Math.max(...gaps, 0), min = Math.min(...gaps, 0);
@@ -48,7 +55,7 @@ export const GapChart: React.FC<GapChartProps> = ({ rows, horizon, selectedYear,
     <section aria-labelledby="gap-chart-title" className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="gap-chart-title" className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-          {mode === 'gap' ? 'Buy minus rent' : 'Net worth'} <span className="normal-case font-normal">(before taxes on selling)</span>
+          {mode === 'gap' ? gapTitle : 'Net worth'} <span className="normal-case font-normal">(before taxes on selling)</span>
         </h2>
         <div role="group" aria-label="Chart view" className="inline-flex rounded-md border border-gray-300 overflow-hidden text-sm">
           {(['gap', 'totals'] as const).map(m => (
@@ -61,7 +68,7 @@ export const GapChart: React.FC<GapChartProps> = ({ rows, horizon, selectedYear,
       </div>
       {mode === 'gap' && (
         <p className="mt-1 text-xs text-gray-600">
-          <span className="text-blue-700">Above zero: buying ahead</span> · <span className="text-emerald-700">below zero: renting ahead</span> · click the chart to pick a year
+          <span className="text-blue-700">Above zero: {words.own.lower} ahead</span> · <span className="text-emerald-700">below zero: {words.rent.lower} ahead</span> · click the chart to pick a year
         </p>
       )}
       <div className="mt-2 h-64 sm:h-80">
@@ -81,23 +88,23 @@ export const GapChart: React.FC<GapChartProps> = ({ rows, horizon, selectedYear,
             <XAxis dataKey="year" type="number" domain={[0, horizon]} ticks={ticks} allowDecimals={false} tick={{ fontSize: 12, fill: '#4b5563' }}
               label={{ value: 'Years', position: 'insideBottomRight', offset: -4, fontSize: 12, fill: '#4b5563' }} />
             <YAxis tickFormatter={formatAxisUSD} width={64} tick={{ fontSize: 12, fill: '#4b5563' }} />
-            <Tooltip content={<GapTooltip />} />
+            <Tooltip content={<GapTooltip words={words} />} />
             {mode === 'gap' ? (
               <>
                 <ReferenceLine y={0} stroke="#374151" strokeWidth={2} />
-                <Area type="monotone" dataKey="gap" stroke="url(#gapStroke)" strokeWidth={2.5} fill="url(#gapFill)" isAnimationActive={false} name="Buy minus rent" />
+                <Area type="monotone" dataKey="gap" stroke="url(#gapStroke)" strokeWidth={2.5} fill="url(#gapFill)" isAnimationActive={false} name={gapTitle} />
                 {crossovers.map(y => (
                   <ReferenceDot key={y} x={y} y={0} r={4} fill="#374151" stroke="white" />
                 ))}
                 {end && (
                   <ReferenceDot x={end.year} y={end.gap} r={4} fill={end.gap >= 0 ? BUY_COLOR : RENT_COLOR} stroke="white"
-                    label={{ value: `${end.gap >= 0 ? 'Buy' : 'Rent'} +${formatAxisUSD(Math.abs(end.gap))}`, position: 'left', offset: 8, fontSize: 12, fontWeight: 600, fill: '#111827' }} />
+                    label={{ value: `${end.gap >= 0 ? words.own.short : words.rent.short} +${formatAxisUSD(Math.abs(end.gap))}`, position: 'left', offset: 8, fontSize: 12, fontWeight: 600, fill: '#111827' }} />
                 )}
               </>
             ) : (
               <>
-                <Line type="monotone" dataKey="buying" stroke={BUY_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} name="Buy" />
-                <Line type="monotone" dataKey="renting" stroke={RENT_COLOR} strokeWidth={2} strokeDasharray="6 3" dot={false} isAnimationActive={false} name="Rent" />
+                <Line type="monotone" dataKey="buying" stroke={BUY_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} name={words.own.short} />
+                <Line type="monotone" dataKey="renting" stroke={RENT_COLOR} strokeWidth={2} strokeDasharray="6 3" dot={false} isAnimationActive={false} name={words.rent.short} />
               </>
             )}
             <ReferenceLine x={selectedYear} stroke="#6b7280" strokeDasharray="4 4" />

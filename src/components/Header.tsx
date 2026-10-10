@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { Share2, Check, MoreHorizontal } from 'lucide-react';
 import { FilingStatus, taxYearOptions } from '../lib/taxLaw';
+import type { Situation } from '../lib/financialCalculations';
+import { wordsFor } from '../lib/situation';
 
 interface HeaderProps {
+  situation: Situation;
   firstTaxYear: number;
   filingStatus: FilingStatus;
   onTaxYear: (year: number) => void;
@@ -13,7 +16,8 @@ interface HeaderProps {
   personal: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ firstTaxYear, filingStatus, onTaxYear, onFilingStatus, share, onReset, personal }) => {
+export const Header: React.FC<HeaderProps> = ({ situation, firstTaxYear, filingStatus, onTaxYear, onFilingStatus, share, onReset, personal }) => {
+  const words = wordsFor(situation);
   const [shareState, setShareState] = useState<{ ok: boolean; url: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const options = taxYearOptions();
@@ -29,7 +33,7 @@ export const Header: React.FC<HeaderProps> = ({ firstTaxYear, filingStatus, onTa
   return (
     <header className="border-b border-gray-200 bg-white">
       <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-6">
-        <h1 className="order-1 text-lg font-semibold text-gray-900">Buy vs. Rent Calculator</h1>
+        <h1 className="order-1 text-lg font-semibold text-gray-900">Own vs. Rent Calculator</h1>
         {personal && (
           <span className="order-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900"
             title="Starting values come from personal.config.ts, which only your local dev server reads">
@@ -37,8 +41,8 @@ export const Header: React.FC<HeaderProps> = ({ firstTaxYear, filingStatus, onTa
           </span>
         )}
         <nav aria-label="Sections" className="order-3 flex w-full gap-4 text-sm lg:order-2 lg:w-auto">
-          <a href="#top" className="text-gray-700 hover:text-gray-900 hover:underline">Buy or rent?</a>
-          <a href="#prepay" className="text-gray-700 hover:text-gray-900 hover:underline">If you buy: prepay?</a>
+          <a href="#top" className="text-gray-700 hover:text-gray-900 hover:underline">{words.question}</a>
+          <a href="#prepay" className="text-gray-700 hover:text-gray-900 hover:underline">{words.ifOwning}: prepay?</a>
           <a href="#method" className="text-gray-700 hover:text-gray-900 hover:underline">Method</a>
         </nav>
         <div className="order-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm lg:order-3">
