@@ -1,5 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { useCalculatorInputs, TaxOverridePrompt } from './hooks/useCalculatorInputs';
+import { useCalculatorInputs, TaxOverridePrompt, PERSONAL_CONFIG } from './hooks/useCalculatorInputs';
 import type { HousingCalculatorInputs } from './lib/financialCalculations';
 import { computeVerdict } from './lib/verdict';
 import { findFlipThresholds, gapAt } from './lib/thresholds';
@@ -92,7 +92,8 @@ const HousingCalculator = () => {
     return () => obs.disconnect();
   }, [hasResults]);
 
-  const showExampleNotice = !FINANCE_KEYS.some(k => changedKeys.includes(k));
+  // The defaults describe an example household; a personal config doesn't
+  const showExampleNotice = PERSONAL_CONFIG === null && !FINANCE_KEYS.some(k => changedKeys.includes(k));
   const openAssumptions = () => {
     setDrawerOpen(true);
     requestAnimationFrame(() => document.getElementById('assumptions')?.scrollIntoView());
@@ -114,6 +115,7 @@ const HousingCalculator = () => {
         onFilingStatus={(s) => onTaxChange(changeFilingStatus(s))}
         share={share}
         onReset={onReset}
+        personal={PERSONAL_CONFIG !== null}
       />
       <main id="main" className="mx-auto max-w-[1440px] space-y-6 px-4 py-6 pb-24 sm:px-6">
         <span id="top" />

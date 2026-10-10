@@ -33,6 +33,12 @@ npm run dev
 npm test
 ```
 
+## Your own numbers
+
+To start from your own situation instead of the example household, copy `personal.config.example.ts` to `personal.config.ts` and set the inputs you know; anything you leave out keeps its default. `npm run dev` then opens on your numbers (the header shows a `personal.config.ts` badge), Reset returns to them, and saving the file reloads the page with it.
+
+`personal.config.ts` is git-ignored, and only the dev server reads it: `npm run build`, the tests and the deployed site always use the defaults, even on a machine that has the file.
+
 ## Built With
 
 - React

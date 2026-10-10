@@ -24,6 +24,9 @@ dist-ssr
 .env.*
 !.env.example
 
+# Personal starting values for the dev server (see personal.config.example.ts)
+personal.config.ts
+
 # Logs
 logs
 *.log

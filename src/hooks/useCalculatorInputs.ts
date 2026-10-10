@@ -1,7 +1,9 @@
 import { useEffect, useMemo } from 'react';
+import personalConfig from 'virtual:personal-config';
 import { usePersistedState } from './usePersistedState';
 import { calculateProjectionData, HousingCalculatorInputs } from '../lib/financialCalculations';
 import { FilingStatus, statutoryInputsFor, FIRST_PUBLISHED_TAX_YEAR } from '../lib/taxLaw';
+import { startingInputs } from '../lib/personalConfig';
 import {
   sanitizeInputValue,
   parseUrlValue,
@@ -83,6 +85,13 @@ export const DEFAULTS: HousingCalculatorInputs = {
   filingStatus: 'mfj',
 };
 
+// On the dev server, personal.config.ts (git-ignored) replaces the example
+// household as the starting point; everywhere else this is DEFAULTS.
+const start = startingInputs(DEFAULTS, personalConfig);
+if (start.problems.length) console.warn(`personal.config.ts:\n  ${start.problems.join('\n  ')}`);
+export const STARTING_INPUTS = start.inputs;
+export const PERSONAL_CONFIG = start.personal;
+
 type InputKey = keyof HousingCalculatorInputs;
 
 // State property -> [localStorage key, URL parameter]. Listed in display order.
@@ -153,7 +162,7 @@ export const useCalculatorInputs = () => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const [value, setValue] = usePersistedState<any>(
       INPUT_KEYS[name][0],
-      DEFAULTS[name],
+      STARTING_INPUTS[name],
       (raw) => sanitizeInputValue(name, raw)
     );
     state[name] = value;
@@ -189,7 +198,7 @@ export const useCalculatorInputs = () => {
   const projectionData = useMemo(() => calculateProjectionData(inputs), [inputs]);
 
   const changedKeys = useMemo(
-    () => INPUT_NAMES.filter(name => !Object.is(inputs[name], DEFAULTS[name])),
+    () => INPUT_NAMES.filter(name => !Object.is(inputs[name], STARTING_INPUTS[name])),
     [inputs]
   );
 
@@ -197,7 +206,7 @@ export const useCalculatorInputs = () => {
   const setMany = (values: Partial<HousingCalculatorInputs>) => {
     for (const [key, value] of Object.entries(values)) setterMap[key as InputKey](value);
   };
-  const resetField = (key: InputKey) => setterMap[key](DEFAULTS[key]);
+  const resetField = (key: InputKey) => setterMap[key](STARTING_INPUTS[key]);
 
   // Resets every input; returns the previous inputs so the caller can undo.
   const resetAll = (): HousingCalculatorInputs => {
@@ -205,7 +214,7 @@ export const useCalculatorInputs = () => {
     const storage = getBrowserStorage();
     clearSavedSettings(storage);
     writePersisted(storage, SETTINGS_VERSION_KEY, SETTINGS_VERSION);
-    for (const name of INPUT_NAMES) setterMap[name](DEFAULTS[name]);
+    for (const name of INPUT_NAMES) setterMap[name](STARTING_INPUTS[name]);
     return previous;
   };
 
