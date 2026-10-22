@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { startingInputs, syncSavedSettings } from './personalConfig';
 import { clearSavedSettings, readPersisted, writePersisted, KeyValueStorage, SETTINGS_VERSION_KEY } from './inputValidation';
 import { statutoryInputsFor } from './taxLaw';
+import { STATE_PROPERTY_TAX } from './stateLaw';
+import { stateIncomeTaxRateFor } from './statutoryInputs';
 import { DEFAULTS, STARTING_INPUTS, PERSONAL_CONFIG } from '../hooks/useCalculatorInputs';
 
 class MemoryStorage implements KeyValueStorage {
@@ -19,6 +21,7 @@ describe('startingInputs', () => {
       inputs: DEFAULTS,
       bySituation: { renter: DEFAULTS, owner: { ...DEFAULTS, situation: 'owner' } },
       personal: null,
+      explicit: { renter: new Set(), owner: new Set() },
       problems: [],
     });
     expect(PERSONAL_CONFIG).toBeNull();
@@ -109,6 +112,20 @@ describe('startingInputs', () => {
     expect(inputs.mortgageBalance).toBe(412345.67);
     expect(inputs.mortgageYears).toBe(28.33);
     expect(startingInputs(DEFAULTS, { situation: 'landlord' }).problems).toEqual(['situation: "landlord" skipped (invalid value)']);
+  });
+
+  it("follows the config's state and salary for the state's rules, unless it sets them", () => {
+    const { bySituation, problems } = startingInputs(DEFAULTS, { state: 'TX', situation: 'owner', propertyTaxRate: 1.9 });
+    expect(problems).toEqual([]);
+    expect(bySituation.owner).toMatchObject({
+      state: 'TX', effectiveStateIncomeTaxRate: 0, propertyTaxRate: 1.9, propertyTaxAssessmentCapped: true, propertyTaxAssessmentCap: 10,
+    });
+    // The rate set at the top level is the owner's home's; the purchase gets Texas' typical rate
+    expect(bySituation.renter.propertyTaxRate).toBe(STATE_PROPERTY_TAX.TX.typicalRate);
+    const raise = startingInputs(DEFAULTS, { annualSalaryBeforeTax: 200000 }).inputs;
+    expect(raise.effectiveStateIncomeTaxRate).toBe(stateIncomeTaxRateFor({ ...DEFAULTS, annualSalaryBeforeTax: 200000 }));
+    expect(startingInputs(DEFAULTS, { annualSalaryBeforeTax: 200000, effectiveStateIncomeTaxRate: 8 }).inputs.effectiveStateIncomeTaxRate).toBe(8);
+    expect(startingInputs(DEFAULTS, { state: 'XX' }).problems).toEqual(['state: "XX" skipped (invalid value)']);
   });
 
   it('keeps a tax amount the config sets itself', () => {

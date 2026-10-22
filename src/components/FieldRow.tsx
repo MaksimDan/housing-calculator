@@ -25,7 +25,10 @@ export const FieldRow: React.FC<FieldRowProps> = ({ def, inputs, onChange, onRes
   const hintId = `${id}-hint`;
   const value = inputs[def.key] as any;
   const hint = def.hint ? def.hint(inputs) : null;
-  const describedBy = [hint || note ? hintId : null, helpOpen ? helpId : null].filter(Boolean).join(' ') || undefined;
+  // The state's value for this input, offered when yours differs
+  const suggestion = def.suggest ? def.suggest(inputs) : null;
+  const offer = suggestion && typeof value === 'number' && Math.abs(value - suggestion.value) > 0.005 ? suggestion : null;
+  const describedBy = [hint || note || offer ? hintId : null, helpOpen ? helpId : null].filter(Boolean).join(' ') || undefined;
 
   const infoButton = (
     <button
@@ -116,9 +119,18 @@ export const FieldRow: React.FC<FieldRowProps> = ({ def, inputs, onChange, onRes
           className="mt-2"
         />
       )}
-      {(hint || note) && (
+      {(hint || note || offer) && (
         <p id={hintId} className="mt-1 text-xs text-gray-600">
           {hint}{hint && note ? ' · ' : ''}{note}
+          {offer && (
+            <>
+              {hint || note ? ' · ' : ''}
+              <button type="button" onClick={() => onChange(offer.value)}
+                className="rounded text-blue-700 underline hover:text-blue-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                Use {offer.text}
+              </button>
+            </>
+          )}
         </p>
       )}
       {help}

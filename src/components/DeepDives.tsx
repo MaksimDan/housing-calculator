@@ -8,7 +8,7 @@ import { BUY_COLOR, RENT_COLOR, BUY_TEXT, RENT_TEXT } from '../lib/colors';
 import { MortgageAmortizationChart } from './MortgageAmortizationChart';
 
 const SEGMENT_COLORS: Record<string, string> = {
-  'Mortgage interest': '#f97316', 'Mortgage principal': '#2563eb', 'Property tax': '#a855f7', 'Mello-Roos': '#c084fc',
+  'Mortgage interest': '#f97316', 'Mortgage principal': '#2563eb', 'Property tax': '#a855f7', special: '#c084fc',
   PMI: '#ef4444', Insurance: '#64748b', Maintenance: '#94a3b8', Utilities: '#0ea5e9', HOA: '#f59e0b',
   Rent: '#f97316', 'Living expenses': '#d1d5db', Invested: '#10b981', 'Drawn from savings': '#dc2626',
 };
@@ -23,14 +23,14 @@ const Bars: React.FC<{ title: string; segments: Segment[]; scale: number; titleC
       </div>
       <div className="mt-1 flex h-6 w-full overflow-hidden rounded" aria-hidden="true">
         {positive.map(s => (
-          <div key={s.label} style={{ width: `${(s.value / scale) * 100}%`, backgroundColor: SEGMENT_COLORS[s.label] ?? '#9ca3af' }} title={`${s.label}: ${formatUSD(s.value)}/mo`} />
+          <div key={s.label} style={{ width: `${(s.value / scale) * 100}%`, backgroundColor: SEGMENT_COLORS[s.key ?? s.label] ?? '#9ca3af' }} title={`${s.label}: ${formatUSD(s.value)}/mo`} />
         ))}
       </div>
       <ul className="mt-2 grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs sm:grid-cols-2">
         {segments.map(s => (
           <li key={s.label} className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-1.5 text-gray-700">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: SEGMENT_COLORS[s.label] ?? '#9ca3af' }} aria-hidden="true" />
+              <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: SEGMENT_COLORS[s.key ?? s.label] ?? '#9ca3af' }} aria-hidden="true" />
               {s.label}
             </span>
             <span className={`tabular-nums ${s.kind === 'drawdown' ? 'text-red-700' : 'text-gray-900'}`}>{formatUSD(s.value)}/mo</span>
@@ -41,9 +41,9 @@ const Bars: React.FC<{ title: string; segments: Segment[]; scale: number; titleC
   );
 };
 
-const CashFlow: React.FC<{ rows: any[]; year: number; words: SituationWords }> = ({ rows, year, words }) => {
+const CashFlow: React.FC<{ rows: any[]; year: number; words: SituationWords; inputs: HousingCalculatorInputs }> = ({ rows, year, words, inputs }) => {
   const y = Math.max(1, year);
-  const cf = monthlyCashFlow(rows[y]);
+  const cf = monthlyCashFlow(rows[y], inputs);
   const scale = Math.max(cf.buyIncome, cf.rentIncome, 1);
   const buyInvest = rows[y].availableMonthlyInvestment, rentInvest = rows[y].availableMonthlyRenterInvestment;
   const diff = buyInvest - rentInvest;
@@ -118,7 +118,7 @@ export const DeepDives: React.FC<DeepDivesProps> = ({ rows, inputs, horizon, sel
         ))}
       </div>
       <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="pt-4">
-        {tab === 'cash' && <CashFlow rows={rows} year={selectedYear} words={words} />}
+        {tab === 'cash' && <CashFlow rows={rows} year={selectedYear} words={words} inputs={inputs} />}
         {tab === 'taxes' && <TaxesByYear rows={rows} horizon={horizon} year={selectedYear} words={words} />}
         {tab === 'mortgage' && <MortgageAmortizationChart projectionData={rows} inputs={inputs} />}
       </div>

@@ -1,4 +1,5 @@
 import type { HousingCalculatorInputs } from './financialCalculations';
+import { specialAssessmentWords } from './stateLaw';
 
 // Parts of each side's net worth for a projection row; they sum to the
 // engine's own totals (row fields are rounded, so within a couple of dollars).
@@ -15,11 +16,12 @@ export const netWorthParts = (row: any) => ({
   ],
 });
 
-export interface Segment { label: string; value: number; kind: 'cost' | 'living' | 'invest' | 'drawdown' }
+// `key` names the segment where its label depends on the state
+export interface Segment { label: string; value: number; kind: 'cost' | 'living' | 'invest' | 'drawdown'; key?: string }
 
 // Monthly cash flow of the year a row describes. Buyer segments sum to
 // take-home + rental income, renter segments to take-home.
-export const monthlyCashFlow = (row: any, _inputs?: HousingCalculatorInputs) => {
+export const monthlyCashFlow = (row: any, inputs?: HousingCalculatorInputs) => {
   const invest = (v: number): Segment[] => (v >= 0
     ? [{ label: 'Invested', value: v, kind: 'invest' }]
     : [{ label: 'Drawn from savings', value: v, kind: 'drawdown' }]);
@@ -27,7 +29,7 @@ export const monthlyCashFlow = (row: any, _inputs?: HousingCalculatorInputs) => 
     { label: 'Mortgage interest', value: row.yearlyInterestPaid / 12, kind: 'cost' },
     { label: 'Mortgage principal', value: row.yearlyPrincipalPaid / 12, kind: 'cost' },
     { label: 'Property tax', value: row.monthlyPropertyTax, kind: 'cost' },
-    { label: 'Mello-Roos', value: row.monthlyMelloRoosTax, kind: 'cost' },
+    { key: 'special', label: inputs ? specialAssessmentWords(inputs.state).name : 'Special assessments', value: row.monthlyMelloRoosTax, kind: 'cost' },
     { label: 'PMI', value: row.monthlyPMI, kind: 'cost' },
     { label: 'Insurance', value: row.monthlyHomeInsurance, kind: 'cost' },
     { label: 'Maintenance', value: row.monthlyMaintenance, kind: 'cost' },

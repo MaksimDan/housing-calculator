@@ -1,9 +1,11 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { useCalculatorInputs, TaxOverridePrompt, PERSONAL_CONFIG, InputsSnapshot } from './hooks/useCalculatorInputs';
+import { useCalculatorInputs, LawPrompt, PERSONAL_CONFIG, InputsSnapshot } from './hooks/useCalculatorInputs';
 import { computeVerdict } from './lib/verdict';
 import { findFlipThresholds, gapAt } from './lib/thresholds';
 import { checkCash } from './lib/cashCheck';
-import { FIELD_BY_KEY, InputKey, fieldId, fieldsFor } from './lib/fields';
+import { FIELD_BY_KEY, InputKey, fieldFor, fieldId, fieldsFor } from './lib/fields';
+import { FILING_STATUS_LABELS } from './lib/taxLaw';
+import { stateName } from './lib/stateLaw';
 import { formatCompactUSD, formatUSD } from './lib/format';
 import { BUY_TEXT, RENT_TEXT } from './lib/colors';
 import { wordsFor } from './lib/situation';
@@ -21,8 +23,15 @@ import { BlockingState } from './components/BlockingState';
 
 const FINANCE_KEYS: InputKey[] = ['initialInvestment', 'annualSalaryBeforeTax', 'monthlyMiscExpenses'];
 
+// A value in a "you had customized this" prompt, in its field's unit
+const formatLawValue = (key: InputKey, value: number | boolean) => {
+  if (typeof value === 'boolean') return value ? 'on' : 'off';
+  const unit = FIELD_BY_KEY[key].unit;
+  return unit === 'usd' ? formatUSD(value) : `${Number(value.toFixed(2))}%`;
+};
+
 const HousingCalculator = () => {
-  const { inputs, projectionData, changedKeys, setInput, setMany, resetField, resetAll, restore, share, changeTaxYear, changeFilingStatus } = useCalculatorInputs();
+  const { inputs, projectionData, changedKeys, setInput, setMany, resetField, resetAll, restore, share, changeState, changeTaxYear, changeFilingStatus } = useCalculatorInputs();
   const rows = Array.isArray(projectionData) ? (projectionData as any[]) : null;
   const horizon = rows ? Math.min(inputs.xAxisYears, rows.length - 1) : inputs.xAxisYears;
   const words = wordsFor(inputs.situation);
@@ -39,7 +48,9 @@ const HousingCalculator = () => {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [undo, setUndo] = useState<InputsSnapshot | null>(null);
-  const [taxPrompts, setTaxPrompts] = useState<TaxOverridePrompt[] | null>(null);
+  // Customized fields a change of state, tax year or filing status would
+  // replace, and what changed ("Texas", "tax year 2027")
+  const [taxPrompts, setTaxPrompts] = useState<{ prompts: LawPrompt[]; change: string } | null>(null);
   const [rateNotice, setRateNotice] = useState(false);
 
   const verdict = useMemo(
@@ -81,9 +92,11 @@ const HousingCalculator = () => {
     return () => clearTimeout(t);
   }, [undo]);
 
-  const onTaxChange = (prompts: TaxOverridePrompt[]) => {
-    setTaxPrompts(prompts.length ? prompts : null);
-    setRateNotice(true);
+  // The federal rates are typed in, so a new tax year or filing status may
+  // need them reviewed; a new state doesn't change them
+  const onLawChange = (prompts: LawPrompt[], change: string, federalRatesStale: boolean) => {
+    setTaxPrompts(prompts.length ? { prompts, change } : null);
+    if (federalRatesStale) setRateNotice(true);
   };
 
   // Sticky answer on phones once the hero scrolls away
@@ -116,10 +129,12 @@ const HousingCalculator = () => {
       </a>
       <Header
         situation={inputs.situation}
+        state={inputs.state}
         firstTaxYear={inputs.firstTaxYear}
         filingStatus={inputs.filingStatus}
-        onTaxYear={(y) => onTaxChange(changeTaxYear(y))}
-        onFilingStatus={(s) => onTaxChange(changeFilingStatus(s))}
+        onState={(s) => onLawChange(changeState(s), stateName(s), false)}
+        onTaxYear={(y) => onLawChange(changeTaxYear(y), `tax year ${y}`, true)}
+        onFilingStatus={(s) => onLawChange(changeFilingStatus(s), FILING_STATUS_LABELS[s].toLowerCase(), true)}
         share={share}
         onReset={onReset}
         personal={PERSONAL_CONFIG !== null}
@@ -131,12 +146,14 @@ const HousingCalculator = () => {
           <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950" role="status">
             {taxPrompts && (
               <div>
-                <p>You had customized {taxPrompts.length === 1 ? 'this amount' : 'these amounts'}. Update to the {inputs.firstTaxYear} amounts for this filing status?</p>
+                <p>You had customized {taxPrompts.prompts.length === 1 ? 'this amount' : 'these amounts'}. Update {taxPrompts.prompts.length === 1 ? 'it' : 'them'} for {taxPrompts.change}?</p>
                 <ul className="mt-1 list-disc pl-5">
-                  {taxPrompts.map(p => <li key={p.key}>{FIELD_BY_KEY[p.key].label}: yours {formatUSD(p.current)} → {formatUSD(p.next)}</li>)}
+                  {taxPrompts.prompts.map(p => (
+                    <li key={p.key}>{fieldFor(p.key, inputs.situation, inputs.state).label}: yours {formatLawValue(p.key, p.current)} → {formatLawValue(p.key, p.next)}</li>
+                  ))}
                 </ul>
                 <div className="mt-2 flex gap-2">
-                  <button type="button" onClick={() => { setMany(Object.fromEntries(taxPrompts.map(p => [p.key, p.next]))); setTaxPrompts(null); }}
+                  <button type="button" onClick={() => { setMany(Object.fromEntries(taxPrompts.prompts.map(p => [p.key, p.next]))); setTaxPrompts(null); }}
                     className="rounded-md bg-amber-700 px-3 py-1 text-white hover:bg-amber-800">Update</button>
                   <button type="button" onClick={() => setTaxPrompts(null)} className="rounded-md border border-amber-400 px-3 py-1 hover:bg-amber-100">Keep mine</button>
                 </div>
@@ -180,7 +197,7 @@ const HousingCalculator = () => {
           changedKeys={changedKeys} resetField={resetField} />
         {rows && <DeepDives rows={rows} inputs={inputs} horizon={horizon} selectedYear={year} />}
         <PrepaySection inputs={inputs} rows={rows} horizon={horizon} focusField={focusField} />
-        <HowCalculated situation={inputs.situation} />
+        <HowCalculated inputs={inputs} />
       </main>
 
       {rows && verdict && !heroVisible && (

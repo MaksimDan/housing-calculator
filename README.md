@@ -13,6 +13,7 @@ An interactive web tool to compare owning a home with renting one over time, fro
 - **Dig deeper:** monthly cash flow, tax savings by year, and the mortgage amortization
 - **If you buy (or keep): prepay or invest?** using the same inputs, limited to what you can afford, with the break-even return
 - **Tax law by year:** tax year and filing status fill in the statutory amounts from `src/lib/taxLaw.ts` (add a year there when the IRS publishes it)
+- **Your state:** the state picker fills in that state's income tax rate (from its brackets, deductions and credits for your salary and filing status, plus the county income tax every Maryland and Indiana resident pays), its typical property tax rate, and its cap on how fast an assessment can grow (California's Prop 13, Florida's Save Our Homes, Texas' 10% homestead cap; none in states without one). Each rule lives in one table keyed by state: `src/lib/stateIncomeTax.ts` and `src/lib/statePropertyTax.ts`, behind `src/lib/stateLaw.ts`. Fields you've typed your own value into are kept, with the state's value offered beside them
 - Shareable links, saved settings, and a "How this is calculated" section
 
 ## Setup

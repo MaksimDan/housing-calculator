@@ -1,10 +1,36 @@
 import React from 'react';
-import type { Situation } from '../lib/financialCalculations';
+import type { HousingCalculatorInputs } from '../lib/financialCalculations';
 import { TAX_YEARS, SALT_SCHEDULE, SALT_CAP_AFTER_SCHEDULE, LATEST_PUBLISHED_TAX_YEAR } from '../lib/taxLaw';
+import { describeStateIncomeTax, stateName, statePropertyTax, STATE_INCOME_TAX } from '../lib/stateLaw';
 import { formatUSD } from '../lib/format';
 
-export const HowCalculated: React.FC<{ situation: Situation }> = ({ situation }) => {
-  const owner = situation === 'owner';
+// The selected state's rules, as the calculator applies them
+const StateRules: React.FC<{ inputs: HousingCalculatorInputs }> = ({ inputs }) => {
+  const name = stateName(inputs.state);
+  const p = statePropertyTax(inputs.state);
+  const income = STATE_INCOME_TAX[inputs.state];
+  return (
+    <div>
+      <h3 className="font-semibold text-gray-900">{name}'s rules</h3>
+      <ul className="list-disc pl-5">
+        <li>
+          Income tax: {describeStateIncomeTax(inputs.state, inputs.firstTaxYear, inputs.filingStatus, inputs.inflationRate)}
+          {income ? ' Picking the state fills in the state and local income tax rate from this for your salary and filing status; type your own to replace it.' : ''}
+          {income?.localNote ? ` ${income.localNote}` : ''}
+        </li>
+        <li>Property tax: typically {Number(p.typicalRate.toFixed(2))}% of the home's value a year, {p.rateNote}. It fills in the property tax rate for a purchase; use your county's rate if you know it.</li>
+        <li>
+          Assessments: {p.assessmentLimit
+            ? `${p.assessmentLimit.description} The assessed value never grows faster than the home's value.`
+            : `no statewide limit, so the assessed value follows the home's value.${p.limitNote ? ` ${p.limitNote}` : ''}`}
+        </li>
+      </ul>
+    </div>
+  );
+};
+
+export const HowCalculated: React.FC<{ inputs: HousingCalculatorInputs }> = ({ inputs }) => {
+  const owner = inputs.situation === 'owner';
   const saltYears = Object.keys(SALT_SCHEDULE).map(Number).sort();
   return (
     <section id="method" aria-labelledby="method-title" className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -47,6 +73,7 @@ export const HowCalculated: React.FC<{ situation: Situation }> = ({ situation })
               </table>
             </div>
           </div>
+          <StateRules inputs={inputs} />
           <div>
             <h3 className="font-semibold text-gray-900">Dollars</h3>
             <p>Amounts are nominal: year-N figures are in dollars of that year. The "today's dollars" figures divide by (1 + inflation)<sup>N</sup>.</p>
@@ -59,7 +86,8 @@ export const HowCalculated: React.FC<{ situation: Situation }> = ({ situation })
                 : <li>Capital-gains tax when selling the home (above the $250k/$500k exclusion) or the investments: net worth is before these taxes.</li>}
               <li>Taxes on rental income and the split of deductions when part of the home is rented out.</li>
               <li>Market volatility (returns and appreciation are constant every year), refinancing, moving again, and {owner ? 'prepayment penalties on paying off the loan' : 'whether a lender would approve the loan'}.</li>
-              <li>State itemized deductions and the 37%-bracket limit on itemized deductions.</li>
+              <li>State itemized deductions (the mortgage interest and property tax many states let you deduct on the state return) and the 37%-bracket limit on federal itemized deductions.</li>
+              <li>Local income taxes that only some cities or counties levy, renter credits, and transfer taxes on buying or selling, which vary by state and city (closing and selling costs are your inputs).</li>
             </ul>
           </div>
         </div>

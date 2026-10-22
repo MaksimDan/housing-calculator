@@ -1,5 +1,5 @@
 import type { HousingCalculatorInputs, Situation } from './financialCalculations';
-import { statutoryInputsFor } from './taxLaw';
+import { withLawValues } from './statutoryInputs';
 import { FIELDS } from './fields';
 import { SITUATIONS, SITUATION_KEYS, isSituationKey } from './situation';
 import {
@@ -17,8 +17,6 @@ import {
 // personal-config.js) replaces the example household as the starting point:
 // what loads, what Reset returns to, and what counts as changed.
 
-const TAX_AMOUNT_KEYS = ['standardDeduction', 'saltCap', 'mortgageInterestDeductionCap'] as const;
-
 // Any inputs, plus optional `renter` and `owner` blocks holding that
 // situation's home and rent inputs (see SITUATION_KEYS)
 export type PersonalConfig = Partial<HousingCalculatorInputs> & Partial<Record<Situation, Partial<HousingCalculatorInputs>>>;
@@ -31,6 +29,9 @@ export interface StartingInputs {
   bySituation: Record<Situation, HousingCalculatorInputs>;
   // The values the config set, after validation; null without a config
   personal: PersonalConfig | null;
+  // The inputs the config sets for each situation (its shared inputs and
+  // that situation's home and rent)
+  explicit: Record<Situation, Set<keyof HousingCalculatorInputs>>;
   // Entries that were skipped or adjusted, for a console warning
   problems: string[];
 }
@@ -45,15 +46,17 @@ const blockKeys = (situation: Situation) =>
 // level belong to the situation the config opens in; the other situation
 // starts from the defaults, or from its block. Unknown keys and invalid
 // values are skipped; out-of-range numbers are clamped, as for every other
-// input path. Both are reported. The statutory tax amounts follow the config's
-// tax year, filing status and inflation rate unless it sets them itself.
+// input path. Both are reported. The inputs the law fills in (the tax
+// amounts, the state income tax rate, the property tax rate and assessment
+// cap) follow the config's state, tax year, filing status, salary and
+// inflation rate unless it sets them itself.
 export const startingInputs = (
   defaults: HousingCalculatorInputs,
   config: Record<string, unknown> | null
 ): StartingInputs => {
   if (!config) {
     const bySituation = { renter: { ...defaults, situation: 'renter' }, owner: { ...defaults, situation: 'owner' } } as Record<Situation, HousingCalculatorInputs>;
-    return { inputs: defaults, bySituation, personal: null, problems: [] };
+    return { inputs: defaults, bySituation, personal: null, explicit: { renter: new Set(), owner: new Set() }, problems: [] };
   }
   const problems: string[] = [];
   const read = (name: string, key: string, raw: unknown) => {
@@ -94,22 +97,15 @@ export const startingInputs = (
     // A block's own-situation-only inputs (an owner's balance) are single inputs
     for (const [k, v] of Object.entries(blocks[s])) (isSituationKey(k) ? own[s] : shared)[k] = v;
   }
-  const statutory = statutoryInputsFor(
-    (shared.firstTaxYear ?? defaults.firstTaxYear) as number,
-    (shared.filingStatus ?? defaults.filingStatus) as HousingCalculatorInputs['filingStatus'],
-    (shared.inflationRate ?? defaults.inflationRate) as number
+  const make = (s: Situation) => withLawValues(
+    { ...defaults, ...shared, ...own[s], situation: s } as HousingCalculatorInputs,
+    key => key in shared || key in own[s]
   );
-  const make = (s: Situation) => {
-    const inputs = { ...defaults, ...shared, ...own[s], situation: s } as HousingCalculatorInputs;
-    for (const key of TAX_AMOUNT_KEYS) {
-      if (!(key in shared)) inputs[key] = statutory[key];
-    }
-    return inputs;
-  };
   const bySituation = { renter: make('renter'), owner: make('owner') };
   const personal: Record<string, unknown> = { ...top };
   for (const s of SITUATIONS) if (Object.keys(blocks[s]).length) personal[s] = blocks[s];
-  return { inputs: bySituation[situation], bySituation, personal: personal as PersonalConfig, problems };
+  const explicit = Object.fromEntries(SITUATIONS.map(s => [s, new Set([...Object.keys(shared), ...Object.keys(own[s])])])) as StartingInputs['explicit'];
+  return { inputs: bySituation[situation], bySituation, personal: personal as PersonalConfig, explicit, problems };
 };
 
 // Not a settings key (see isSettingsKey), so Reset all keeps it

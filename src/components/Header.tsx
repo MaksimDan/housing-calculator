@@ -1,13 +1,19 @@
 import React, { useState } from 'react';
 import { Share2, Check, MoreHorizontal } from 'lucide-react';
-import { FilingStatus, taxYearOptions } from '../lib/taxLaw';
+import { FILING_STATUS_LABELS, FilingStatus, taxYearOptions } from '../lib/taxLaw';
+import { STATES, StateCode } from '../lib/stateLaw';
 import type { Situation } from '../lib/financialCalculations';
 import { wordsFor } from '../lib/situation';
 
+// By name, so the District of Columbia sorts under D
+const STATE_OPTIONS = (Object.entries(STATES) as [StateCode, string][]).sort((a, b) => a[1].localeCompare(b[1]));
+
 interface HeaderProps {
   situation: Situation;
+  state: StateCode;
   firstTaxYear: number;
   filingStatus: FilingStatus;
+  onState: (state: StateCode) => void;
   onTaxYear: (year: number) => void;
   onFilingStatus: (status: FilingStatus) => void;
   share: () => Promise<{ ok: boolean; url: string }>;
@@ -16,7 +22,7 @@ interface HeaderProps {
   personal: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ situation, firstTaxYear, filingStatus, onTaxYear, onFilingStatus, share, onReset, personal }) => {
+export const Header: React.FC<HeaderProps> = ({ situation, state, firstTaxYear, filingStatus, onState, onTaxYear, onFilingStatus, share, onReset, personal }) => {
   const words = wordsFor(situation);
   const [shareState, setShareState] = useState<{ ok: boolean; url: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -47,6 +53,13 @@ export const Header: React.FC<HeaderProps> = ({ situation, firstTaxYear, filingS
         </nav>
         <div className="order-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm lg:order-3">
           <label className="flex items-center gap-1.5 text-gray-800">
+            State
+            <select value={state} onChange={(e) => onState(e.target.value as StateCode)}
+              className="rounded-md border border-gray-300 bg-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {STATE_OPTIONS.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+            </select>
+          </label>
+          <label className="flex items-center gap-1.5 text-gray-800">
             Tax year
             <select value={firstTaxYear} onChange={(e) => onTaxYear(Number(e.target.value))}
               className="rounded-md border border-gray-300 bg-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -57,10 +70,9 @@ export const Header: React.FC<HeaderProps> = ({ situation, firstTaxYear, filingS
             Filing
             <select value={filingStatus} onChange={(e) => onFilingStatus(e.target.value as FilingStatus)}
               className="rounded-md border border-gray-300 bg-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="mfj">Married filing jointly</option>
-              <option value="single">Single</option>
-              <option value="hoh">Head of household</option>
-              <option value="mfs">Married filing separately</option>
+              {(Object.entries(FILING_STATUS_LABELS) as [FilingStatus, string][]).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
           </label>
         </div>

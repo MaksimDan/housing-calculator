@@ -7,6 +7,7 @@ import {
     ADDITIONAL_MEDICARE_RATE,
     ADDITIONAL_MEDICARE_THRESHOLDS,
 } from './taxLaw';
+import { StateCode, assessmentCapFollowsInflation } from './stateLaw';
 
 // Where you start: renting today and thinking of buying, or owning today and
 // thinking of selling and renting. See startingPosition.
@@ -17,6 +18,10 @@ export interface HousingCalculatorInputs {
     // keep the one you own) and "renting" the path that rents (keep renting,
     // or sell and rent), whichever situation you start from.
     situation: Situation;
+    // Where the home is. Its rules (lib/stateLaw.ts) fill in the state
+    // income tax rate, the property tax rate and the assessment cap; the
+    // engines read the state only for whether that cap is tied to inflation.
+    state: StateCode;
     annualSalaryBeforeTax: number;
     effectiveFederalTaxRate: number;
     standardDeduction: number;
@@ -52,6 +57,9 @@ export interface HousingCalculatorInputs {
     rentIncrease: number;
     salaryGrowthRate: number;
     inflationRate: number;
+    // Whether the assessed value's yearly growth is capped (Prop 13 and the
+    // like), and the cap. See assessmentGrowthRate.
+    propertyTaxAssessmentCapped: boolean;
     propertyTaxAssessmentCap: number;
     xAxisYears: number;
     mortgageInterestDeductionCap: number;
@@ -133,6 +141,22 @@ export const startingPosition = (inputs: HousingCalculatorInputs) => {
 // Projection year N is tax year firstTaxYear + N - 1.
 export const taxYearForProjectionYear = (inputs: HousingCalculatorInputs, projectionYear: number) =>
     inputs.firstTaxYear + projectionYear - 1;
+
+// Yearly growth of the assessed value that property tax is levied on, in
+// percent, shared by both engines. It follows the home's value, held to the
+// cap where there is one; in states whose cap is tied to inflation
+// (California's Prop 13: the lesser of inflation and 2%) the cap is the lesser
+// of the two. An assessment never exceeds the home's value (California's
+// Prop 8), so when the home appreciates more slowly than the cap, its value
+// sets the pace.
+export const assessmentGrowthRate = (inputs: HousingCalculatorInputs) => {
+    const { homeAppreciation, inflationRate, propertyTaxAssessmentCap } = inputs;
+    if (!inputs.propertyTaxAssessmentCapped) return homeAppreciation;
+    const cap = assessmentCapFollowsInflation(inputs.state)
+        ? Math.min(inflationRate, propertyTaxAssessmentCap)
+        : propertyTaxAssessmentCap;
+    return Math.min(homeAppreciation, cap);
+};
 
 // Standard deduction for a 0-based projection year index: the first tax
 // year's amount, indexed with the inflation rate.
@@ -301,7 +325,7 @@ export const calculateMortgageScenario = (
     const { homePrice, effectiveMortgageRate, mortgageYears, investmentReturn,
             propertyTaxRate, melloRoosTaxRate, annualSalaryBeforeTax, effectiveStateIncomeTaxRate,
             mortgageInterestDeductionCap, saltCap, standardDeduction, effectiveFederalTaxRate,
-            homeAppreciation, inflationRate, propertyTaxAssessmentCap, salaryGrowthRate,
+            homeAppreciation, inflationRate, salaryGrowthRate,
             monthlyMiscExpenses,
             PMIRate, annualMaintenanceRate, monthlyHOAFee, monthlyHomeInsurance,
             monthlyPropertyUtilities, monthlyRentalIncome,
@@ -320,6 +344,7 @@ export const calculateMortgageScenario = (
     const regularPayment = calculateMonthlyMortgagePayment(loanAmount, monthlyRate, totalPayments);
     const originalLoanAmount = loanAmount;
     const pmiThresholdBalance = homePrice * 0.8;
+    const assessmentIncrease = assessmentGrowthRate(inputs) / 100;
 
     let balance = loanAmount;
     let investmentBalance = start.buyingInvestment;
@@ -347,7 +372,6 @@ export const calculateMortgageScenario = (
             const yearsPassed = Math.floor((month - 1) / 12);
             currentAnnualSalary = annualSalaryBeforeTax * Math.pow(1 + salaryGrowthRate / 100, yearsPassed);
             currentStandardDeduction = standardDeductionForYear(inputs, yearsPassed);
-            const assessmentIncrease = Math.min(inflationRate, propertyTaxAssessmentCap) / 100;
             currentAssessedValue = homePrice * Math.pow(1 + assessmentIncrease, yearsPassed);
 
             const inflationMultiplier = Math.pow(1 + inflationRate / 100, yearsPassed);
@@ -488,7 +512,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
         rentDeposit, movingCostRenting, monthlyRenterInsurance,
         monthlyRentUtilities, monthlyPropertyUtilities, homeAppreciation,
         investmentReturn, rentIncrease, salaryGrowthRate, inflationRate,
-        propertyTaxAssessmentCap, xAxisYears, mortgageInterestDeductionCap,
+        xAxisYears, mortgageInterestDeductionCap,
         saltCap, effectiveStateIncomeTaxRate,
         marginalFederalTaxRate, useMarginalTaxRate, melloRoosGrowsWithAssessment,
         includeSellingCosts, sellingCostPercent, annualInvestmentTaxDrag,
@@ -627,6 +651,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
     });
 
     const monthlyReturn = toMonthlyRate(investmentReturn - annualInvestmentTaxDrag);
+    const assessmentGrowth = assessmentGrowthRate(inputs);
 
     for (let year = 1; year <= Math.max(Math.ceil(totalMonthlyPayments / 12), xAxisYears); year++) {
         // --- Cash flows during this year, at start-of-year levels ---
@@ -727,8 +752,7 @@ export const calculateProjectionData = (inputs: HousingCalculatorInputs) => {
 
         // --- Advance stocks to end of year ---
         currentHomeValue *= 1 + homeAppreciation / 100;
-        const assessmentIncrease = Math.min(inflationRate, propertyTaxAssessmentCap);
-        currentAssessedValue *= 1 + assessmentIncrease / 100;
+        currentAssessedValue *= 1 + assessmentGrowth / 100;
 
         const sellingCosts = includeSellingCosts ? currentHomeValue * (sellingCostPercent / 100) : 0;
         const buyingNetWorth = buyingInvestmentBalance + (currentHomeValue - mortgageBalance) - sellingCosts;

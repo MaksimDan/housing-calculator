@@ -1,6 +1,11 @@
 import type { HousingCalculatorInputs, Situation } from './financialCalculations';
-import { calculateMonthlyMortgagePayment, calculateMortgageScenario, paymentCount, startingPosition } from './financialCalculations';
+import { assessmentGrowthRate, calculateMonthlyMortgagePayment, calculateMortgageScenario, paymentCount, startingPosition } from './financialCalculations';
 import { SALT_SCHEDULE, SALT_CAP_AFTER_SCHEDULE, SALT_PHASEDOWN_RATE, SALT_PHASEDOWN_FLOOR } from './taxLaw';
+import {
+  StateCode, stateName, statePropertyTax, assessmentLimit, specialAssessmentWords,
+  STATE_INCOME_TAX, stateIncomeTaxYear,
+} from './stateLaw';
+import { stateIncomeTaxRateFor } from './statutoryInputs';
 import { formatUSD } from './format';
 
 // One definition per input: how it is labelled, grouped, ranged and explained.
@@ -8,8 +13,9 @@ import { formatUSD } from './format';
 // typical range (typed values may go beyond it). Most inputs mean the same
 // thing whether you rent or own today; `owner` rewords the ones that don't,
 // and `only` marks the few that exist in one situation (a renter's down
-// payment, an owner's mortgage balance). Read fields through fieldFor or
-// fieldsFor so the situation's wording applies.
+// payment, an owner's mortgage balance). `byState` words the few whose name
+// depends on the state (California's Mello-Roos). Read fields through
+// fieldFor or fieldsFor so the situation's and state's wording applies.
 
 export type InputKey = keyof HousingCalculatorInputs;
 export type Unit = 'usd' | 'usdPerMonth' | 'percent' | 'percentPerYear' | 'years' | 'count' | 'toggle' | 'select';
@@ -26,11 +32,14 @@ export interface FieldDef {
   help: string | ((inputs: HousingCalculatorInputs) => string);
   hint?: (inputs: HousingCalculatorInputs) => string | null;
   visibleWhen?: (inputs: HousingCalculatorInputs) => boolean;
-  // Range searched for the value at which the verdict flips. Only fields
-  // whose effect on the buy-minus-rent gap is monotone get one.
+  // Range searched for the nearest value at which the verdict flips (see
+  // thresholds.findFlipThreshold)
   flip?: { min: number; max: number };
   only?: Situation; // the input exists only in this situation
-  owner?: Partial<Pick<FieldDef, 'label' | 'short' | 'help' | 'hint' | 'visibleWhen'>>;
+  owner?: Partial<Pick<FieldDef, 'label' | 'short' | 'help' | 'hint' | 'visibleWhen' | 'suggest'>>;
+  byState?: (state: StateCode) => Partial<Pick<FieldDef, 'label' | 'short'>>;
+  // The value the state's rules give, offered beside the field when yours differs
+  suggest?: (inputs: HousingCalculatorInputs) => { value: number; text: string } | null;
 }
 
 export const GROUPS: { key: Group; title: string; owner?: string; note?: string }[] = [
@@ -46,6 +55,46 @@ export const groupTitle = (g: (typeof GROUPS)[number], situation: Situation) => 
 
 const loan = (i: HousingCalculatorInputs) => startingPosition(i).loanAmount;
 const pct = (i: HousingCalculatorInputs, rate: number) => i.homePrice * rate / 100;
+const percent = (n: number) => `${Number(n.toFixed(2))}%`;
+
+const stateTaxHelp = (i: HousingCalculatorInputs) => {
+  const name = stateName(i.state);
+  const law = STATE_INCOME_TAX[i.state];
+  const salt = 'It also counts toward the SALT deduction for both paths.';
+  if (!law) {
+    return `State and local income tax divided by salary. ${name} has no income tax on wages, so this is 0 unless you pay a local one. ${salt}`;
+  }
+  const year = stateIncomeTaxYear(i.state, i.firstTaxYear, i.inflationRate)!;
+  const local = law.local ? `, plus ${law.local.note}` : '';
+  return `State and local income tax divided by salary. Filled in from ${name}'s ${i.firstTaxYear} tax law${year.projected ? ` (projected from ${year.baseYear})` : ''} `
+    + `for your salary, filing status and number of earners, with the state's standard deduction, personal exemptions and credits${local}. `
+    + `It leaves out dependents, pre-tax deductions such as 401(k) contributions, and other credits, so your return's rate is better if you have it. `
+    + `${year.estimated ? `Estimated until ${name} publishes them: ${year.estimated}. ` : ''}${law.localNote ? `${law.localNote} ` : ''}${salt}`;
+};
+
+const propertyTaxNote = (i: HousingCalculatorInputs) => {
+  const p = statePropertyTax(i.state);
+  return `${stateName(i.state)}'s typical rate is ${percent(p.typicalRate)} (${p.rateNote}).`;
+};
+
+const assessmentHelp = (i: HousingCalculatorInputs) => {
+  const limit = assessmentLimit(i.state);
+  if (limit) return `${limit.description} Off: the assessed value follows the home's value.`;
+  const note = statePropertyTax(i.state).limitNote;
+  return `${stateName(i.state)} has no statewide limit on how fast a home's assessed value can grow, so it follows the home's value.${note ? ` ${note}` : ''} Turn on to model a local cap.`;
+};
+
+const assessmentHint = (i: HousingCalculatorInputs) => {
+  const growth = assessmentGrowthRate(i);
+  const reason = growth === i.homeAppreciation ? 'with the home\'s value'
+    : growth === i.inflationRate && growth < i.propertyTaxAssessmentCap ? 'with inflation, below the cap'
+      : 'at the cap';
+  return `Assessed value grows ${percent(growth)}/yr (${reason})`;
+};
+
+const specialAssessmentHelp = (i: HousingCalculatorInputs, owner: boolean) =>
+  `${specialAssessmentWords(i.state).help} Enter it as a share of ${owner ? 'the home\'s value today; set it so the amount below matches your bill' : 'the price'}. `
+  + 'Treated as not SALT-deductible (conservative); a documented maintenance or bond-interest portion can be deductible.';
 
 const saltHelp = () => {
   const years = Object.keys(SALT_SCHEDULE).map(Number).sort();
@@ -183,28 +232,49 @@ export const FIELDS: FieldDef[] = [
   {
     key: 'propertyTaxRate', label: 'Property tax rate', unit: 'percent', group: 'owning',
     soft: { min: 0.2, max: 3, step: 0.01 },
-    help: 'Annual property tax as a share of assessed value.',
+    help: (i) => `Annual property tax as a share of the home's assessed value, which starts at the price. ${propertyTaxNote(i)} Rates vary a lot between counties and cities, so use your county's if you know it.`,
     hint: (i) => `${formatUSD(pct(i, i.propertyTaxRate))} in year 1`,
-    owner: {
-      help: 'Your yearly property tax bill as a share of the home\'s value today; set it so the amount below matches your bill. Where assessments are capped (California\'s Prop 13), the bill follows what you paid for the home, so this can be well below the local rate.',
+    suggest: (i) => {
+      const rate = statePropertyTax(i.state).typicalRate;
+      return { value: rate, text: `${percent(rate)}, typical for ${stateName(i.state)}` };
     },
+    owner: {
+      help: (i) => {
+        const limit = assessmentLimit(i.state);
+        return 'Your yearly property tax bill as a share of the home\'s value today; set it so the amount below matches your bill.'
+          + (limit ? ` Where assessments are capped (${stateName(i.state)}'s ${limit.name}), the bill follows what you paid for the home, so this can be well below the local rate.` : '');
+      },
+      suggest: undefined, // an owner's rate comes from their bill
+    },
+  },
+  {
+    key: 'propertyTaxAssessmentCapped', label: 'Assessment growth is capped', unit: 'toggle', group: 'owning',
+    help: assessmentHelp,
   },
   {
     key: 'propertyTaxAssessmentCap', label: 'Assessment growth cap', unit: 'percentPerYear', group: 'owning',
     soft: { min: 0, max: 10, step: 0.1 },
-    help: 'Cap on yearly growth of the assessed value (California Prop 13: 2%). Assessed value grows at the lesser of inflation and this cap, so values above the inflation rate have no effect.',
-  },
-  {
-    key: 'melloRoosTaxRate', label: 'Mello-Roos rate', unit: 'percent', group: 'owning',
-    soft: { min: 0, max: 2, step: 0.01 },
-    help: 'Special assessment in some California communities, as a share of the price. Treated as not SALT-deductible (conservative); a documented maintenance or bond-interest portion can be deductible.',
-    hint: (i) => (i.melloRoosTaxRate > 0 ? `${formatUSD(pct(i, i.melloRoosTaxRate))} in year 1` : null),
-    owner: {
-      help: 'Special assessment in some California communities, as a share of the home\'s value today; set it so the amount below matches your bill. Treated as not SALT-deductible (conservative); a documented maintenance or bond-interest portion can be deductible.',
+    visibleWhen: (i) => i.propertyTaxAssessmentCapped,
+    help: (i) => (assessmentLimit(i.state)?.inflationLinked
+      ? `Most the assessed value can grow in a year. ${stateName(i.state)} ties the cap to inflation: the assessed value grows by the lesser of inflation and this cap, and never faster than the home's value.`
+      : 'Most the assessed value can grow in a year. It never grows faster than the home\'s value.'),
+    hint: assessmentHint,
+    suggest: (i) => {
+      const limit = assessmentLimit(i.state);
+      return limit ? { value: limit.rate, text: `${percent(limit.rate)}, ${stateName(i.state)}'s ${limit.name}` } : null;
     },
   },
   {
-    key: 'melloRoosGrowsWithAssessment', label: 'Mello-Roos grows with assessed value', unit: 'toggle', group: 'owning',
+    key: 'melloRoosTaxRate', label: 'Special assessments', unit: 'percent', group: 'owning',
+    byState: (s) => ({ label: specialAssessmentWords(s).label }),
+    soft: { min: 0, max: 2, step: 0.01 },
+    help: (i) => specialAssessmentHelp(i, false),
+    hint: (i) => (i.melloRoosTaxRate > 0 ? `${formatUSD(pct(i, i.melloRoosTaxRate))} in year 1` : null),
+    owner: { help: (i) => specialAssessmentHelp(i, true) },
+  },
+  {
+    key: 'melloRoosGrowsWithAssessment', label: 'Special assessments grow with assessed value', unit: 'toggle', group: 'owning',
+    byState: (s) => ({ label: specialAssessmentWords(s).growsLabel }),
     visibleWhen: (i) => i.melloRoosTaxRate > 0,
     help: 'Off: the assessment stays at its year-1 amount. On: it grows with the assessed value.',
   },
@@ -310,10 +380,14 @@ export const FIELDS: FieldDef[] = [
     hint: (i) => `${formatUSD(i.annualSalaryBeforeTax * i.effectiveFederalTaxRate / 100)}/yr`,
   },
   {
-    key: 'effectiveStateIncomeTaxRate', label: 'State income tax (effective)', unit: 'percent', group: 'taxes',
+    key: 'effectiveStateIncomeTaxRate', label: 'State and local income tax (effective)', unit: 'percent', group: 'taxes',
     soft: { min: 0, max: 15, step: 0.1 },
-    help: 'Total state income tax divided by salary. Also counts toward the SALT deduction for both paths.',
+    help: stateTaxHelp,
     hint: (i) => `${formatUSD(i.annualSalaryBeforeTax * i.effectiveStateIncomeTaxRate / 100)}/yr`,
+    suggest: (i) => {
+      const rate = stateIncomeTaxRateFor(i);
+      return { value: rate, text: `${percent(rate)}, from ${stateName(i.state)}'s ${i.firstTaxYear} tax law` };
+    },
   },
   {
     key: 'useMarginalTaxRate', label: 'Value deductions at the marginal rate', unit: 'toggle', group: 'taxes',
@@ -363,6 +437,10 @@ export const FIELDS: FieldDef[] = [
     help: 'Renting today and thinking of buying, or owning today and thinking of selling and renting.',
   },
   {
+    key: 'state', label: 'State', unit: 'select', group: 'view',
+    help: 'Where the home is. Its law fills in the state income tax rate, the property tax rate and the cap on assessment growth.',
+  },
+  {
     key: 'xAxisYears', label: 'How long will you stay?', unit: 'years', group: 'view', soft: { min: 1, max: 50, step: 1 },
     help: 'Years until the comparison is made.',
     owner: { label: 'How long would you keep it?' },
@@ -380,15 +458,16 @@ export const FIELD_BY_KEY = Object.fromEntries(FIELDS.map(f => [f.key, f])) as R
 
 export const appliesTo = (f: FieldDef, situation: Situation) => !f.only || f.only === situation;
 
-// The field as someone in this situation sees it
-export const fieldFor = (key: InputKey, situation: Situation): FieldDef => {
+// The field as someone in this situation (and state) sees it
+export const fieldFor = (key: InputKey, situation: Situation, state?: StateCode): FieldDef => {
   const f = FIELD_BY_KEY[key];
-  return situation === 'owner' && f.owner ? { ...f, ...f.owner } : f;
+  const worded = situation === 'owner' && f.owner ? { ...f, ...f.owner } : f;
+  return state && f.byState ? { ...worded, ...f.byState(state) } : worded;
 };
 
 // The inputs that exist in this situation, in its wording
-export const fieldsFor = (situation: Situation): FieldDef[] =>
-  FIELDS.filter(f => appliesTo(f, situation)).map(f => fieldFor(f.key, situation));
+export const fieldsFor = (situation: Situation, state?: StateCode): FieldDef[] =>
+  FIELDS.filter(f => appliesTo(f, situation)).map(f => fieldFor(f.key, situation, state));
 
 export const driverKeys = (situation: Situation) => fieldsFor(situation).filter(f => f.driver).map(f => f.key);
 

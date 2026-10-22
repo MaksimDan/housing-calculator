@@ -2,7 +2,9 @@ import { useEffect, useMemo } from 'react';
 import personalConfig from 'virtual:personal-config';
 import { usePersistedState } from './usePersistedState';
 import { calculateProjectionData, HousingCalculatorInputs, Situation } from '../lib/financialCalculations';
-import { FilingStatus, statutoryInputsFor, FIRST_PUBLISHED_TAX_YEAR } from '../lib/taxLaw';
+import { FilingStatus, FIRST_PUBLISHED_TAX_YEAR } from '../lib/taxLaw';
+import type { StateCode } from '../lib/stateLaw';
+import { followLaw, lawValue, sameValue, withLawValues, LawPrompt } from '../lib/statutoryInputs';
 import { startingInputs } from '../lib/personalConfig';
 import { SITUATIONS, isSituationKey } from '../lib/situation';
 import {
@@ -23,24 +25,23 @@ const defaultFirstTaxYear = () => {
   return Math.max(FIRST_PUBLISHED_TAX_YEAR, now.getMonth() >= 6 ? now.getFullYear() + 1 : now.getFullYear());
 };
 
-const DEFAULT_INFLATION = 3.0;
-const DEFAULT_TAX_YEAR = defaultFirstTaxYear();
-// Standard deduction, SALT cap and interest cap for the default tax year,
-// from the table in lib/taxLaw.ts
-const DEFAULT_TAX_AMOUNTS = statutoryInputsFor(DEFAULT_TAX_YEAR, 'mfj', DEFAULT_INFLATION);
-
-// General defaults (married filing jointly). Only values that
-// differ from these are saved, so changing a default here reaches every
-// visitor who hasn't edited that field. If a stored value could be mistaken
-// for a user's edit, add the old default to HISTORICAL_DEFAULTS and bump
-// SETTINGS_VERSION in lib/inputValidation.ts.
-export const DEFAULTS: HousingCalculatorInputs = {
+// General defaults: an example household, married filing jointly, in
+// California. Only values that differ from these are saved, so changing a
+// default here reaches every visitor who hasn't edited that field. If a stored
+// value could be mistaken for a user's edit, add the old default to
+// HISTORICAL_DEFAULTS and bump SETTINGS_VERSION in lib/inputValidation.ts.
+//
+// The inputs the law fills in aren't listed: withLawValues sets them for this
+// state, tax year, filing status and salary (the standard deduction, SALT cap
+// and interest cap from lib/taxLaw.ts; the state income tax rate, property tax
+// rate and assessment cap from lib/stateLaw.ts). See lib/statutoryInputs.ts.
+export const DEFAULTS: HousingCalculatorInputs = withLawValues({
   situation: 'renter', // the example household rents today and is thinking of buying
+  state: 'CA',
   annualSalaryBeforeTax: 420000,
   // Federal INCOME tax only: TY2026 MFJ tax on $420k less the $32,200 standard
   // deduction is $78,268 (18.6%). Payroll taxes are computed separately.
   effectiveFederalTaxRate: 18.6,
-  standardDeduction: DEFAULT_TAX_AMOUNTS.standardDeduction,
   initialInvestment: 1500000,
   monthlyMiscExpenses: 1000,
   homePrice: 750000,
@@ -50,7 +51,6 @@ export const DEFAULTS: HousingCalculatorInputs = {
   effectiveMortgageRate: 5.24,
   mortgageYears: 30,
   PMIRate: 0.8,
-  propertyTaxRate: 1.14,
   melloRoosTaxRate: 0.0,
   closingCostPercent: 2.5,
   annualMaintenanceRate: 0.5,
@@ -69,12 +69,8 @@ export const DEFAULTS: HousingCalculatorInputs = {
   investmentReturn: 11.71,
   rentIncrease: 4.5,
   salaryGrowthRate: 2.4,
-  inflationRate: DEFAULT_INFLATION,
-  propertyTaxAssessmentCap: 2,
+  inflationRate: 3.0,
   xAxisYears: 30,
-  mortgageInterestDeductionCap: DEFAULT_TAX_AMOUNTS.mortgageInterestDeductionCap,
-  saltCap: DEFAULT_TAX_AMOUNTS.saltCap,
-  effectiveStateIncomeTaxRate: 7.5,
   // TY2026 MFJ bracket for ~$356k-$388k of taxable income ($211,400-$403,550)
   marginalFederalTaxRate: 24,
   useMarginalTaxRate: true,
@@ -85,9 +81,9 @@ export const DEFAULTS: HousingCalculatorInputs = {
   annualInvestmentTaxDrag: 0.2,
   includePayrollTax: true,
   payrollEarners: 2,
-  firstTaxYear: DEFAULT_TAX_YEAR,
+  firstTaxYear: defaultFirstTaxYear(),
   filingStatus: 'mfj',
-};
+} as HousingCalculatorInputs);
 
 // On the dev server, personal.config.ts (git-ignored) replaces the example
 // household as the starting point; everywhere else this is DEFAULTS.
@@ -97,12 +93,14 @@ export const STARTING_INPUTS = start.inputs;
 // What each situation starts from: the same shared inputs, its own home and rent
 export const STARTING_BY_SITUATION = start.bySituation;
 export const PERSONAL_CONFIG = start.personal;
+const SET_BY_CONFIG = start.explicit;
 
 type InputKey = keyof HousingCalculatorInputs;
 
 // State property -> [localStorage key, URL parameter]. Listed in display order.
 const INPUT_KEYS: Record<InputKey, [string, string]> = {
   situation: ['housing-situation', 'situation'],
+  state: ['housing-state', 'state'],
   annualSalaryBeforeTax: ['housing-annualSalary', 'annualSalary'],
   effectiveFederalTaxRate: ['housing-taxRate', 'taxRate'],
   standardDeduction: ['housing-standardDeduction', 'standardDeduction'],
@@ -133,6 +131,7 @@ const INPUT_KEYS: Record<InputKey, [string, string]> = {
   rentIncrease: ['housing-rentIncrease', 'rentIncrease'],
   salaryGrowthRate: ['housing-salaryGrowth', 'salaryGrowth'],
   inflationRate: ['housing-inflationRate', 'inflationRate'],
+  propertyTaxAssessmentCapped: ['housing-taxAssessmentCapped', 'taxAssessmentCapped'],
   propertyTaxAssessmentCap: ['housing-taxAssessmentCap', 'taxAssessmentCap'],
   xAxisYears: ['housing-xAxisYears', 'xAxisYears'],
   mortgageInterestDeductionCap: ['housing-mortgageInterestCap', 'mortgageInterestCap'],
@@ -164,13 +163,11 @@ export interface InputsSnapshot {
   bySituation: Record<Situation, Partial<HousingCalculatorInputs>>;
 }
 
-export interface TaxOverridePrompt {
-  key: 'standardDeduction' | 'saltCap' | 'mortgageInterestDeductionCap';
-  current: number;
-  next: number;
-}
+export type { LawPrompt };
 
-const TAX_AMOUNT_KEYS = ['standardDeduction', 'saltCap', 'mortgageInterestDeductionCap'] as const;
+// Links made before there was a state were California's rules (an
+// assessment cap tied to inflation), so they open in California
+const LEGACY_LINK: Partial<HousingCalculatorInputs> = { state: 'CA', propertyTaxAssessmentCapped: true };
 
 export const useCalculatorInputs = () => {
   // One persisted, sanitized state per shared input, and one per situation
@@ -203,6 +200,11 @@ export const useCalculatorInputs = () => {
     if (!urlParams.toString()) return;
     // A link's home and rent belong to the situation it was made in
     const linked: Situation = parseUrlValue('situation', urlParams.get(INPUT_KEYS.situation[1]) ?? '') ?? situation;
+    if (!urlParams.has(INPUT_KEYS.state[1])) {
+      for (const [name, value] of Object.entries(LEGACY_LINK)) {
+        if (!urlParams.has(INPUT_KEYS[name as InputKey][1])) setterIn(name as InputKey, linked)(value);
+      }
+    }
     for (const name of INPUT_NAMES) {
       const raw = urlParams.get(INPUT_KEYS[name][1]);
       if (raw === null) continue;
@@ -227,17 +229,51 @@ export const useCalculatorInputs = () => {
 
   const projectionData = useMemo(() => calculateProjectionData(inputs), [inputs]);
 
+  // What a field counts as changed from, and what its reset returns to: its
+  // starting value (the defaults or your personal config), except that an
+  // input the law fills in which the config doesn't set starts from the law's
+  // value for the inputs as they are now (a new state or tax year moves it)
+  const startingValue = (name: InputKey) => {
+    const start = name === 'situation' ? STARTING_INPUTS.situation : STARTING_BY_SITUATION[inputs.situation][name];
+    if (SET_BY_CONFIG[inputs.situation].has(name)) return start;
+    return lawValue(name, inputs) ?? start;
+  };
   const changedKeys = useMemo(
-    () => INPUT_NAMES.filter(name => !Object.is(inputs[name],
-      name === 'situation' ? STARTING_INPUTS.situation : STARTING_BY_SITUATION[inputs.situation][name])),
+    () => INPUT_NAMES.filter(name => !sameValue(name, inputs[name], startingValue(name))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [inputs]
   );
 
-  const setInput = (key: InputKey, value: unknown) => setterIn(key, situation)(value);
-  const setMany = (values: Partial<HousingCalculatorInputs>) => {
-    for (const [key, value] of Object.entries(values)) setterIn(key as InputKey, situation)(value);
+  // The inputs as a situation sees them: the shared ones and its own home and rent
+  const viewOf = (s: Situation) =>
+    Object.fromEntries(INPUT_NAMES.map(name => [name, valueIn(name, s)])) as HousingCalculatorInputs;
+
+  // Applies changes to this situation's inputs and moves the inputs the law
+  // fills in along with them (lib/statutoryInputs.ts), in both situations'
+  // homes. Returns the ones you had customized when `ask` is set (a change of
+  // state, tax year or filing status), so the page can ask before replacing
+  // them; other changes (salary, inflation) only move the ones still
+  // following the law.
+  const apply = (changes: Partial<HousingCalculatorInputs>, ask = false): LawPrompt[] => {
+    const clean: Partial<HousingCalculatorInputs> = {};
+    for (const [key, raw] of Object.entries(changes)) {
+      const value = sanitizeInputValue(key, raw);
+      if (value !== undefined) (clean as Record<string, unknown>)[key] = value;
+    }
+    const { updates, prompts } = followLaw(inputs, clean, ask);
+    for (const [key, value] of Object.entries({ ...clean, ...updates })) setterIn(key as InputKey, situation)(value);
+    for (const s of SITUATIONS) {
+      if (s === situation) continue;
+      for (const [key, value] of Object.entries(followLaw(viewOf(s), clean, false).updates)) {
+        if (isSituationKey(key)) setOwn[s][key as InputKey](value);
+      }
+    }
+    return prompts;
   };
-  const resetField = (key: InputKey) => setterIn(key, situation)(STARTING_BY_SITUATION[situation][key]);
+
+  const setInput = (key: InputKey, value: unknown) => { apply({ [key]: value }); };
+  const setMany = (values: Partial<HousingCalculatorInputs>) => { apply(values); };
+  const resetField = (key: InputKey) => { apply({ [key]: startingValue(key) }); };
 
   // Resets every input, in both situations, but not the situation itself (an
   // owner who resets still owns); returns what was there so the caller can undo.
@@ -276,31 +312,12 @@ export const useCalculatorInputs = () => {
     }
   };
 
-  // Tax year and filing status fill in that year's statutory amounts from the
-  // table in lib/taxLaw.ts. Fields still at the statutory amount for the
-  // previous year/status update automatically; customized ones are returned
-  // so the UI can ask before overwriting them.
-  const applyTaxAmounts = (fromYear: number, fromStatus: FilingStatus, toYear: number, toStatus: FilingStatus): TaxOverridePrompt[] => {
-    const before = statutoryInputsFor(fromYear, fromStatus, shared.inflationRate);
-    const after = statutoryInputsFor(toYear, toStatus, shared.inflationRate);
-    const prompts: TaxOverridePrompt[] = [];
-    for (const key of TAX_AMOUNT_KEYS) {
-      if (Math.abs(shared[key] - before[key]) < 0.5) {
-        setShared[key](after[key]);
-      } else if (Math.abs(shared[key] - after[key]) >= 0.5) {
-        prompts.push({ key, current: shared[key], next: after[key] });
-      }
-    }
-    return prompts;
-  };
-  const changeTaxYear = (year: number) => {
-    setShared.firstTaxYear(year);
-    return applyTaxAmounts(shared.firstTaxYear, shared.filingStatus, year, shared.filingStatus);
-  };
-  const changeFilingStatus = (status: FilingStatus) => {
-    setShared.filingStatus(status);
-    return applyTaxAmounts(shared.firstTaxYear, shared.filingStatus, shared.firstTaxYear, status);
-  };
+  // State, tax year and filing status fill in what the law says for them
+  // (lib/taxLaw.ts, lib/stateLaw.ts); the fields you customized come back as
+  // prompts
+  const changeState = (state: StateCode) => apply({ state }, true);
+  const changeTaxYear = (year: number) => apply({ firstTaxYear: year }, true);
+  const changeFilingStatus = (status: FilingStatus) => apply({ filingStatus: status }, true);
 
   return {
     inputs,
@@ -312,6 +329,7 @@ export const useCalculatorInputs = () => {
     resetAll,
     restore,
     share,
+    changeState,
     changeTaxYear,
     changeFilingStatus,
   };

@@ -89,7 +89,9 @@ describe('flip thresholds', () => {
     const thresholds = findFlipThresholds(i, 30);
     expect(thresholds.map(t => t.key)).toContain('investmentReturn');
     for (const t of thresholds) {
-      const eps = Math.max(Math.abs(t.value) * 1e-6, 1e-6);
+      // Wide enough that the gap moves by more than the engine's whole-dollar
+      // rounding even where it is flat (an owner's mortgage rate)
+      const eps = Math.max(Math.abs(t.value) * 1e-4, 1e-4);
       const sameSide = t.direction === 'below' ? t.value + eps : t.value - eps;
       const otherSide = t.direction === 'below' ? t.value - eps : t.value + eps;
       expect(Math.sign(gapAt({ ...i, [t.key]: sameSide }, 30)!)).toBe(base);
@@ -101,14 +103,21 @@ describe('flip thresholds', () => {
     expect(findFlipThreshold(inputs(), 'investmentReturn', 30, { min: 11, max: 12 })).toBeNull();
   });
 
-  it.each([['renter', inputs()], ['owner', ownerInputs()]] as const)('only fields with a monotone effect declare a flip range (%s)', (_, i) => {
-    for (const f of FIELDS.filter(x => x.flip)) {
-      const { min: lo, max: hi } = f.soft!;
-      const gaps = Array.from({ length: 9 }, (_, k) => gapAt({ ...i, [f.key]: lo + (hi - lo) * k / 8 }, 30))
-        .filter((g): g is number => g !== null);
-      const diffs = gaps.slice(1).map((g, k) => g - gaps[k]);
-      const increasing = diffs.every(d => d >= -1), decreasing = diffs.every(d => d <= 1);
-      expect(increasing || decreasing, f.key).toBe(true);
+  // Effects needn't be monotone: where property tax follows the home's value,
+  // appreciation also raises the taxes paid along the way
+  it.each([
+    ['renter', inputs()],
+    ['owner', ownerInputs()],
+    ['renter, no assessment cap', inputs({ propertyTaxAssessmentCapped: false, propertyTaxRate: 2.2 })],
+    ['renter, low appreciation', inputs({ homeAppreciation: 0.5 })],
+  ] as const)('each threshold is the nearest flip from the current value (%s)', (_, i) => {
+    const base = Math.sign(gapAt(i, 30)!);
+    for (const t of findFlipThresholds(i, 30)) {
+      const current = i[t.key] as number;
+      for (let k = 1; k < 200; k++) {
+        const v = current + (t.value - current) * k / 200;
+        expect(Math.sign(gapAt({ ...i, [t.key]: v }, 30)!), `${t.key} at ${v}`).toBe(base);
+      }
     }
   });
 });

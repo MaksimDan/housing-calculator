@@ -8,6 +8,8 @@ import { NumberField } from './NumberField';
 import { calculateProjectionData } from '../lib/financialCalculations';
 import { DEFAULTS } from '../hooks/useCalculatorInputs';
 import { formatCompactUSD } from '../lib/format';
+import { STATE_PROPERTY_TAX } from '../lib/stateLaw';
+import { stateIncomeTaxRateFor, withLawValues } from '../lib/statutoryInputs';
 
 beforeAll(() => {
   // Node 25+ ships its own (here unconfigured) localStorage global, which
@@ -212,6 +214,99 @@ describe('your situation', () => {
     renderApp();
     expect(screen.getByRole('alert').textContent).toContain('selling needs more cash than you have');
     expect(screen.getByRole('alert').textContent).toContain('Mortgage payoff');
+  });
+});
+
+describe('your state', () => {
+  const field = (key: string) => document.getElementById(`field-${key}`) as HTMLInputElement;
+  const openDrawer = () => fireEvent.click(screen.getByRole('button', { name: /All assumptions/ }));
+  const pickState = (code: string) => fireEvent.change(screen.getByLabelText('State'), { target: { value: code } });
+  const type = (key: string, text: string) => {
+    const el = field(key);
+    fireEvent.focus(el);
+    fireEvent.change(el, { target: { value: text } });
+    fireEvent.blur(el);
+  };
+  const headline = () => screen.getByRole('heading', { level: 2, name: /comes out ahead by|come out even/ }).textContent;
+  const expectedHeadline = (state: 'CA' | 'TX') => {
+    const rows = calculateProjectionData(withLawValues({ ...DEFAULTS, state })) as any[];
+    const gap = rows[30].buying - rows[30].renting;
+    return `${gap > 0 ? 'Buying' : 'Renting'} comes out ahead by ${formatCompactUSD(Math.abs(gap))} after 30 years`;
+  };
+
+  it("starts in California, with California's rules filled in", () => {
+    renderApp();
+    const select = screen.getByLabelText('State') as HTMLSelectElement;
+    expect(select.value).toBe('CA');
+    expect(select.querySelectorAll('option')).toHaveLength(51);
+    openDrawer();
+    expect(field('effectiveStateIncomeTaxRate').value).toBe(String(DEFAULTS.effectiveStateIncomeTaxRate));
+    expect(screen.getByLabelText('Mello-Roos rate')).toBeTruthy();
+    expect(headline()).toBe(expectedHeadline('CA'));
+  });
+
+  it('picking a state fills in its income tax, property tax and assessment cap, and answers for it', () => {
+    renderApp();
+    pickState('TX');
+    openDrawer();
+    expect(field('effectiveStateIncomeTaxRate').value).toBe('0');
+    expect(field('propertyTaxRate').value).toBe(String(STATE_PROPERTY_TAX.TX.typicalRate));
+    expect(field('propertyTaxAssessmentCap').value).toBe('10');
+    expect(screen.queryByLabelText('Mello-Roos rate')).toBeNull();
+    expect(screen.getByLabelText('PID assessment rate')).toBeTruthy();
+    expect(headline()).toBe(expectedHeadline('TX'));
+    expect(screen.queryByText(/You had customized/)).toBeNull();
+    expect(screen.queryByText(/federal income tax rates weren't recalculated/)).toBeNull();
+    expect(localStorage.getItem('housing-state')).toBe('"TX"');
+    expect(document.body.textContent).not.toMatch(/NaN|undefined|Infinity/);
+  });
+
+  it('asks before replacing a rate you typed', () => {
+    localStorage.setItem('housing-propertyTaxRate', '1.3');
+    renderApp();
+    pickState('TX');
+    expect(screen.getByText('You had customized this amount. Update it for Texas?')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }));
+    openDrawer();
+    expect(field('propertyTaxRate').value).toBe(String(STATE_PROPERTY_TAX.TX.typicalRate));
+  });
+
+  it("after a new state its values aren't changes, and Reset returns to the state's value", () => {
+    renderApp();
+    pickState('TX');
+    openDrawer();
+    const reset = () => screen.queryByRole('button', { name: 'Reset Property tax rate to default' });
+    expect(reset()).toBeNull();
+    type('propertyTaxRate', '2.5');
+    fireEvent.click(reset()!);
+    expect(field('propertyTaxRate').value).toBe(String(STATE_PROPERTY_TAX.TX.typicalRate));
+    expect(screen.getByRole('button', { name: /All assumptions/ }).textContent).not.toMatch(/changed/);
+  });
+
+  it("offers the state's value beside a field you changed", () => {
+    localStorage.setItem('housing-effectiveStateIncomeTaxRate', '9');
+    renderApp();
+    openDrawer();
+    fireEvent.click(screen.getByRole('button', { name: /^Use .*from California's \d+ tax law$/ }));
+    expect(field('effectiveStateIncomeTaxRate').value).toBe(String(DEFAULTS.effectiveStateIncomeTaxRate));
+  });
+
+  it('a raise moves the state income tax rate while it follows the law', () => {
+    renderApp();
+    openDrawer();
+    type('annualSalaryBeforeTax', '250000');
+    expect(field('effectiveStateIncomeTaxRate').value).toBe(String(stateIncomeTaxRateFor({ ...DEFAULTS, annualSalaryBeforeTax: 250000 })));
+  });
+
+  it('shares the state in the link; a link from before there were states opens in California', () => {
+    localStorage.setItem('housing-state', '"TX"');
+    window.history.replaceState(null, '', '/?homePrice=900000');
+    renderApp();
+    expect((screen.getByLabelText('State') as HTMLSelectElement).value).toBe('CA');
+    cleanup();
+    window.history.replaceState(null, '', '/?state=TX&homePrice=900000');
+    renderApp();
+    expect((screen.getByLabelText('State') as HTMLSelectElement).value).toBe('TX');
   });
 });
 

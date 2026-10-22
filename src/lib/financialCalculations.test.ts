@@ -11,6 +11,7 @@ import {
   saltCapForYear,
   calculateAnnualPayrollTax,
   takeHomeForYear,
+  assessmentGrowthRate,
   startingPosition,
   paymentCount,
   HousingCalculatorInputs,
@@ -23,6 +24,7 @@ import { DEFAULTS } from '../hooks/useCalculatorInputs';
 
 const baseInputs: HousingCalculatorInputs = {
   situation: 'renter',
+  state: 'CA',
   annualSalaryBeforeTax: 420000,
   effectiveFederalTaxRate: 19.1,
   standardDeduction: 32200,
@@ -53,6 +55,7 @@ const baseInputs: HousingCalculatorInputs = {
   rentIncrease: 4.5,
   salaryGrowthRate: 2.4,
   inflationRate: 3.0,
+  propertyTaxAssessmentCapped: true,
   propertyTaxAssessmentCap: 2,
   xAxisYears: 30,
   mortgageInterestDeductionCap: 750000,
@@ -1183,6 +1186,49 @@ describe('tax year and filing status in the engines', () => {
   it('Additional Medicare threshold depends on filing status', () => {
     expect(calculateAnnualPayrollTax(300000, 2026, 1, 3, 'single') - calculateAnnualPayrollTax(300000, 2026, 1, 3, 'mfj'))
       .toBeCloseTo(0.009 * 50000, 6);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// State rules: how fast the assessed value grows
+// ---------------------------------------------------------------------------
+
+describe('assessment growth by state', () => {
+  it("California: the lesser of inflation and the 2% cap (Prop 13)", () => {
+    expect(assessmentGrowthRate(inputs({ inflationRate: 3 }))).toBe(2);
+    expect(assessmentGrowthRate(inputs({ inflationRate: 1.5 }))).toBe(1.5);
+  });
+
+  it("never grows faster than the home's value (California's Prop 8)", () => {
+    expect(assessmentGrowthRate(inputs({ homeAppreciation: 1 }))).toBe(1);
+    expect(assessmentGrowthRate(inputs({ homeAppreciation: -2 }))).toBe(-2);
+  });
+
+  it("a flat cap ignores inflation (Texas' 10% homestead cap rarely binds)", () => {
+    expect(assessmentGrowthRate(inputs({ state: 'TX', propertyTaxAssessmentCap: 10 }))).toBe(4.5);
+    expect(assessmentGrowthRate(inputs({ state: 'TX', propertyTaxAssessmentCap: 3, inflationRate: 1 }))).toBe(3);
+  });
+
+  it("without a cap the assessed value follows the home's value", () => {
+    expect(assessmentGrowthRate(inputs({ propertyTaxAssessmentCapped: false }))).toBe(4.5);
+    expect(assessmentGrowthRate(inputs({ state: 'NJ', propertyTaxAssessmentCapped: false, homeAppreciation: 6 }))).toBe(6);
+  });
+
+  it.each([
+    ['California (2%, tied to inflation)', {}],
+    ['a flat cap above appreciation', { state: 'TX' as const, propertyTaxAssessmentCap: 10 }],
+    ['a flat cap below appreciation', { state: 'TX' as const, propertyTaxAssessmentCap: 3 }],
+    ['no cap', { state: 'NJ' as const, propertyTaxAssessmentCapped: false, propertyTaxRate: 2.2 }],
+  ])('year-N property tax grows at that rate, and both engines agree: %s', (_, o) => {
+    const inp = inputs(o);
+    const data = calculateProjectionData(inp) as any[];
+    const g = assessmentGrowthRate(inp) / 100;
+    for (const y of [1, 2, 10, 25]) {
+      expect(data[y].monthlyPropertyTax).toBeCloseTo(750000 * (1 + g) ** (y - 1) * inp.propertyTaxRate / 100 / 12, -1);
+    }
+    for (const years of [3, 10, 30]) {
+      expect(Math.abs(data[years].buying - calculateMortgageScenario(inp, 0, years).finalNetWorth)).toBeLessThanOrEqual(5);
+    }
   });
 });
 

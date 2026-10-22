@@ -8,6 +8,10 @@
 
 export type FilingStatus = 'mfj' | 'single' | 'hoh' | 'mfs';
 
+export const FILING_STATUS_LABELS: Record<FilingStatus, string> = {
+  mfj: 'Married filing jointly', single: 'Single', hoh: 'Head of household', mfs: 'Married filing separately',
+};
+
 export interface TaxYearConstants {
   source: string;
   standardDeduction: Record<FilingStatus, number>;

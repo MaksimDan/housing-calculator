@@ -1,4 +1,5 @@
 import type { HousingCalculatorInputs } from './financialCalculations';
+import { STATE_CODES } from './stateLaw';
 
 // Every input path (sliders, Payoff Strategy fields, URL parameters, saved
 // settings) funnels through sanitizeInputValue, so the engines never see NaN,
@@ -54,10 +55,12 @@ export const NUMBER_RULES: Record<string, NumberRule> = {
 
 export const ENUM_INPUTS: Record<string, readonly string[]> = {
   situation: ['renter', 'owner'],
+  state: STATE_CODES,
   filingStatus: ['mfj', 'single', 'hoh', 'mfs'],
 };
 
 export const BOOLEAN_INPUTS = new Set([
+  'propertyTaxAssessmentCapped',
   'useMarginalTaxRate',
   'assumeSaltCapExtension',
   'melloRoosGrowsWithAssessment',

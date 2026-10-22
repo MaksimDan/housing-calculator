@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { HousingCalculatorInputs } from '../lib/financialCalculations';
 import { GROUPS, InputKey, fieldFor, fieldsFor, groupTitle } from '../lib/fields';
+import { FILING_STATUS_LABELS } from '../lib/taxLaw';
+import { stateName } from '../lib/stateLaw';
 import { FieldRow } from './FieldRow';
 import { Toggle } from './Toggle';
-
-const FILING_LABELS: Record<string, string> = { mfj: 'Married filing jointly', single: 'Single', hoh: 'Head of household', mfs: 'Married filing separately' };
 
 interface AssumptionsDrawerProps {
   inputs: HousingCalculatorInputs;
@@ -21,7 +21,7 @@ interface AssumptionsDrawerProps {
 export const AssumptionsDrawer: React.FC<AssumptionsDrawerProps> = ({ inputs, open, setOpen, setInput, setMany, changedKeys, resetField }) => {
   const [rentUtilitiesDiffer, setRentUtilitiesDiffer] = useState(inputs.monthlyRentUtilities !== inputs.monthlyPropertyUtilities);
   const owner = inputs.situation === 'owner';
-  const fields = fieldsFor(inputs.situation).filter(f => !f.driver && f.group !== 'view');
+  const fields = fieldsFor(inputs.situation, inputs.state).filter(f => !f.driver && f.group !== 'view');
   const changedHere = changedKeys.filter(k => fields.some(f => f.key === k)).length;
   const summary = [
     `${owner ? 'Keep' : 'Stay'} ${inputs.xAxisYears} yrs`,
@@ -31,12 +31,12 @@ export const AssumptionsDrawer: React.FC<AssumptionsDrawerProps> = ({ inputs, op
     owner
       ? `selling costs ${inputs.sellingCostPercent}% now${inputs.includeSellingCosts ? ' and later' : ''}`
       : `selling costs ${inputs.includeSellingCosts ? `${inputs.sellingCostPercent}%` : 'off'}`,
-    `${FILING_LABELS[inputs.filingStatus]} ${inputs.firstTaxYear}`,
+    `${stateName(inputs.state)}, ${FILING_STATUS_LABELS[inputs.filingStatus].toLowerCase()} ${inputs.firstTaxYear}`,
     inputs.useMarginalTaxRate ? `${inputs.marginalFederalTaxRate}% marginal` : `${inputs.effectiveFederalTaxRate}% effective rate for deductions`,
   ].join(' · ');
 
   const row = (key: InputKey, onChange?: (v: any) => void) => (
-    <FieldRow key={key} def={fieldFor(key, inputs.situation)} inputs={inputs} onChange={onChange ?? ((v) => setInput(key, v))}
+    <FieldRow key={key} def={fieldFor(key, inputs.situation, inputs.state)} inputs={inputs} onChange={onChange ?? ((v) => setInput(key, v))}
       changed={changedKeys.includes(key)} onReset={() => resetField(key)} />
   );
 
@@ -60,8 +60,12 @@ export const AssumptionsDrawer: React.FC<AssumptionsDrawerProps> = ({ inputs, op
               <fieldset key={g.key} className="rounded-lg border border-gray-200 p-3">
                 <legend className="px-1 text-sm font-semibold text-gray-900">{groupTitle(g, inputs.situation)}</legend>
                 {g.note && <p className="mb-1 text-xs text-gray-600">{g.note}</p>}
-                {g.key === 'taxes' && (
-                  <p className="mb-1 text-xs text-gray-600">Tax year {inputs.firstTaxYear} · {FILING_LABELS[inputs.filingStatus]} (change at the top of the page).</p>
+                {(g.key === 'taxes' || g.key === 'owning') && (
+                  <p className="mb-1 text-xs text-gray-600">
+                    {g.key === 'taxes'
+                      ? `${stateName(inputs.state)} · tax year ${inputs.firstTaxYear} · ${FILING_STATUS_LABELS[inputs.filingStatus].toLowerCase()}`
+                      : `Property tax rules for ${stateName(inputs.state)}`} (change at the top of the page).
+                  </p>
                 )}
                 <div className="space-y-1">
                   {groupFields.map(f => {
